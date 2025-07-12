@@ -2,18 +2,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!--
+      Required for Android 14 (API 34) and higher for special use foreground services.
+      You must also declare the specific foreground service type in each service declaration.
+    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
-    <uses-permission android:name="android.permission.RECOGNIZE_SPEECH"/>
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
 
     <application
+        android:name=".BlurrApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -24,17 +30,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Blurr"
         tools:targetApi="31">
+
+        <!-- MainActivity with updated package path -->
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.features.main.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Blurr">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Other Activities (ensure paths are correct if you move them) -->
         <activity
             android:name=".ChatActivity"
             android:exported="true"
@@ -48,7 +57,8 @@
             android:theme="@style/Theme.Blurr"
             android:windowSoftInputMode="adjustResize">
         </activity>
-        <!-- The Accessibility Service declaration -->
+
+        <!-- Services -->
         <service
             android:name=".ScreenInteractionService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -62,26 +72,37 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-
         <service
             android:name=".ContentModerationService"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse" >
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Provides core functionality for the user-facing app."/>
+        </service>
 
         <service
             android:name=".services.AgentTaskService"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse" >
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Performs agent-based tasks requested by the user."/>
+        </service>
 
         <service android:name=".services.WakeWordService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse" >
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Listens for a wake word to activate the app."/>
+        </service>
 
         <service android:name=".services.EnhancedWakeWordService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse" >
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Listens for a wake word to activate the app with enhanced features."/>
+        </service>
 
     </application>
 

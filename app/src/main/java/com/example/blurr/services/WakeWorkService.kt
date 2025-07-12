@@ -10,9 +10,10 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.example.blurr.MainActivity
+
 import com.example.blurr.R
 import com.example.blurr.api.WakeWordDetector
+import com.example.blurr.ui.features.main.MainActivity
 
 class WakeWordService : Service() {
 

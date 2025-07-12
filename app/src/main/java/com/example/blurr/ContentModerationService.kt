@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlin.text.isNotEmpty
 import kotlin.text.uppercase
 import androidx.core.graphics.scale
+import com.example.blurr.ui.features.main.MainActivity
 
 class ContentModerationService : Service() {
 

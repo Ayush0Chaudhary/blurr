@@ -4,7 +4,8 @@ import java.io.FileInputStream
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
+    id("kotlin-kapt")
+    id("com.google.dagger.hilt.android")
 }
 
 val localProperties = Properties()
@@ -25,6 +26,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
+        }
     }
 
     buildTypes {
@@ -34,37 +38,26 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Get the API keys string from the properties
-// Get the API keys string from the properties
             val apiKeys = localProperties.getProperty("GEMINI_API_KEYS") ?: ""
             val tavilyApiKeys = localProperties.getProperty("TAVILY_API") ?: ""
-
-            // This line CREATES the variable. Make sure it's here and not commented out.
             buildConfigField("String", "GEMINI_API_KEYS", "\"$apiKeys\"")
             buildConfigField("String", "TAVILY_API", "\"$tavilyApiKeys\"")
             val mem0ApiKey = localProperties.getProperty("MEM0_API") ?: ""
             buildConfigField("String", "MEM0_API", "\"$mem0ApiKey\"")
             val picovoiceApiKey = localProperties.getProperty("PICOVOICE_ACCESS_KEY") ?: ""
             buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"$picovoiceApiKey\"")
-            
-            // Debug flag for direct app opening (set to false for production)
             buildConfigField("boolean", "ENABLE_DIRECT_APP_OPENING", "true")
             buildConfigField("boolean", "SPEAK_INSTRUCTIONS", "true")
-
         }
         debug {
-            // Also add it to the 'debug' block so it works when you run from Android Studio
             val apiKeys = localProperties.getProperty("GEMINI_API_KEYS") ?: ""
             val tavilyApiKeys = localProperties.getProperty("TAVILY_API") ?: ""
-            // This line must ALSO be here.
             buildConfigField("String", "TAVILY_API", "\"$tavilyApiKeys\"")
             buildConfigField("String", "GEMINI_API_KEYS", "\"$apiKeys\"")
             val mem0ApiKey = localProperties.getProperty("MEM0_API") ?: ""
             buildConfigField("String", "MEM0_API", "\"$mem0ApiKey\"")
             val picovoiceApiKey = localProperties.getProperty("PICOVOICE_ACCESS_KEY") ?: ""
             buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"$picovoiceApiKey\"")
-            
-            // Debug flag for direct app opening (set to true for debugging, false for production)
             buildConfigField("boolean", "ENABLE_DIRECT_APP_OPENING", "true")
             buildConfigField("boolean", "SPEAK_INSTRUCTIONS", "true")
         }
@@ -81,11 +74,18 @@ android {
         viewBinding = true
         buildConfig = true
     }
+    composeOptions {
+        // This line is crucial. It links the Compose Compiler to the Kotlin version.
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
 }
-val libsuVersion = "6.0.0"
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -96,6 +96,19 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.appcompat)
     implementation(libs.generativeai)
+    implementation(libs.material)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
+    implementation(libs.moshi)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.uiautomator)
+    implementation(libs.porcupine.android)
+
+    // Hilt dependencies using the version catalog
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -103,25 +116,8 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation("com.google.android.material:material:1.11.0") // or latest
+}
 
-//    // Core shell API
-//    implementation("com.github.topjohnwu.libsu:core:$libsuVersion")
-//
-//    // Optional: Root service support
-//    implementation("com.github.topjohnwu.libsu:service:$libsuVersion")
-//
-//    // Optional: Remote file system support
-//    implementation("com.github.topjohnwu.libsu:nio:$libsuVersion")
-//
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("com.squareup.okhttp3:okhttp:5.0.0-alpha.16")
-    implementation("com.squareup.moshi:moshi:1.15.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    // https://mvnrepository.com/artifact/androidx.test.uiautomator/uiautomator
-    implementation("androidx.test.uiautomator:uiautomator:2.3.0")
-    
-    // Porcupine Wake Word Engine
-    implementation("ai.picovoice:porcupine-android:3.0.2")
-
+kapt {
+    correctErrorTypes = true
 }
