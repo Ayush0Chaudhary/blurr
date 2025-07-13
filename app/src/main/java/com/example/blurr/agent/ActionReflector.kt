@@ -41,6 +41,12 @@ class ActionReflector : BaseAgent() {
 
         sb.appendLine("---")
 
+        if (infoPool.tips.isNotEmpty()){
+            sb.appendLine("### Tips ###")
+            sb.appendLine("From previous experience interacting with the device, you have collected the following tips that might be useful for analyzing the results of actions:\n")
+            sb.appendLine(infoPool.tips)
+        }
+
         // Vision mode specific instructions
         if (config.isXmlMode) {
             sb.appendLine("You are analyzing UI changes using XML structure data. Focus on structural changes in the UI hierarchy.")
@@ -155,17 +161,26 @@ class ActionReflector : BaseAgent() {
         sb.appendLine("### Progress Status ###")
         sb.appendLine("If the action was successful or partially successful, update the progress status. If the action failed, copy the previous progress status.")
 
+        sb.appendLine("### Tips ###\n")
+        sb.appendLine("Important tips (2-3 tips) that you encountered while analyzing the results of actions and could be useful later. tips should be concise (1 or 2 statements).\n")
+        sb.appendLine("tip-title: first tip concise description\n")
+        sb.appendLine("tip-title: second tip concise description\n")
+        sb.appendLine("...\n")
+
         return sb.toString()
     }
 
     override fun parseResponse(response: String): Map<String, String> {
         val outcome = extractSection(response, "### Outcome ###", "### Error Description ###")
         val errorDescription = extractSection(response, "### Error Description ###", "### Progress Status ###")
-        val progressStatus = extractSection(response, "### Progress Status ###", null)
+        val progressStatus = extractSection(response, "### Progress Status ###", "### Tips ###")
+        val tips = extractSection(response, "### Tips ###", null)
+
         return mapOf(
             "outcome" to outcome,
             "error_description" to errorDescription,
-            "progress_status" to progressStatus
+            "progress_status" to progressStatus,
+            "tips" to tips
         )
     }
 

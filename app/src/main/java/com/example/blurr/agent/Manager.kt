@@ -18,6 +18,13 @@ class Manager : BaseAgent() {
         sb.appendLine(infoPool.instruction)
         sb.appendLine()
 
+        if (infoPool.tips.isNotEmpty()) {
+            sb.appendLine("### Tips ###")
+            sb.appendLine("The following tips contain valuable insights. use them to make better plans:")
+            sb.appendLine(infoPool.tips)
+            sb.appendLine()
+        }
+
         if (infoPool.recalledMemories.isNotEmpty()) {
             sb.appendLine(" ### Memories about User relevant to this Instruction ###")
             sb.appendLine(infoPool.recalledMemories)
@@ -43,7 +50,7 @@ class Manager : BaseAgent() {
             sb.appendLine("Think step by step and make an high-level plan to achieve the user's instruction. If the request is complex, break it down into subgoals. If the request involves exploration, include concrete subgoals to quantify the investigation steps. The screenshot displays the starting state of the phone.\n\n")
 
             sb.appendLine("---")
-            sb.appendLine("Provide your output in the following format which contains three parts:\n")
+            sb.appendLine("Provide your output in the following format which contains four parts:\n")
             sb.appendLine("### Thought ###")
             sb.appendLine("A detailed explanation of your rationale for the plan and subgoals.\n")
             sb.appendLine("### Plan ###")
@@ -52,6 +59,11 @@ class Manager : BaseAgent() {
             sb.appendLine("...\n")
             sb.appendLine("### Current Subgoal ###")
             sb.appendLine("The first subgoal you should work on.\n")
+            sb.appendLine("### Tips ###\n")
+            sb.appendLine("Important tips (2-3 tips) that you encountered while making the plan and could be useful later. tips should be concise (1 or 2 statements).\n")
+            sb.appendLine("tip-title: first tip concise description\n")
+            sb.appendLine("tip-title: second tip concise description\n")
+            sb.appendLine("...\n")
         }
         else {
             sb.appendLine("### Current Plan ###")
@@ -97,6 +109,11 @@ class Manager : BaseAgent() {
             sb.appendLine("If an update is required for the high-level plan, provide the updated plan here. Otherwise, keep the current plan and copy it here.\n")
             sb.appendLine("### Current Subgoal ###")
             sb.appendLine("The next subgoal to work on. If the previous subgoal is not yet complete, copy it here. If all subgoals are completed, write \"Finished\".")
+            sb.appendLine("### Tips ###\n")
+            sb.appendLine("Important tips (2-3 tips) that you encountered while making the plan and could be useful later. tips should be concise (1 or 2 statements).\n")
+            sb.appendLine("tip-title: first tip concise description\n")
+            sb.appendLine("tip-title: second tip concise description\n")
+            sb.appendLine("...\n")
         }
 
 
@@ -106,12 +123,14 @@ class Manager : BaseAgent() {
     override fun parseResponse(response: String): Map<String, String> {
         val thought = extractSection(response, "### Thought ###", "### Plan ###")
         val plan = extractSection(response, "### Plan ###", "### Current Subgoal ###")
-        val currentSubgoal = extractSection(response, "### Current Subgoal ###", null)
+        val currentSubgoal = extractSection(response, "### Current Subgoal ###", "### Tips ###")
+        val tips = extractSection(response, "### Tips ###", null)
 
         return mapOf(
             "thought" to thought,
             "plan" to plan,
             "current_subgoal" to currentSubgoal,
+            "tips" to tips
         )
     }
 

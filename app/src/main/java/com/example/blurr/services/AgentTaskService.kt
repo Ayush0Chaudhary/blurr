@@ -15,16 +15,12 @@ import com.example.blurr.agent.Manager
 import com.example.blurr.agent.Operator
 import com.example.blurr.agent.VisionHelper
 import com.example.blurr.agent.atomicActionSignatures
-import com.example.blurr.agent.tips.ReflectorTips
 import com.example.blurr.api.Eyes
 import com.example.blurr.api.Finger
 import com.example.blurr.api.MemoryService
 import com.example.blurr.api.Retina
-import com.example.blurr.utilities.AppContextUtility
-import com.example.blurr.utilities.Persistent
-import com.example.blurr.utilities.TTSManager
+import com.example.blurr.utilities.TipsStorageManager
 import com.example.blurr.utilities.UserIdManager
-import com.example.blurr.utilities.addResponse
 import com.example.blurr.utilities.getReasoningModelApiResponse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -164,14 +160,11 @@ class AgentTaskService : Service() {
 
             val retina = Retina(eyes)
             val infoPool = InfoPool()
-            val persistent = Persistent()
             val finger = Finger(context)
 
             val manager = Manager()
             val operator = Operator(finger)
             val actionReflector = ActionReflector()
-
-            val reflectorTips = ReflectorTips()
 
             var iteration = 0
 
@@ -179,7 +172,7 @@ class AgentTaskService : Service() {
 
             infoPool.instruction = inputText
 
-            infoPool.tips = persistent.loadTipsFromFile(tipsFile)
+            infoPool.tips = TipsStorageManager.getLocalTips(applicationContext)
             infoPool.errToManagerThresh = config.errorThreshold
 
 
@@ -333,6 +326,12 @@ class AgentTaskService : Service() {
                 // Updating the InfoPool
                 infoPool.plan = parsedManagerPlan["plan"].toString()
                 infoPool.currentSubgoal =  parsedManagerPlan["current_subgoal"].toString()
+
+                TipsStorageManager.appendTips(applicationContext, parsedManagerPlan["tips"].toString())
+                infoPool.tips = TipsStorageManager.getLocalTips(applicationContext)
+
+                Log.d("AgentTaskService", infoPool.tips)
+
                 speechCoordinator.speakText(infoPool.currentSubgoal)
                 appendToFile(taskLog, "{ \n" +
                         "                    \"step\": $iteration, \n" +
@@ -349,38 +348,6 @@ class AgentTaskService : Service() {
                 Log.d("MainActivity", "Overall Plan: ${infoPool.plan}")
                 Log.d("MainActivity", "Current Subgoal: ${infoPool.currentSubgoal}")
 
-
-                // Experience Reflection
-                if (infoPool.actionOutcomes.isNotEmpty()) {
-                    if (infoPool.currentSubgoal.trim().contains("Finished")) {
-                        Log.d("MainActivity", "\n### Experience Reflector ... ###\n")
-                        val experienceReflectionStartTime = System.currentTimeMillis()
-
-
-
-                        // Tips
-                        val promptKnowledgeTips = reflectorTips.getPrompt(infoPool, config)
-                        var chatKnowledgeTips = reflectorTips.initChat()
-                        var combinedTips =
-                            addResponse("user", promptKnowledgeTips, chatKnowledgeTips)
-                        val outputKnowledgeTips = getReasoningModelApiResponse(
-                            combinedTips,
-                            apiKey = config.apiKey
-                        ) // Assuming KNOWLEDGE_REFLECTION_MODEL
-                        val parsedResultKnowledgeTips = reflectorTips.parseResponse(
-                            outputKnowledgeTips.toString()
-                        )
-                        val updatedTips = parsedResultKnowledgeTips["updated_tips"].toString()
-                        infoPool.tips = updatedTips
-                        Log.d("MainActivity", "Updated Tips: $updatedTips")
-
-                        val experienceReflectionEndTime = System.currentTimeMillis()
-                        appendToFile(taskLog, "{step: $iteration, operation: experience_reflection, prompt_knowledge_tips: \"$promptKnowledgeTips\", raw_response_tips: \"$outputKnowledgeTips\", updated_tips: \"$updatedTips\", duration: ${(experienceReflectionEndTime - experienceReflectionStartTime) / 1000} seconds}")
-
-                        // Save updated tips
-                        persistent.saveTipsToFile(tipsFile, infoPool.tips)
-                    }
-                }
 
                 // Stopping by planner
                 if (infoPool.currentSubgoal.trim().contains("Finished")) {
@@ -409,6 +376,11 @@ class AgentTaskService : Service() {
                 var actionThought = parsedAction["thought"]
                 var actionObjStr = parsedAction["action"]
                 var actionDesc = parsedAction["description"]
+
+                TipsStorageManager.appendTips(applicationContext, parsedAction["tips"].toString())
+                infoPool.tips = TipsStorageManager.getLocalTips(applicationContext)
+                Log.d("AgentTaskService", infoPool.tips)
+
                 println(parsedAction)
                 val actionThinkingTimeEnd = System.currentTimeMillis()
 
@@ -514,6 +486,10 @@ class AgentTaskService : Service() {
                 val outcome = parsedReflection["outcome"].toString()
                 val errorDescription = parsedReflection["error_description"].toString()
                 val progressStatus = parsedReflection["progress_status"].toString()
+
+                TipsStorageManager.appendTips(applicationContext, parsedReflection["tips"].toString())
+                infoPool.tips = TipsStorageManager.getLocalTips(applicationContext)
+                Log.d("AgentTaskService", infoPool.tips)
 
                 infoPool.progressStatusHistory.add(progressStatus)
                 val actionReflectionEndTime = System.currentTimeMillis()
