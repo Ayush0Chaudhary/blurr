@@ -3,6 +3,7 @@ package com.example.blurr.utilities
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.blurr.api.TTSVoice
+import androidx.core.content.edit
 
 object VoicePreferenceManager {
     private const val PREFS_NAME = "TTSVoiceSettings"
@@ -16,8 +17,8 @@ object VoicePreferenceManager {
 
     fun saveSelectedVoice(context: Context, voice: TTSVoice) {
         val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        sharedPreferences.edit()
-            .putString(KEY_SELECTED_VOICE, voice.name)
-            .apply()
+        sharedPreferences.edit {
+            putString(KEY_SELECTED_VOICE, voice.name)
+        }
     }
 } 
