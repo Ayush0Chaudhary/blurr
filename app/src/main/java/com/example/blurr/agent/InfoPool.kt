@@ -17,6 +17,9 @@ data class InfoPool(
     var screenShotPre: String = "",
     var screenShotPost: String = "",
 
+    var reflectionPreActionXML: String = "",
+    var reflectionPostActionXML: String = "",
+
     var summaryHistory: MutableList<String> = mutableListOf(),
     var actionHistory: MutableList<String> = mutableListOf(),
     var actionOutcomes: MutableList<String> = mutableListOf(),

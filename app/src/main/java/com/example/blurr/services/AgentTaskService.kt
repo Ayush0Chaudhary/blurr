@@ -154,10 +154,16 @@ class AgentTaskService : Service() {
 
             val tipsFile = File(context.filesDir, "tips.txt")
 
+// AFTER
+        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())
 
+// Get the public Downloads directory
+        val publicDownloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+// Create a dedicated folder for your app's logs inside Downloads
+        val appLogBaseDir = File(publicDownloadsDir, "BlurrAgentLogs")
+// Create the unique, timestamped directory for the current task
+        val logDir = File(appLogBaseDir, timestamp).apply { mkdirs() }
 
-            val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())
-            val logDir = File(context.filesDir, "logs/mobile_agent_E/test/$timestamp").apply { mkdirs() }
             val screenshotsDir = File(logDir, "screenshots").apply { mkdirs() }
 
             //NOTE LIMITED RESOURCE, YOUR CAREFULLY, for more info read about Hardware Buffer
@@ -170,14 +176,14 @@ class AgentTaskService : Service() {
 
             val manager = Manager()
             val operator = Operator(finger)
-            val actionReflector = ActionReflector()
+//            val actionReflector = ActionReflector()
 
-            val reflectorTips = ReflectorTips()
+//            val reflectorTips = ReflectorTips()
 
             var iteration = 0
 
             val taskLog = File(logDir, "taskLog.txt")
-
+            Log.d("TAG", taskLog.absolutePath)
             infoPool.instruction = inputText
 
             infoPool.tips = persistent.loadTipsFromFile(tipsFile)
@@ -263,7 +269,6 @@ class AgentTaskService : Service() {
                     }
                 }
 
-
                 // Step 1: Take Perception
                 if (iteration == 1 && screenshotFile != null){
                     val perceptionTimeStart = System.currentTimeMillis()
@@ -299,6 +304,7 @@ class AgentTaskService : Service() {
 
 
 
+
                 infoPool.errorFlagPlan = false
                 if (infoPool.actionOutcomes.size >= infoPool.errToManagerThresh) {
                     val latestOutcomes = infoPool.actionOutcomes.takeLast(infoPool.errToManagerThresh)
@@ -315,269 +321,157 @@ class AgentTaskService : Service() {
                 infoPool.prevSubgoal = infoPool.currentSubgoal
 
 
-                // Step 2: Manager Planning
-                val managerPlanningStart = System.currentTimeMillis()
-                val promptPlan = manager.getPrompt(infoPool, config)
-                val chatPlan = manager.initChat()
-                val combinedChatPlan = VisionHelper.createChatResponse(
-                    "user",
-                    promptPlan,
-                    chatPlan,
-                    config,
-                    screenshotFile
-                )
+            // ADD this entire block inside your while(true) loop
 
-                val outputPlan =
-                    getReasoningModelApiResponse(combinedChatPlan, apiKey = config.apiKey)
-                val parsedManagerPlan = manager.parseResponse(outputPlan.toString())
+// Step 2 & 5 Combined: Manager Reflects on previous action and Plans the next one
+            val managerThinkingStart = System.currentTimeMillis()
+            val promptPlan = manager.getPrompt(infoPool, config)
+            val chatPlan = manager.initChat()
+            val combinedChatPlan = VisionHelper.createChatResponse(
+                "user", promptPlan, chatPlan, config, screenshotFile
+            )
+            val outputPlan = getReasoningModelApiResponse(combinedChatPlan, apiKey = config.apiKey)
+            val parsedManagerResponse = manager.parseResponse(outputPlan.toString())
+            val managerThinkingEnd = System.currentTimeMillis()
 
-                // Updating the InfoPool
-                infoPool.plan = parsedManagerPlan["plan"].toString()
-                infoPool.currentSubgoal =  parsedManagerPlan["current_subgoal"].toString()
-                speechCoordinator.speakText(infoPool.currentSubgoal)
-                appendToFile(taskLog, "{ \n" +
-                        "                    \"step\": $iteration, \n" +
-                        "                    \"operation\": \"planning\", \n" +
-                        "                    \"prompt_planning\": $promptPlan, \n" +
-                        "                    \"error_flag_plan\": ${infoPool.errorFlagPlan}, \n" +
-                        "                    \"raw_response\": $outputPlan, \n" +
-                        "                    \"thought\": ${parsedManagerPlan["thought"]}, \n" +
-                        "                    \"plan\": ${parsedManagerPlan["plan"]}, \n" +
-                        "                    \"current_subgoal\": ${parsedManagerPlan["current_subgoal"]}, \n" +
-                        "                    \"duration\": ${(System.currentTimeMillis() - managerPlanningStart)/1000}, \n" +
-                        "                }")
-                Log.d("MainActivity", "Thought: ${parsedManagerPlan["thought"]}")
-                Log.d("MainActivity", "Overall Plan: ${infoPool.plan}")
-                Log.d("MainActivity", "Current Subgoal: ${infoPool.currentSubgoal}")
-
-
-                // Experience Reflection
-                if (infoPool.actionOutcomes.isNotEmpty()) {
-                    if (infoPool.currentSubgoal.trim().contains("Finished")) {
-                        Log.d("MainActivity", "\n### Experience Reflector ... ###\n")
-                        val experienceReflectionStartTime = System.currentTimeMillis()
-
-
-
-                        // Tips
-                        val promptKnowledgeTips = reflectorTips.getPrompt(infoPool, config)
-                        var chatKnowledgeTips = reflectorTips.initChat()
-                        var combinedTips =
-                            addResponse("user", promptKnowledgeTips, chatKnowledgeTips)
-                        val outputKnowledgeTips = getReasoningModelApiResponse(
-                            combinedTips,
-                            apiKey = config.apiKey
-                        ) // Assuming KNOWLEDGE_REFLECTION_MODEL
-                        val parsedResultKnowledgeTips = reflectorTips.parseResponse(
-                            outputKnowledgeTips.toString()
-                        )
-                        val updatedTips = parsedResultKnowledgeTips["updated_tips"].toString()
-                        infoPool.tips = updatedTips
-                        Log.d("MainActivity", "Updated Tips: $updatedTips")
-
-                        val experienceReflectionEndTime = System.currentTimeMillis()
-                        appendToFile(taskLog, "{step: $iteration, operation: experience_reflection, prompt_knowledge_tips: \"$promptKnowledgeTips\", raw_response_tips: \"$outputKnowledgeTips\", updated_tips: \"$updatedTips\", duration: ${(experienceReflectionEndTime - experienceReflectionStartTime) / 1000} seconds}")
-
-                        // Save updated tips
-                        persistent.saveTipsToFile(tipsFile, infoPool.tips)
-                    }
-                }
-
-                // Stopping by planner
-                if (infoPool.currentSubgoal.trim().contains("Finished")) {
-                    infoPool.finishThought = parsedManagerPlan["thought"].toString()
-                    val taskEndTime = System.currentTimeMillis()
-                    appendToFile(taskLog, "{step: $iteration, operation: finish, finish_flag: success, final_info_pool: $infoPool, task_duration: ${(taskEndTime - taskStartTime)/1000} seconds}")
-                    Log.i("MainActivity", "Task finished successfully by planner.")
-                    speechCoordinator.speakText("Task finished")
-                    return
-                }
-
-                var actionThinkingTimeStart = System.currentTimeMillis()
-                // Step 3 Operator's turn, he will execute on the plan of manager
-                val actionPrompt = operator.getPrompt(infoPool, config)
-                val actionChat = operator.initChat()
-                val actionCombinedChat = VisionHelper.createChatResponse(
-                    "user",
-                    actionPrompt,
-                    actionChat,
-                    config,
-                    screenshotFile
-                )
-                var actionOutput =
-                    getReasoningModelApiResponse(actionCombinedChat, apiKey = config.apiKey)
-                var parsedAction = operator.parseResponse(actionOutput.toString())
-                var actionThought = parsedAction["thought"]
-                var actionObjStr = parsedAction["action"]
-                var actionDesc = parsedAction["description"]
-                println(parsedAction)
-                val actionThinkingTimeEnd = System.currentTimeMillis()
-
-                infoPool.lastActionThought = actionThought.toString()
-
-                val actionExecTimeStart = System.currentTimeMillis()
-
-                val (actionObject, _, errorMessage) = operator.execute(
-                    actionObjStr.toString(), infoPool, context, config
-                )
-
-                var actionExecTimeEnd = System.currentTimeMillis()
-
-                if (actionObject == null) {
-                    val taskEndTime = System.currentTimeMillis()
-                    appendToFile(
-                        taskLog,
-                        """
-                        {
-                            "step": $iteration,
-                            "operation": "finish",
-                            "finish_flag": "abnormal",
-                            "final_info_pool": $infoPool,
-                            "task_duration": ${(taskEndTime - taskStartTime) / 1000} seconds
-                        }
-                        """.trimIndent()
-                    )
-                    Log.w("MainActivity", "WARNING!!: Abnormal finishing: $actionObjStr")
-                    return
-                }
-
-
-                infoPool.lastAction = actionObjStr.toString()
-                infoPool.lastSummary = actionDesc.toString()
-
-                appendToFile(taskLog, "{\n" +
-                        "    \"step\": $iteration,\n" +
-                        "    \"operation\": \"action\",\n" +
-                        "    \"prompt_action\": \"$actionPrompt\",\n" +
-                        "    \"raw_response\": \"$actionOutput\",\n" +
-                        "    \"action_object\": \"${actionObject.toString()}\",\n" +
-                        "    \"action_object_str\": \"${actionObjStr.toString()}\",\n" +
-                        "    \"action_thought\": \"${actionThought.toString()}\",\n" +
-                        "    \"action_description\": \"${actionDesc.toString()}\",\n" +
-                        "    \"duration\": ${(actionThinkingTimeEnd - actionThinkingTimeStart) / 1000},\n" +
-                        "    \"execution_duration\": ${(actionExecTimeEnd - actionExecTimeStart) / 1000}\n" +
-                        "}")
-                Log.d("MainActivity","Action Thought: ${actionThought.toString()}")
-                Log.d("MainActivity","Action Description: ${actionDesc.toString()}")
-                Log.d("MainActivity","Action: ${actionObjStr.toString()}")
-
-                val perceptionPostStartTime = System.currentTimeMillis()
-                postScreenshotFile = eyes.openEyes()
-//               Step 4 : Take the Perception after the action by operator has been performed
-                if (postScreenshotFile!= null && screenshotFile != null)
-                {
-                    val postPerceptionResult = retina.getPerceptionInfos(
-                        context,
-                        postScreenshotFile,
-                        config
-                    )
-                    val perceptionPostEndTime = System.currentTimeMillis()
-                    appendToFile(
-                        taskLog,
-                        "{step: $iteration, operation: perception_post, screenshot: post_screenshot, perception_infos: ${
-                            postPerceptionResult.clickableInfos.forEach { (text, coordinates) ->
-                                println("Text: $text, Coordinates: $coordinates \n")
-                            }
-                        }, xml_mode: ${config.isXmlMode}, duration: ${(perceptionPostEndTime - perceptionPostStartTime) / 1000} seconds}"
-                    )
-
-
-                    infoPool.perceptionInfosPost = postPerceptionResult.clickableInfos.toMutableList()
-                    infoPool.keyboardPost = postPerceptionResult.keyboardOpen
-
-                    // Set XML data if available
-                    if (config.isXmlMode && postPerceptionResult.xmlData.isNotEmpty()) {
-                        infoPool.perceptionInfosPostXML = postPerceptionResult.xmlData
-                        Log.d("AgentTaskService", "Post-action XML data captured")
-                    }
-                }
-
-
-
-//                Step5 The Reflector of our actions
-                val reflectionStartTime = System.currentTimeMillis()
-                val reflectionPrompt = actionReflector.getPrompt(infoPool, config)
-                val reflectionChat = actionReflector.initChat()
-                val reflectionCombinedChat = VisionHelper.createPrePostChatResponse(
-                    "user",
-                    reflectionPrompt,
-                    reflectionChat,
-                    config,
-                    screenshotFile,
-                    postScreenshotFile
-                )
-
-                // Sending to the GEMINI
-                val reflectionLLMOutput =
-                    getReasoningModelApiResponse(reflectionCombinedChat, apiKey = config.apiKey)
-                val parsedReflection = actionReflector.parseResponse(reflectionLLMOutput.toString())
-
-                val outcome = parsedReflection["outcome"].toString()
-                val errorDescription = parsedReflection["error_description"].toString()
-                val progressStatus = parsedReflection["progress_status"].toString()
-
-                infoPool.progressStatusHistory.add(progressStatus)
-                val actionReflectionEndTime = System.currentTimeMillis()
-
-                var actionOutcome: String
+// --- Process Reflection Output from Manager ---
+            if (iteration > 1) { // No reflection on the first iteration
+                val outcome = parsedManagerResponse["outcome"].toString()
+                val errorDescription = parsedManagerResponse["error_description"].toString()
+                val progressStatus = parsedManagerResponse["progress_status"].toString()
                 var currentErrorDescription = errorDescription
-                speechCoordinator.speakText("Outcome was $outcome")
-                when {
-                    "A" in outcome -> { // Successful. The result of the last action meets the expectation.
-                        actionOutcome = "A"
-                    }
-                    "B" in outcome -> { // Failed. The last action results in a wrong page. I need to return to the previous state.
-                        actionOutcome = "B"
-                        // NOTE: removing the automatic backing; always stopping at the failed state and then there will be a new perception step
-                        // no automatic backing
-                        // check how many backs to take
-                        val name = (actionObject["name"] as String).trim()
-                        val arguments = actionObject["arguments"] as Map<*, *>
 
-                        val actionName = actionObject["name"] // Assuming actionObject is a JSONObject
-                        if (atomicActionSignatures.containsKey(actionName)) {
-
-
-                                            if (errorMessage != null) {
-                    currentErrorDescription += "; Error occurred while executing the action: $errorMessage"
+//                speechCoordinator.speakText("Outcome was $outcome")
+                val actionOutcome = when {
+                    "A" in outcome -> "A"
+                    "B" in outcome -> "B"
+                    "C" in outcome -> "C"
+                    else -> "C" // Default to no change failure
                 }
-                        } else {
-                            throw IllegalArgumentException("Invalid action name: $actionName")
-                        }
-                    }
-                    "C" in outcome -> { // Failed. The last action produces no changes.
-                        actionOutcome = "C"
-                        //TODO: Add currentErrorDescription
-                    }
-                    else -> {
-                        throw IllegalArgumentException("Invalid outcome: $outcome")
-                    }
-                }
-                infoPool.actionHistory.add(actionObjStr.toString())
-                infoPool.summaryHistory.add(actionDesc.toString())
+
+                // Now that we have the outcome, update all history lists for the PREVIOUS action
+                infoPool.actionHistory.add(infoPool.lastAction)
+                infoPool.summaryHistory.add(infoPool.lastSummary)
                 infoPool.actionOutcomes.add(actionOutcome)
                 infoPool.errorDescriptions.add(currentErrorDescription)
                 infoPool.progressStatus = progressStatus
+                infoPool.progressStatusHistory.add(progressStatus)
 
                 appendToFile(taskLog, "{\n" +
-                        "    \"step\": $iteration,\n" +
-                        "    \"operation\": \"action_reflection\",\n" +
-                        "    \"prompt_action_reflect\": \"$reflectionPrompt\",\n" +
-                        "    \"raw_response\": \"$reflectionLLMOutput\",\n" +
+                        "    \"step\": ${iteration - 1},\n" +
+                        "    \"operation\": \"reflection_by_manager\",\n" +
                         "    \"outcome\": \"$outcome\",\n" +
                         "    \"error_description\": \"$errorDescription\",\n" +
-                        "    \"progress_status\": \"$progressStatus\",\n" +
-                        "    \"duration\": ${(actionReflectionEndTime - reflectionStartTime) / 1000}\n" +
+                        "    \"progress_status\": \"$progressStatus\"\n" +
                         "}")
+                Log.d("AgentTaskService", "Reflection by Manager -> Outcome: $actionOutcome, Progress: $progressStatus")
+            }
 
-                Log.d("MainActivity","Outcome: $actionOutcome")
-                Log.d("MainActivity","Progress Status: $progressStatus")
-                Log.d("MainActivity","Error Description: $errorDescription")
+// --- Process Planning Output from Manager ---
+            infoPool.plan = parsedManagerResponse["plan"].toString()
+            infoPool.currentSubgoal = parsedManagerResponse["current_subgoal"].toString()
+//            speechCoordinator.speakText(infoPool.currentSubgoal)
+            appendToFile(taskLog, "{ \n" +
+                    "\"step\": $iteration, \n" +
+                    "\"operation\": \"planning\", \n" +
+                    "\"prompt_planning\": ${JSONObject.quote(promptPlan)}, \n" +
+                    "\"error_flag_plan\": ${infoPool.errorFlagPlan}, \n" +
+                    "\"raw_response\": ${JSONObject.quote(outputPlan.toString())}, \n" +
+                    "\"thought\": ${JSONObject.quote(parsedManagerResponse["thought"].toString())}, \n" +
+                    "\"plan\": ${JSONObject.quote(infoPool.plan)}, \n" +
+                    "\"current_subgoal\": ${JSONObject.quote(infoPool.currentSubgoal)}, \n" +
+                    "\"duration\": ${(managerThinkingEnd - managerThinkingStart) / 1000} \n" +
+                    "}")
+            Log.d("AgentTaskService", "Thought: ${parsedManagerResponse["thought"]}")
+            Log.d("AgentTaskService", "Current Subgoal: ${infoPool.currentSubgoal}")
 
+// Stopping by planner
+            if (infoPool.currentSubgoal.trim().contains("Finished", ignoreCase = true)) {
+                infoPool.finishThought = parsedManagerResponse["thought"].toString()
+                appendToFile(taskLog, "{step: $iteration, operation: finish, finish_flag: success, final_info_pool: $infoPool, task_duration: ${(System.currentTimeMillis() - taskStartTime) / 1000} seconds}")
+                Log.i("AgentTaskService", "Task finished successfully by planner.")
+                speechCoordinator.speakText("Task finished")
+                return
+            }
+
+// Step 3: Operator's turn
+            val actionThinkingTimeStart = System.currentTimeMillis()
+            val actionPrompt = operator.getPrompt(infoPool, config)
+            val actionChat = operator.initChat()
+            val actionCombinedChat = VisionHelper.createChatResponse(
+                "user", actionPrompt, actionChat, config, screenshotFile
+            )
+            val actionOutput = getReasoningModelApiResponse(actionCombinedChat, apiKey = config.apiKey)
+            val parsedAction = operator.parseResponse(actionOutput.toString())
+            val actionThought = parsedAction["thought"]
+            val actionObjStr = parsedAction["action"]
+            val actionDesc = parsedAction["description"]
+            val actionThinkingTimeEnd = System.currentTimeMillis()
+
+            val actionExecTimeStart = System.currentTimeMillis()
+            val (actionObject, _, errorMessage) = operator.execute(actionObjStr.toString(), infoPool, context, config)
+            val actionExecTimeEnd = System.currentTimeMillis()
+
+            if (actionObject == null) {
+                appendToFile(taskLog, "{step: $iteration, operation: finish, finish_flag: abnormal, error: \"${errorMessage ?: "Action execution failed"}\"}")
+                Log.w("AgentTaskService", "WARNING!!: Abnormal finishing: $actionObjStr, Error: $errorMessage")
+                return
+            }
+
+// Store the executed action details. It will be reflected upon in the NEXT iteration.
+            infoPool.lastAction = actionObjStr.toString()
+            infoPool.lastSummary = actionDesc.toString()
+            infoPool.lastActionThought = actionThought.toString()
+
+            appendToFile(taskLog, "{\n" +
+                    "\"step\": $iteration,\n" +
+                    "\"operation\": \"action\",\n" +
+                    "\"prompt_action\": ${JSONObject.quote(actionPrompt)},\n" +
+                    "\"action_object_str\": ${JSONObject.quote(actionObjStr.toString())},\n" +
+                    "\"action_thought\": ${JSONObject.quote(actionThought.toString())},\n" +
+                    "\"action_description\": ${JSONObject.quote(actionDesc.toString())},\n" +
+                    "\"duration\": ${(actionThinkingTimeEnd - actionThinkingTimeStart) / 1000},\n" +
+                    "\"execution_duration\": ${(actionExecTimeEnd - actionExecTimeStart) / 1000}\n" +
+                    "}")
+            Log.d("AgentTaskService", "Action: ${actionObjStr.toString()}")
+// REPLACE the old "Step 4" and "Prepare for next iteration" blocks with this:
+
+// Step 4: Take Perception after the action & Prepare for Next Iteration
+            val perceptionPostStartTime = System.currentTimeMillis()
+            postScreenshotFile = eyes.openEyes()
+
+            if (postScreenshotFile != null) {
+                // Get the comprehensive perception result for the new screen state
+                val postActionPerceptionResult = retina.getPerceptionInfos(context, postScreenshotFile, config)
+                val perceptionPostEndTime = System.currentTimeMillis()
+
+                // Log the post-action perception
+                appendToFile(taskLog, "{step: $iteration, operation: perception_post, xml_mode: ${config.isXmlMode}, duration: ${(perceptionPostEndTime - perceptionPostStartTime) / 1000} seconds}")
+
+                // --- Prepare for the next iteration's reflection context ---
+                // Save the XML from *before* and *after* the action we just took.
+                infoPool.reflectionPreActionXML = infoPool.perceptionInfosPreXML
+                infoPool.reflectionPostActionXML = postActionPerceptionResult.xmlData
+
+                // --- Update the main state for the next iteration's planning context ---
+                // The state "after" this action becomes the state "before" the next action.
                 screenshotFile = postScreenshotFile
-                infoPool.keyboardPre = infoPool.keyboardPost
-                infoPool.perceptionInfosPre = infoPool.perceptionInfosPost
-                infoPool.perceptionInfosPreXML = infoPool.perceptionInfosPostXML
+                infoPool.perceptionInfosPreXML = postActionPerceptionResult.xmlData
+                infoPool.keyboardPre = postActionPerceptionResult.keyboardOpen
+                // In XML mode, clickableInfos will be empty, so no need to update it.
+
+                // Inspired by your example, we can add a warning if the new XML is empty.
+                if (config.isXmlMode && postActionPerceptionResult.xmlData.isEmpty()) {
+                    Log.w("AgentTaskService", "Post-action XML data is empty.")
+                }
+
+            } else {
+                // Handle the critical error where a post-action screen could not be captured.
+                Log.e("AgentTaskService", "Failed to capture post-action screen. Cannot reflect or proceed.")
+                infoPool.reflectionPostActionXML = "<hierarchy error=\"Screenshot capture failed\"/>"
+                // Consider stopping the agent here by returning from the function.
+                return
+            }
         }
     }
 

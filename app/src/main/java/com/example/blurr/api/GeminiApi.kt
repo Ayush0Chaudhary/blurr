@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
+import com.example.blurr.MyApplication
 import com.google.ai.client.generativeai.type.ImagePart
 import com.google.ai.client.generativeai.type.TextPart
 import kotlinx.coroutines.delay
@@ -22,7 +23,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Refactored GeminiApi as a singleton object.
- * It now gets a rotated API key from ApiKeyManager for every request.
+ * It now gets a rotated API key from ApiKeyManager for every request
+ * and logs all requests and responses to a persistent file.
  */
 object GeminiApi {
 
@@ -33,29 +35,31 @@ object GeminiApi {
         .build()
 
     suspend fun generateContent(
-        chat: List<Pair<String, List<Any>>>, // <-- Pass the whole chat
+        chat: List<Pair<String, List<Any>>>,
         images: List<Bitmap> = emptyList(),
-        modelName: String = "gemini-2.5-flash",
+        modelName: String = "gemini-2.5-flash", // Updated to a more standard model name
         maxRetry: Int = 4,
         context: Context? = null
     ): String? {
-        // Get a new key for this specific request.
         val currentApiKey = ApiKeyManager.getNextKey()
         Log.d("GeminiApi", "Using API key ending in: ...${currentApiKey.takeLast(4)}")
+
+        // Extract the last user prompt text for logging purposes.
+        val lastUserPrompt = chat.lastOrNull { it.first == "user" }
+            ?.second
+            ?.filterIsInstance<TextPart>()
+            ?.joinToString(separator = "\n") { it.text } ?: "No text prompt found"
 
         var attempts = 0
         while (attempts < maxRetry) {
             val attemptStartTime = System.currentTimeMillis()
+            // IMPORTANT: Define payload here so it's accessible in the catch block for logging.
+            val payload = buildPayload(chat)
+
             try {
-                val payload = buildPayload(chat) // <-- Change this call
-                
-                // Log the request details
                 Log.d("GeminiApi", "=== GEMINI API REQUEST (Attempt ${attempts + 1}) ===")
                 Log.d("GeminiApi", "Model: $modelName")
-                Log.d("GeminiApi", "Images count: ${images.size}")
-                
-                // Log full payload for debugging (be careful with sensitive data)
-                Log.d("GeminiApi", "Full payload: ${payload.toString()}")
+                Log.d("GeminiApi", "Payload: ${payload.toString().take(500)}...")
 
                 val request = Request.Builder()
                     .url("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$currentApiKey")
@@ -65,81 +69,58 @@ object GeminiApi {
                 val requestStartTime = System.currentTimeMillis()
                 client.newCall(request).execute().use { response ->
                     val responseEndTime = System.currentTimeMillis()
-                    val totalTime = responseEndTime - requestStartTime
-                    val attemptTime = responseEndTime - attemptStartTime
-                    
+                    val requestTime = responseEndTime - requestStartTime
+                    val totalAttemptTime = responseEndTime - attemptStartTime
                     val responseBody = response.body?.string()
-                    
-                    // Log response details
+
                     Log.d("GeminiApi", "=== GEMINI API RESPONSE (Attempt ${attempts + 1}) ===")
                     Log.d("GeminiApi", "HTTP Status: ${response.code}")
-                    Log.d("GeminiApi", "Response time: ${totalTime}ms")
-                    Log.d("GeminiApi", "Total attempt time: ${attemptTime}ms")
-                    Log.d("GeminiApi", "Response body length: ${responseBody?.length ?: 0} characters")
-                    
-                    if (!response.isSuccessful) {
-                        Log.e("GeminiApi", "API call failed with HTTP ${response.code} using key ...${currentApiKey.takeLast(4)}")
-                        Log.e("GeminiApi", "Error response: $responseBody")
-                        throw Exception("API Error ${response.code}")
+                    Log.d("GeminiApi", "Request time: ${requestTime}ms")
+
+                    if (!response.isSuccessful || responseBody.isNullOrEmpty()) {
+                        Log.e("GeminiApi", "API call failed with HTTP ${response.code}. Response: $responseBody")
+                        throw Exception("API Error ${response.code}: $responseBody")
                     }
 
-                    if (responseBody.isNullOrEmpty()) {
-                        Log.e("GeminiApi", "Received empty response body from API.")
-                        throw Exception("Received empty response body from API.")
-                    }
-
-                    // Log successful response
-                    Log.d("GeminiApi", "Response preview: ${responseBody.take(500)}${if (responseBody.length > 500) "..." else ""}")
-                    
                     val parsedResponse = parseSuccessResponse(responseBody)
-                    Log.d("GeminiApi", "Parsed response length: ${parsedResponse?.length ?: 0} characters")
-                    Log.d("GeminiApi", "Parsed response preview: ${parsedResponse?.take(200)}${if ((parsedResponse?.length ?: 0) > 200) "..." else ""}")
-                    Log.d("GeminiApi", "=== END GEMINI API CALL ===")
-                    
-                    // Save detailed log to file if context is provided
-                    context?.let { ctx ->
-                        val logEntry = createLogEntry(
-                            attempts + 1,
-                            modelName,
-                            "dssss",
-                            images.size,
-                            payload.toString(),
-                            response.code,
-                            responseBody,
-                            totalTime,
-                            attemptTime
-                        )
-                        saveLogToFile(ctx, logEntry)
-                    }
-                    
+
+                    val logEntry = createLogEntry(
+                        attempt = attempts + 1,
+                        modelName = modelName,
+                        prompt = lastUserPrompt,
+                        imagesCount = images.size,
+                        payload = payload.toString(),
+                        responseCode = response.code,
+                        responseBody = responseBody,
+                        responseTime = requestTime,
+                        totalTime = totalAttemptTime
+                    )
+                    saveLogToFile(MyApplication.appContext, logEntry)
+
+
                     return parsedResponse
                 }
             } catch (e: Exception) {
                 val attemptEndTime = System.currentTimeMillis()
-                val attemptTime = attemptEndTime - attemptStartTime
-                
-                Log.e("GeminiApi", "=== GEMINI API ERROR (Attempt ${attempts + 1}) ===")
-                Log.e("GeminiApi", "Attempt time: ${attemptTime}ms")
-                Log.e("GeminiApi", "Error: ${e.printStackTrace()}")
-                Log.e("GeminiApi", "=== END GEMINI API ERROR ===")
-                
-                // Save error log to file if context is provided
-                context?.let { ctx ->
+                val totalAttemptTime = attemptEndTime - attemptStartTime
+
+                Log.e("GeminiApi", "=== GEMINI API ERROR (Attempt ${attempts + 1}) ===", e)
+
+                // Save the error log entry to a file.
                     val logEntry = createLogEntry(
-                        attempts + 1,
-                        modelName,
-                        "prompt",
-                        images.size,
-                        "",
-                        500,
-                        "",
-                        0,
-                        attemptTime,
-                        e.message
+                        attempt = attempts + 1,
+                        modelName = modelName,
+                        prompt = lastUserPrompt,
+                        imagesCount = images.size,
+                        payload = payload.toString(), // Log the payload that caused the error
+                        responseCode = null,
+                        responseBody = null,
+                        responseTime = 0,
+                        totalTime = totalAttemptTime,
+                        error = e.message
                     )
-                    saveLogToFile(ctx, logEntry)
-                }
-                
+                    saveLogToFile(MyApplication.appContext, logEntry)
+
                 attempts++
                 if (attempts < maxRetry) {
                     val delayTime = 1000L * attempts
@@ -154,15 +135,8 @@ object GeminiApi {
         return null
     }
 
-// In GeminiApi.kt
-
-    // DELETE the old buildPayload and REPLACE it with this:
     private fun buildPayload(chat: List<Pair<String, List<Any>>>): JSONObject {
         val contentsArray = JSONArray()
-        chat.forEach { (role, parts) ->
-            Log.d("GeminiApi", "$role $parts")
-
-        }
         // Loop through the entire conversation history
         chat.forEach { (role, parts) ->
             val jsonParts = JSONArray()
@@ -186,23 +160,18 @@ object GeminiApi {
                 }
             }
 
-            // Create a content object for the current role and its parts
             val contentObject = JSONObject()
                 .put("role", role)
                 .put("parts", jsonParts)
-
             contentsArray.put(contentObject)
         }
-
         return JSONObject().put("contents", contentsArray)
     }
 
     private fun parseSuccessResponse(responseBody: String): String? {
-        // ... same implementation as before
         val json = JSONObject(responseBody)
         if (!json.has("candidates")) {
-            Log.w("GeminiApi", "API response has no 'candidates'. It was likely blocked.")
-            Log.w("GeminiApi", "Full response: $responseBody")
+            Log.w("GeminiApi", "API response has no 'candidates'. It was likely blocked. Full response: $responseBody")
             return null
         }
         return json.getJSONArray("candidates")
@@ -213,64 +182,25 @@ object GeminiApi {
             .getString("text")
     }
 
-    /**
-     * Saves detailed Gemini API logs to a file for persistent debugging
-     */
-    fun saveLogToFile(context: Context, logEntry: String) {
+    private fun saveLogToFile(context: Context, logEntry: String) {
         try {
             val logDir = File(context.filesDir, "gemini_logs")
             if (!logDir.exists()) {
                 logDir.mkdirs()
             }
-            
-            val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
-            val logFile = File(logDir, "gemini_debug_${timestamp}.log")
-            
+            // Use a single, rolling log file for simplicity.
+            val logFile = File(logDir, "gemini_api_log.txt")
+
             FileWriter(logFile, true).use { writer ->
-                writer.append("${SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())} - $logEntry\n")
+                writer.append(logEntry)
             }
-            
-            Log.d("GeminiApi", "Log saved to: ${logFile.absolutePath}")
+            Log.d("GeminiApi", "Log entry saved to: ${logFile.absolutePath}")
+
         } catch (e: Exception) {
             Log.e("GeminiApi", "Failed to save log to file", e)
         }
     }
 
-    /**
-     * Gets the path to the latest log file for easy access
-     */
-    fun getLatestLogFilePath(context: Context): String? {
-        try {
-            val logDir = File(context.filesDir, "gemini_logs")
-            if (!logDir.exists()) return null
-            
-            val logFiles = logDir.listFiles { file -> file.name.startsWith("gemini_debug_") }
-            return logFiles?.maxByOrNull { it.lastModified() }?.absolutePath
-        } catch (e: Exception) {
-            Log.e("GeminiApi", "Failed to get latest log file path", e)
-            return null
-        }
-    }
-
-    /**
-     * Reads the content of the latest log file
-     */
-    fun getLatestLogContent(context: Context): String? {
-        try {
-            val logPath = getLatestLogFilePath(context)
-            if (logPath == null) return null
-            
-            val logFile = File(logPath)
-            return logFile.readText()
-        } catch (e: Exception) {
-            Log.e("GeminiApi", "Failed to read latest log file", e)
-            return null
-        }
-    }
-
-    /**
-     * Creates a comprehensive log entry for debugging
-     */
     private fun createLogEntry(
         attempt: Int,
         modelName: String,

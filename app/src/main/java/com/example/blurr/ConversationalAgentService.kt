@@ -58,7 +58,8 @@ class ConversationalAgentService : Service() {
     private val clarificationQuestionViews = mutableListOf<View>()
 
     // Add these at the top of your ConversationalAgentService class
-
+    private var clarificationAttempts = 0
+    private val maxClarificationAttempts = 2
 
      private val clarificationAgent = ClarificationAgent()
     private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
@@ -82,6 +83,7 @@ class ConversationalAgentService : Service() {
         createNotificationChannel()
         initializeConversation()
         ttsManager.setCaptionsEnabled(true)
+        clarificationAttempts = 0 // Reset clarification attempts counter
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -153,21 +155,34 @@ class ConversationalAgentService : Service() {
                         Log.d("ConvAgent", "Model identified a task. Checking for clarification...")
                         // --- NEW: Check if the task instruction needs clarification ---
                         removeClarificationQuestions()
-                        val (needsClarification, questions) = checkIfClarificationNeeded(decision.instruction)
+                        
+                        if (clarificationAttempts < maxClarificationAttempts) {
+                            val (needsClarification, questions) = checkIfClarificationNeeded(decision.instruction)
 
-                        if (needsClarification) {
-                            displayClarificationQuestions(questions)
-                            // If clarification is needed, ask the questions and continue the conversation.
-                            val questionToAsk = "I can help with that, but first: ${questions.joinToString(" and ")}"
-                            Log.d("ConvAgent", "Task needs clarification. Asking: '$questionToAsk'")
-                            conversationHistory = addResponse("model", "Clarification needed for task: ${decision.instruction}", conversationHistory)
-                            speakAndThenListen(questionToAsk, false)
+                            if (needsClarification) {
+                                clarificationAttempts++
+                                displayClarificationQuestions(questions)
+                                // If clarification is needed, ask the questions and continue the conversation.
+                                val questionToAsk = "I can help with that, but first: ${questions.joinToString(" and ")}"
+                                Log.d("ConvAgent", "Task needs clarification. Asking: '$questionToAsk' (Attempt $clarificationAttempts/$maxClarificationAttempts)")
+                                conversationHistory = addResponse("model", "Clarification needed for task: ${decision.instruction}", conversationHistory)
+                                speakAndThenListen(questionToAsk, false)
+                            } else {
+                                Log.d("ConvAgent", "Task is clear. Executing: ${decision.instruction}")
+                                speechCoordinator.speakText(decision.reply)
+                                delay(1500)
+
+                                val taskIntent = Intent(this@ConversationalAgentService, AgentTaskService::class.java).apply {
+                                    putExtra("TASK_INSTRUCTION", decision.instruction)
+                                    putExtra("VISION_MODE", "XML")
+                                }
+                                startService(taskIntent)
+                                stopSelf()
+                            }
                         } else {
-                            Log.d("ConvAgent", "Clearing the questions")
-
-                            // If no clarification is needed, execute the task.
-                            Log.d("ConvAgent", "Task is clear. Executing: ${decision.instruction}")
-                            speechCoordinator.speakText(decision.reply)
+                            // Max attempts reached, proceed directly without checking for clarification
+                            Log.d("ConvAgent", "Max clarification attempts reached ($maxClarificationAttempts). Proceeding with task execution.")
+                            speechCoordinator.speakText("I'll proceed with what I understand. ${decision.reply}")
                             delay(1500)
 
                             val taskIntent = Intent(this@ConversationalAgentService, AgentTaskService::class.java).apply {
@@ -233,7 +248,7 @@ class ConversationalAgentService : Service() {
     private fun initializeConversation() {
         val systemPrompt = """
             You are a helpful voice assistant that can either have a conversation or execute tasks on the user's phone.
-
+            The agent can do speak, listen, see screen, tap screen, and basically use the phone as normal human would
             Analyze the user's request and respond in the following format:
 
             ### Type ###

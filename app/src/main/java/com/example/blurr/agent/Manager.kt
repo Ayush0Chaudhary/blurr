@@ -54,21 +54,34 @@ class Manager : BaseAgent() {
             sb.appendLine("The first subgoal you should work on.\n")
         }
         else {
-            sb.appendLine("### Current Plan ###")
-            sb.appendLine("${infoPool.plan}\n")
-            sb.appendLine("### Previous Subgoal ###")
-            sb.appendLine("${infoPool.currentSubgoal}\n")
-            sb.appendLine("### Progress Status ###")
-            sb.appendLine("${ infoPool.progressStatus }\n")
-            sb.appendLine("### Important Notes ###")
-            if (infoPool.importantNotes.isNotEmpty()){
-                infoPool.importantNotes.forEach { element ->
-                    sb.appendLine("- $element ")
-                }
-                sb.appendLine("\n")
-            }else{
-                sb.appendLine("No important notes\n\n")
-            }
+            sb.appendLine("### Last Action Analysis ###")
+            sb.appendLine("You must first analyze the result of the last action before planning the next one.")
+            sb.appendLine("- Last Action Performed: ${infoPool.lastAction}")
+            sb.appendLine("- Expected Outcome: ${infoPool.lastSummary}")
+            sb.appendLine()
+            sb.appendLine("### Screen State Before Last Action (XML) ###")
+            sb.appendLine(infoPool.reflectionPreActionXML.ifEmpty { "N/A" })
+            sb.appendLine()
+            sb.appendLine("### Screen State After Last Action (XML) ###")
+            sb.appendLine("The current screen content provided in 'Visible Screen Elements' is the result of the last action.")
+            sb.appendLine()
+
+            sb.appendLine("---")
+            sb.appendLine("### Current Plan & Progress ###")
+            sb.appendLine("Current Plan: ${infoPool.plan}")
+            sb.appendLine("Previous Subgoal: ${infoPool.prevSubgoal}")
+            sb.appendLine("Previous Progress Status: ${infoPool.progressStatus}")
+            sb.appendLine()
+
+
+//            if (infoPool.importantNotes.isNotEmpty()){
+//                infoPool.importantNotes.forEach { element ->
+//                    sb.appendLine("- $element ")
+//                }
+//                sb.appendLine("\n")
+//            }else{
+//                sb.appendLine("No important notes\n\n")
+//            }
 
             if (infoPool.errorFlagPlan) {
                 sb.appendLine("### Potentially Stuck! ###\n\n")
@@ -83,20 +96,25 @@ class Manager : BaseAgent() {
                 }
             }
             sb.appendLine("\n\n")
-            sb.appendLine("The sections above provide an overview of the plan you are following, the current subgoal you are working on, the overall progress made, and any important notes you have recorded. The screenshot displays the current state of the phone.\n")
-            sb.appendLine("Carefully assess the current status to determine if the task has been fully completed. If the user's request involves exploration, ensure you have conducted sufficient investigation. If you are confident that no further actions are required, mark the task as \"Finished\" in your output. If the task is not finished, outline the next steps. If you are stuck with errors, think step by step about whether the overall plan needs to be revised to address the error.\n")
-            sb.appendLine("NOTE: If the current situation prevents proceeding with the original plan or requires clarification from the user, make reasonable assumptions and revise the plan accordingly. Act as though you are the user in such cases.\n\n")
 
-
-
-            sb.appendLine("---\n")
-            sb.appendLine("Provide your output in the following format, which contains three parts:\n\n")
+            sb.appendLine("\nProvide your output in the following format, which contains six parts:\n")
+            sb.appendLine("### Outcome ###")
+            sb.appendLine("Analyze the last action based on the XML changes. Choose ONE: 'A' (Successful), 'B' (Failed, wrong page/state), 'C' (Failed, no change).")
+            sb.appendLine()
+            sb.appendLine("### Error Description ###")
+            sb.appendLine("If the action failed (B or C), explain why. Otherwise, write 'None'.")
+            sb.appendLine()
+            sb.appendLine("### Progress Status ###")
+            sb.appendLine("If successful, briefly update the overall task progress. If failed, you can copy the previous status or describe the stuck state.")
+            sb.appendLine()
             sb.appendLine("### Thought ###")
-            sb.appendLine("Provide a detailed explanation of your rationale for the plan and subgoals.\n")
+            sb.appendLine("Provide a detailed explanation for your reflection (the 'why' behind the outcome) and the rationale for the next plan/subgoal.")
+            sb.appendLine()
             sb.appendLine("### Plan ###")
-            sb.appendLine("If an update is required for the high-level plan, provide the updated plan here. Otherwise, keep the current plan and copy it here.\n")
+            sb.appendLine("The high-level plan. Update it if necessary, otherwise copy the existing plan.")
+            sb.appendLine()
             sb.appendLine("### Current Subgoal ###")
-            sb.appendLine("The next subgoal to work on. If the previous subgoal is not yet complete, copy it here. If all subgoals are completed, write \"Finished\".")
+            sb.appendLine("The next subgoal to work on. If all subgoals are completed, write 'Finished'.")
         }
 
 
@@ -104,14 +122,20 @@ class Manager : BaseAgent() {
     }
 
     override fun parseResponse(response: String): Map<String, String> {
+        val outcome = extractSection(response, "### Outcome ###", "### Error Description ###")
+        val errorDescription = extractSection(response, "### Error Description ###", "### Progress Status ###")
+        val progressStatus = extractSection(response, "### Progress Status ###", "### Thought ###")
         val thought = extractSection(response, "### Thought ###", "### Plan ###")
         val plan = extractSection(response, "### Plan ###", "### Current Subgoal ###")
         val currentSubgoal = extractSection(response, "### Current Subgoal ###", null)
 
         return mapOf(
+            "outcome" to outcome,
+            "error_description" to errorDescription,
+            "progress_status" to progressStatus,
             "thought" to thought,
             "plan" to plan,
-            "current_subgoal" to currentSubgoal,
+            "current_subgoal" to currentSubgoal
         )
     }
 

@@ -508,10 +508,10 @@ class ScreenInteractionService : AccessibilityService() {
 
 
 
-                val semanticParser = SemanticParser(this@ScreenInteractionService)
-                val simplifiedJson = semanticParser.parse(rawXml, screenWidth, screenHeight)
-                Log.d("APPMAP", "Screen Width: $screenWidth, Screen Height: $screenHeight\n$simplifiedJson")
-                // 1. Parse the raw XML into a structured list.
+//                val semanticParser = SemanticParser(this@ScreenInteractionService)
+//                val simplifiedJson = semanticParser.parse(rawXml, screenWidth, screenHeight)
+//                Log.d("APPMAP", "Screen Width: $screenWidth, Screen Height: $screenHeight\n$simplifiedJson")
+//                // 1. Parse the raw XML into a structured list.
                 val simplifiedElements = parseXmlToSimplifiedElements(rawXml)
                 println("SIZEEEE : " + simplifiedElements.size)
                 // 2. If debug mode is on, draw the bounding boxes.

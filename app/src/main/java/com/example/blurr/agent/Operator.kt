@@ -35,7 +35,7 @@ val baseAtomicActionSignatures = mapOf(
         listOf("text")
     ) { "Type the \"text\" in an input box. You dont need to type everything on keyboard 1 by 1, this is fast" },
 
-    "Enter" to AtomicActionSignature(emptyList()) { "Press the Enter key after typing." },
+//    "Enter" to AtomicActionSignature(emptyList()) { "Press the Enter key after typing." },
 
     "Switch_App" to AtomicActionSignature(emptyList()) { "Show the App switcher." },
 

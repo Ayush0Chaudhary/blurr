@@ -35,6 +35,8 @@ class ClarificationAgent : BaseAgent() {
             - "Go to home screen"
             - "Take a screenshot"
             - "Open Settings app"
+            
+            The agent can do speak, listen, see screen, tap screen, and basically use the phone as normal human would
         
             
             
