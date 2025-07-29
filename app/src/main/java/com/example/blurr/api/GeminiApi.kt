@@ -7,6 +7,9 @@ import android.util.Log
 import com.example.blurr.MyApplication
 import com.google.ai.client.generativeai.type.ImagePart
 import com.google.ai.client.generativeai.type.TextPart
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -33,6 +36,8 @@ object GeminiApi {
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
+    val db = Firebase.firestore
+
 
     suspend fun generateContent(
         chat: List<Pair<String, List<Any>>>,
@@ -41,9 +46,6 @@ object GeminiApi {
         maxRetry: Int = 4,
         context: Context? = null
     ): String? {
-        val currentApiKey = ApiKeyManager.getNextKey()
-        Log.d("GeminiApi", "Using API key ending in: ...${currentApiKey.takeLast(4)}")
-
         // Extract the last user prompt text for logging purposes.
         val lastUserPrompt = chat.lastOrNull { it.first == "user" }
             ?.second
@@ -52,15 +54,21 @@ object GeminiApi {
 
         var attempts = 0
         while (attempts < maxRetry) {
+            // Get a new API key for each attempt
+            val currentApiKey = ApiKeyManager.getNextKey()
+            Log.d("GeminiApi", "=== GEMINI API REQUEST (Attempt ${attempts + 1}) ===")
+            Log.d("GeminiApi", "Using API key ending in: ...${currentApiKey.takeLast(4)}")
+            Log.d("GeminiApi", "Model: $modelName")
+            
             val attemptStartTime = System.currentTimeMillis()
             // IMPORTANT: Define payload here so it's accessible in the catch block for logging.
             val payload = buildPayload(chat)
 
-            try {
-                Log.d("GeminiApi", "=== GEMINI API REQUEST (Attempt ${attempts + 1}) ===")
-                Log.d("GeminiApi", "Model: $modelName")
-                Log.d("GeminiApi", "Payload: ${payload.toString().take(500)}...")
+            Log.d("GeminiApi", "=== GEMINI API REQUEST (Attempt ${attempts + 1}) ===")
+            Log.d("GeminiApi", "Model: $modelName")
+            Log.d("GeminiApi", "Payload: ${payload.toString().take(500)}...")
 
+            try {
                 val request = Request.Builder()
                     .url("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$currentApiKey")
                     .post(payload.toString().toRequestBody("application/json".toMediaType()))
@@ -96,6 +104,18 @@ object GeminiApi {
                         totalTime = totalAttemptTime
                     )
                     saveLogToFile(MyApplication.appContext, logEntry)
+                    val logData = createLogDataMap(
+                        attempt = attempts + 1,
+                        modelName = modelName,
+                        prompt = lastUserPrompt,
+                        imagesCount = images.size,
+                        responseCode = null,
+                        responseTime = requestTime,
+                        totalTime = totalAttemptTime,
+                        responseBody = responseBody,
+                        status = "pass",
+                    )
+                    logToFirestore(logData)
 
 
                     return parsedResponse
@@ -120,6 +140,19 @@ object GeminiApi {
                         error = e.message
                     )
                     saveLogToFile(MyApplication.appContext, logEntry)
+                val logData = createLogDataMap(
+                    attempt = attempts + 1,
+                    modelName = modelName,
+                    prompt = lastUserPrompt,
+                    imagesCount = images.size,
+                    responseCode = null,
+                    responseTime = 0,
+                    totalTime = totalAttemptTime,
+                    status = "error",
+                    responseBody = null,
+                    error = e.message
+                )
+                logToFirestore(logData)
 
                 attempts++
                 if (attempts < maxRetry) {
@@ -200,7 +233,29 @@ object GeminiApi {
             Log.e("GeminiApi", "Failed to save log to file", e)
         }
     }
+    private fun logToFirestore(logData: Map<String, Any?>) {
+        // Create a unique and descriptive ID from the timestamp and prompt
+        val timestamp = System.currentTimeMillis()
+        val promptSnippet = (logData["prompt"] as? String)?.take(40) ?: "log"
 
+        // Sanitize the prompt snippet to be a valid Firestore document ID
+        // (removes spaces and special characters)
+        val sanitizedPrompt = promptSnippet.replace(Regex("[^a-zA-Z0-9]"), "_")
+
+        val documentId = "${timestamp}_$sanitizedPrompt"
+
+        // Use .document(ID).set(data) instead of .add(data)
+        db.collection("gemini_logs")
+            .document(documentId)
+            .set(logData)
+            .addOnSuccessListener {
+                Log.d("GeminiApi", "Log sent to Firestore with ID: $documentId")
+            }
+            .addOnFailureListener { e ->
+                // This listener is for debugging; it won't block your app's flow
+                Log.e("GeminiApi", "Error sending log to Firestore", e)
+            }
+    }
     private fun createLogEntry(
         attempt: Int,
         modelName: String,
@@ -232,5 +287,31 @@ object GeminiApi {
             }
             appendLine("=== END LOG ===")
         }
+    }
+    private fun createLogDataMap(
+        attempt: Int,
+        modelName: String,
+        prompt: String,
+        imagesCount: Int,
+        responseCode: Int?,
+        responseTime: Long,
+        totalTime: Long,
+        status: String,
+        responseBody: String?,
+        error: String? = null
+    ): Map<String, Any?> {
+        return mapOf(
+            "timestamp" to FieldValue.serverTimestamp(), // Use server time
+            "status" to status,
+            "attempt" to attempt,
+            "model" to modelName,
+            "prompt" to prompt,
+            "imagesCount" to imagesCount,
+            "responseCode" to responseCode,
+            "responseTimeMs" to responseTime,
+            "totalTimeMs" to totalTime,
+            "llmReply" to responseBody,
+            "error" to error
+        )
     }
 }

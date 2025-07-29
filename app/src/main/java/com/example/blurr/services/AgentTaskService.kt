@@ -198,15 +198,15 @@ class AgentTaskService : Service() {
         var postScreenshotFile: Bitmap?
 
         // Implementing Memory in the agent
-        val userIdManager = UserIdManager(context)
-        val userId = userIdManager.getOrCreateUserId()
-        val memoryService = MemoryService()
-        CoroutineScope(Dispatchers.IO).launch {
-            memoryService.addMemory(infoPool.instruction, userId)
-        }
-
-        val recalledMemories = memoryService.searchMemory(infoPool.instruction, userId)
-//        infoPool.recalledMemories = "No recalledMemories"
+//        val userIdManager = UserIdManager(context)
+//        val userId = userIdManager.getOrCreateUserId()
+//        val memoryService = MemoryService()
+//        CoroutineScope(Dispatchers.IO).launch {
+//            memoryService.addMemory(infoPool.instruction, userId)
+//        }
+//
+//        val recalledMemories = memoryService.searchMemory(infoPool.instruction, userId)
+////        infoPool.recalledMemories = "No recalledMemories"
         while (true) {
                 iteration++
 
@@ -330,7 +330,7 @@ class AgentTaskService : Service() {
             val combinedChatPlan = VisionHelper.createChatResponse(
                 "user", promptPlan, chatPlan, config, screenshotFile
             )
-            val outputPlan = getReasoningModelApiResponse(combinedChatPlan, apiKey = config.apiKey)
+            val outputPlan = getReasoningModelApiResponse(combinedChatPlan, apiKey = config.apiKey, agentState = infoPool)
             val parsedManagerResponse = manager.parseResponse(outputPlan.toString())
             val managerThinkingEnd = System.currentTimeMillis()
 
@@ -401,7 +401,7 @@ class AgentTaskService : Service() {
             val actionCombinedChat = VisionHelper.createChatResponse(
                 "user", actionPrompt, actionChat, config, screenshotFile
             )
-            val actionOutput = getReasoningModelApiResponse(actionCombinedChat, apiKey = config.apiKey)
+            val actionOutput = getReasoningModelApiResponse(actionCombinedChat, apiKey = config.apiKey, agentState = infoPool)
             val parsedAction = operator.parseResponse(actionOutput.toString())
             val actionThought = parsedAction["thought"]
             val actionObjStr = parsedAction["action"]

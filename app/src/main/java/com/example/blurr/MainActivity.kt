@@ -325,7 +325,7 @@ class MainActivity : AppCompatActivity() {
             val chat = clarificationAgent.initChat()
             val combined = VisionHelper.createChatResponse("user", prompt, chat, config)
             val response = withContext(Dispatchers.IO) {
-                getReasoningModelApiResponse(combined, apiKey = config.apiKey)
+                getReasoningModelApiResponse(combined, apiKey = config.apiKey, agentState = tempInfoPool)
             }
             val parsedResult = clarificationAgent.parseResponse(response.toString())
             val status = parsedResult["status"] ?: "CLEAR"

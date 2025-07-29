@@ -29,6 +29,7 @@ class ClarificationAgent : BaseAgent() {
             - "Open my photos" (needs: which photo app, what to do with photos)
             - "Call someone" (needs: who to call)
             - "Set an alarm" (needs: time, label, repeat settings)
+            - "Book a uber ride for me" (needs: Destination, type of uber car)
             
             Examples of clear instructions that don't need clarification:
             - "Open WhatsApp"
@@ -68,6 +69,103 @@ class ClarificationAgent : BaseAgent() {
             
             Keep questions specific, practical, and focused on information needed for task execution.
         """.trimIndent()
+    }
+
+    /**
+     * Enhanced version of getPrompt that includes conversation history for better context-aware clarification decisions.
+     * This allows the agent to consider previous conversation context when determining what clarifying questions to ask.
+     */
+    fun getPromptWithHistory(infoPool: InfoPool, config: AgentConfig, conversationHistory: List<Pair<String, List<Any>>>): String {
+        val conversationContext = buildConversationContext(conversationHistory)
+        
+        return """
+              You are a helpful AI assistant that analyzes user instructions and determines if they need clarification.
+            Your goal is to identify unclear or ambiguous instructions and generate specific questions to clarify them.
+            
+            You should ask clarifying questions when:
+            1. The instruction lacks specific details needed for execution
+            2. There are multiple possible interpretations
+            3. Required information is missing (names, apps, preferences, etc.)
+            4. The instruction is too vague to execute properly
+            
+            Examples of unclear instructions that need clarification:
+            - "Message my brother happy birthday" (needs: brother's name, messaging app)
+            - "Open my photos" (needs: which photo app, what to do with photos)
+            - "Call someone" (needs: who to call)
+            - "Set an alarm" (needs: time, label, repeat settings)
+            - "Book a uber ride for me" (needs: Destination, type of uber car)
+            
+            Examples of clear instructions that don't need clarification:
+            - "Open WhatsApp"
+            - "Go to home screen"
+            - "Take a screenshot"
+            - "Open Settings app"
+            
+            The agent can do speak, listen, see screen, tap screen, and basically use the phone as normal human would
+        
+            ### Conversation History ###
+            $conversationContext
+            
+            ### User Instruction ###
+            ${infoPool.instruction}
+            
+            ### Task ###
+            Analyze this instruction in the context of the conversation history and determine if it needs clarification.
+            
+            Consider the conversation history when making your decision:
+            - If information was already provided in previous messages, don't ask for it again
+            - If the user is referring to something mentioned earlier, use that context
+            - If this is a follow-up to a previous request, consider what was already established
+            
+            If the instruction is clear and specific enough to execute without additional information, respond with "CLEAR".
+            
+            If the instruction needs clarification, provide a list of specific questions that would help clarify the missing information. Focus on practical details needed for execution.
+            
+            ### Response Format ###
+            If the instruction is clear, respond with:
+            ```
+            STATUS: CLEAR
+            QUESTIONS: NONE
+            ```
+            
+            If the instruction needs clarification, respond with:
+            ```
+            STATUS: NEEDS_CLARIFICATION
+            QUESTIONS:
+            1. [First clarifying question]
+            2. [Second clarifying question]
+            3. [Third clarifying question]
+            ```
+            
+            Keep questions specific, practical, and focused on information needed for task execution.
+        """.trimIndent()
+    }
+
+    /**
+     * Builds a readable conversation context from the conversation history.
+     * Extracts text content from the conversation history for context-aware clarification.
+     */
+    private fun buildConversationContext(conversationHistory: List<Pair<String, List<Any>>>): String {
+        if (conversationHistory.isEmpty()) {
+            return "No previous conversation context available."
+        }
+
+        val contextBuilder = StringBuilder()
+        contextBuilder.appendLine("Previous conversation:")
+        
+        conversationHistory.forEachIndexed { index, (role, messageParts) ->
+            // Extract text content from message parts
+            val textContent = messageParts
+                .filterIsInstance<TextPart>()
+                .joinToString(" ") { it.text }
+                .trim()
+            
+            if (textContent.isNotEmpty()) {
+                contextBuilder.appendLine("${index + 1}. $role: $textContent")
+            }
+        }
+        
+        return contextBuilder.toString().trim()
     }
 
     override fun parseResponse(response: String): Map<String, String> {

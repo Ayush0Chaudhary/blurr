@@ -9,6 +9,17 @@ data class AppMap(
     val screens: List<Screen>
 )
 
+/**
+ * A simplified data class representing a clickable element sent to the LLM for analysis.
+ */
+private data class ElementForLlm(
+    val id: Int,
+    val resource_id: String?,
+    val text: String?,
+    val content_description: String?,
+    val class_name: String?
+)
+
 data class AppMetadata(
     val package_name: String,
     val version_name: String = "1.0.0", // Placeholder, should be retrieved from PackageManager

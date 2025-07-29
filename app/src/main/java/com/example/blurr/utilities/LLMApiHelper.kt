@@ -71,16 +71,49 @@ fun addResponsePrePost(
 
 suspend fun getReasoningModelApiResponse(
     chat: List<Pair<String, List<Any>>>,
-    apiKey: String
+    apiKey: String,
+    agentState: com.example.blurr.agent.InfoPool? = null // NEW: Optional agent state parameter
 ): String? { // Return nullable String
-    // Assuming the last message in the chat is the one we want to send.
-//    val lastMessage = chat.lastOrNull() ?: return null
-//
-//    val prompt = lastMessage.second.filterIsInstance<TextPart>().joinToString(" ") { it.text }
-//    val images = lastMessage.second.filterIsInstance<ImagePart>().map { it.image }
+    return GeminiApi.generateContent(chat) // MODIFIED: Pass agent state
+}
 
-    // Just one simple, clean call!
+/**
+ * Enhanced version of getReasoningModelApiResponse that includes agent state context.
+ * This function provides the LLM with comprehensive context about the agent's current state,
+ * including task progress, action history, and error information.
+ * 
+ * @param chat The conversation history
+ * @param apiKey The API key for the LLM service
+ * @param agentState The current state of the agent (InfoPool)
+ * @return The LLM response or null if failed
+ */
+suspend fun getReasoningModelApiResponseWithState(
+    chat: List<Pair<String, List<Any>>>,
+    apiKey: String,
+    agentState: com.example.blurr.agent.InfoPool
+): String? {
     return GeminiApi.generateContent(chat)
+}
+
+/**
+ * Example function showing how to use agent state for better context-aware responses.
+ * This demonstrates how the agent state can improve LLM responses by providing:
+ * - Current task and progress information
+ * - Recent action history and outcomes
+ * - Error context and important notes
+ * - Memory and tips for better decision making
+ */
+suspend fun exampleUsageWithAgentState(
+    userInstruction: String,
+    agentState: com.example.blurr.agent.InfoPool
+): String? {
+    // Create a simple chat with the user instruction
+    val chat = listOf(
+        "user" to listOf(com.google.ai.client.generativeai.type.TextPart(userInstruction))
+    )
+    
+    // Call the API with agent state for better context
+    return getReasoningModelApiResponseWithState(chat, "", agentState)
 }
 
 

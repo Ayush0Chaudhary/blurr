@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 val localProperties = Properties()
@@ -124,4 +125,8 @@ dependencies {
     // Porcupine Wake Word Engine
     implementation("ai.picovoice:porcupine-android:3.0.2")
 
+    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+    implementation("com.google.firebase:firebase-analytics")
+// build.gradle.kts
+    implementation("com.google.firebase:firebase-firestore")
 }

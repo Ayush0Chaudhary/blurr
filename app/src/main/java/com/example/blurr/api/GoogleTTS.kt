@@ -93,7 +93,7 @@ object GoogleTts {
             .header("X-Goog-Api-Key", apiKey)
             .header("Content-Type", "application/json; charset=utf-8")
             .header("X-Android-Package", BuildConfig.APPLICATION_ID)
-            .header("X-Android-Cert", BuildConfig.SHA1_FINGERPRINT)
+//            .header("X-Android-Cert", BuildConfig.SHA1_FINGERPRINT)
             .post(jsonPayload.toRequestBody("application/json".toMediaType()))
             .build()
 
