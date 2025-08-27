@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy for Panda</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0 auto;
+            max-width: 800px;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2, h3 {
+            font-weight: 600;
+        }
+        code {
+            background-color: #f6f8fa;
+            padding: 3px 5px;
+            border-radius: 5px;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Privacy Policy for Panda</h1>
+<p><strong>Effective Date:</strong> August 9, 2025</p>
+<p>Thank you for using Panda ("the App"), your personal AI phone operator. This Privacy Policy explains what information we collect, how we use and share it, and your choices regarding your information.</p>
+<h2>1. Information We Collect</h2>
+<p>To function as an on-device AI agent, Panda requires access to certain information. We are committed to transparency and only collecting what is necessary to provide and improve the service.</p>
+<p><strong>a) Screen Content (via Accessibility Service)</strong><br>
+    To understand your requests and operate your phone's user interface, the app uses the Android Accessibility Service. This service allows Panda to collect:</p>
+<ul>
+    <li><strong>UI Element Information:</strong> Text, content descriptions, and resource IDs of elements on your screen.</li>
+    <li><strong>Screen Structure:</strong> The hierarchical layout of your screen (as XML data).</li>
+    <li><strong>Screenshots:</strong> The app has the capability to take screenshots to provide visual context to its AI models.</li>
+    <li><strong>This information is collected to understand the current state of your device to perform actions like tapping, swiping, and typing on your behalf.</strong></li>
+</ul>
+<p><strong>b) Audio Information (via Microphone Permission)</strong><br>
+    The app requires the <code>RECORD_AUDIO</code> permission to:</p>
+<ul>
+    <li><strong>Process Voice Commands:</strong> When you speak a command, the audio is processed to convert it into text.</li>
+    <li><strong>Wake Word Detection:</strong> The app listens for the "Panda" wake word to activate. This processing is done <strong>entirely on your device</strong> by the Picovoice Porcupine engine; your ambient audio is not sent to the cloud for wake word detection.</li>
+</ul>
+<p><strong>c) User Instructions &amp; Conversations</strong><br>
+    We collect the text of your typed or spoken commands and the history of your conversation with Panda during a session to understand your goals and provide relevant responses.</p>
+<p><strong>d) Installed Applications Information</strong><br>
+    The app uses the <code>QUERY_ALL_PACKAGES</code> permission to get a list of your installed applications. This information is used solely to identify apps by name so Panda can open them for you more quickly and reliably.</p>
+<p><strong>e) User-Created Memories (On-Device Storage)</strong></p>
+<ul>
+    <li><strong>Automatic Extraction:</strong> Facts may be extracted from your conversations to personalize your experience (e.g., remembering your brother's name if you mention it). This analysis is performed by Google's Gemini AI.</li>
+    <li><strong>Manual Creation:</strong> You can manually add facts in the "My Memories" section.</li>
+    <li><strong>All extracted and created memories are stored in a secure, private database on your device.</strong> They are not accessible by other applications.</li>
+</ul>
+<p><strong>f) Unique User Identifier</strong><br>
+    The app generates a random, anonymous Unique User ID (UUID) that is stored on your device. This helps in managing your memories and sessions without using any personal identifiers like your name or email.</p>
+<p><strong>g) Log Data for Debugging</strong><br>
+    To diagnose and fix issues, we log some interaction data with our third-party AI services. This data is sent to Google Firebase Firestore and includes the AI prompt, the AI's response, the AI model used, and success/error status. This log data is not linked to your personal identity.</p>
+<h2>2. How We Use Your Information</h2>
+<ul>
+    <li><strong>To Provide Core Functionality:</strong> To understand your commands and automate actions on your device.</li>
+    <li><strong>To Personalize Your Experience:</strong> To use your stored memories to provide more context-aware and helpful responses.</li>
+    <li><strong>To Improve the Service:</strong> To analyze anonymized log data to debug issues and enhance the app's performance and reliability.</li>
+</ul>
+<h2>3. Data Sharing and Third-Party Services</h2>
+<p>Panda is a complex AI system and relies on a few specialized third-party services to function. We do not sell your data.</p>
+<ul>
+    <li><strong>Google (Gemini AI Models):</strong> Your conversations, screen content (XML or screenshots), and text from new memories are sent to Google's Generative AI services for processing, reasoning, and analysis. This is essential for the AI to understand context and generate responses. Your data is subject to <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>.</li>
+    <li><strong>Google (Firebase Firestore):</strong> Anonymized log data of AI interactions is stored in Google's Firestore for debugging and service improvement, as described in section 1(g).</li>
+    <li><strong>Tavily (Search API):</strong> If a task requires web research, a search query derived from your instruction is sent to the Tavily Search API to find information. This is subject to <a href="https://tavily.com/privacy">Tavily's Privacy Policy</a>.</li>
+    <li><strong>Picovoice (Porcupine Wake Word):</strong> As stated in section 1(b), wake word detection is processed <strong>100% on your device</strong>. No audio is sent to Picovoice's servers.</li>
+</ul>
+<h2>4. Your Control and Choices</h2>
+<p>You are in control of your data.</p>
+<ul>
+    <li><strong>Managing Memories:</strong> You can view, add, and permanently delete any or all of your memories at any time from the "My Memories" screen within the app.</li>
+    <li><strong>Revoking Permissions:</strong> You can revoke the Accessibility Service, Microphone, and Overlay permissions at any time through your device's Android Settings. Please note that revoking these permissions will limit or disable Panda's core functionality.</li>
+</ul>
+<h2>5. Changes to This Privacy Policy</h2>
+<p>We may update this policy from time to time. We will notify you of any changes by posting the new policy in this section of the app.</p>
+<h2>6. Contact Us</h2>
+<p>If you have any questions about this Privacy Policy, please contact us at: <strong>ayush0000ayush@gmail.com</strong></p>
+
+</body>
+</html>

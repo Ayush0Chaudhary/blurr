@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Create a new file named button_with_border.xml in your res/drawable/ folder -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- This sets the background color of the button -->
+    <!-- Make sure you have a color named 'panel_background' in your colors.xml -->
+    <solid android:color="@color/panel_background" />
+
+    <!-- This creates the border -->
+    <stroke
+        android:width="0.5dp"
+        android:color="#CCCCCC" /> <!-- Whitish-grey border color -->
+
+    <!-- This keeps the corners rounded -->
+    <corners android:radius="8dp" />
+</shape>

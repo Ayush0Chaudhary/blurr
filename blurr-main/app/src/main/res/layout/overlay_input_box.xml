@@ -1,0 +1,18 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlayRootLayout"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="8dp">
+
+    <EditText
+        android:id="@+id/overlayInputField"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/input_box_background" android:hint="@string/input_box_hint"
+        android:imeOptions="actionDone"
+        android:inputType="text"
+        android:padding="16dp"
+        android:textColor="@android:color/white"
+        android:textColorHint="#A0A0A0" />
+
+</FrameLayout>

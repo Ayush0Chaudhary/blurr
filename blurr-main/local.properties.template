@@ -1,0 +1,9 @@
+# This is a template for local.properties
+# Copy this file to local.properties and add your actual Picovoice access key
+
+# Add your Picovoice access key here
+# Get it from: https://console.picovoice.ai/
+PICOVOICE_ACCESS_KEY=your_actual_access_key_here
+
+# Other Android SDK properties (these are usually auto-generated)
+# sdk.dir=/path/to/your/android/sdk 
