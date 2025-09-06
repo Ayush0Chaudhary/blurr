@@ -14,7 +14,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
-import com.blurr.voice.agent.v1.VisionMode
 import com.blurr.voice.api.GoogleTts
 import com.blurr.voice.api.PicovoiceKeyManager
 import com.blurr.voice.api.TTSVoice
@@ -33,8 +32,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var ttsVoicePicker: NumberPicker
     private lateinit var backButton: Button
     private lateinit var permissionsInfoButton: TextView
-    private lateinit var visionModeGroup: RadioGroup
-    private lateinit var visionModeDescription: TextView
     private lateinit var editUserName: android.widget.EditText
     private lateinit var editUserEmail: android.widget.EditText
     private lateinit var editWakeWordKey: android.widget.EditText
@@ -50,7 +47,6 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "BlurrSettings"
         private const val KEY_SELECTED_VOICE = "selected_voice"
-        private const val KEY_SELECTED_VISION_MODE = "selected_vision_mode"
         private const val TEST_TEXT = "Hello, I'm Panda, and this is a test of the selected voice."
         private val DEFAULT_VOICE = TTSVoice.CHIRP_PUCK
     }
@@ -83,10 +79,10 @@ class SettingsActivity : AppCompatActivity() {
         ttsVoicePicker = findViewById(R.id.ttsVoicePicker)
         backButton = findViewById(R.id.id_backButtonSettings)
         permissionsInfoButton = findViewById(R.id.permissionsInfoButton)
-        visionModeGroup = findViewById(R.id.visionModeGroup)
+      
         editWakeWordKey = findViewById(R.id.editWakeWordKey)
         buttonSaveWakeWordKey = findViewById(R.id.buttonSaveWakeWordKey)
-        visionModeDescription = findViewById(R.id.visionModeDescription)
+
         editUserName = findViewById(R.id.editUserName)
         editUserEmail = findViewById(R.id.editUserEmail)
         textGetPicovoiceKeyLink = findViewById(R.id.textGetPicovoiceKeyLink) // NEW: Initialize the TextView
@@ -156,15 +152,6 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        visionModeGroup.setOnCheckedChangeListener { _, checkedId ->
-            val modeName = if (checkedId == R.id.xmlModeRadio) "XML" else "Screenshot"
-            visionModeDescription.text = if (checkedId == R.id.xmlModeRadio) VisionMode.XML.description else VisionMode.SCREENSHOT.description
-            saveVisionMode(checkedId)
-            if (!isInitialLoad) {
-                Toast.makeText(this, "Vision Mode set to $modeName", Toast.LENGTH_SHORT).show()
-            }
-        }
-
         ttsVoicePicker.post {
             isInitialLoad = false
         }
@@ -227,9 +214,6 @@ class SettingsActivity : AppCompatActivity() {
         val savedVoiceName = sharedPreferences.getString(KEY_SELECTED_VOICE, DEFAULT_VOICE.name)
         val savedVoice = availableVoices.find { it.name == savedVoiceName } ?: DEFAULT_VOICE
         ttsVoicePicker.value = availableVoices.indexOf(savedVoice)
-
-        val savedVisionId = sharedPreferences.getInt(KEY_SELECTED_VISION_MODE, R.id.xmlModeRadio)
-        visionModeGroup.check(savedVisionId)
     }
 
     private fun saveSelectedVoice(voice: TTSVoice) {
@@ -237,9 +221,4 @@ class SettingsActivity : AppCompatActivity() {
         Log.d("SettingsActivity", "Saved voice: ${voice.displayName}")
     }
 
-    private fun saveVisionMode(checkedId: Int) {
-        sharedPreferences.edit {
-            putInt(KEY_SELECTED_VISION_MODE, checkedId)
-        }
-    }
 }

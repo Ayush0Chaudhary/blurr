@@ -254,62 +254,6 @@
 
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/rounded_background"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Agent Vision Mode"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <RadioGroup
-                android:id="@+id/visionModeGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical">
-
-                <RadioButton
-                    android:id="@+id/xmlModeRadio"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:buttonTint="#5880F7"
-                    android:paddingStart="8dp"
-                    android:text="@string/xml_mode"
-                    android:textColor="#CECECE"
-                    tools:ignore="RtlSymmetry" />
-
-                <RadioButton
-                    android:id="@+id/screenshotModeRadio"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:buttonTint="#5880F7"
-                    android:paddingStart="8dp"
-                    android:text="@string/screenshot_mode"
-                    android:textColor="#CECECE"
-                    tools:ignore="RtlSymmetry" />
-            </RadioGroup>
-
-            <TextView
-                android:id="@+id/visionModeDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:gravity="center"
-                android:text="@string/xml_mode_description"
-                android:textColor="#888888"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-
         <TextView
             android:id="@+id/permissionsInfoButton"
             android:layout_width="wrap_content"
@@ -326,4 +270,5 @@
             android:textStyle="bold" />
 
     </LinearLayout>
+
 </ScrollView>
