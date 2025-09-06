@@ -72,6 +72,20 @@ class Finger(private val context: Context) {
     }
 
     /**
+     * Launch an arbitrary intent safely.
+     */
+    fun launchIntent(intent: Intent): Boolean {
+        return try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start intent: $intent", e)
+            false
+        }
+    }
+
+    /**
      * Taps a point on the screen.
      */
     fun tap(x: Int, y: Int) {

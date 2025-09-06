@@ -201,4 +201,6 @@ Your response must follow this structure:
 The action list must NEVER be empty.
 IMPORTANT: Your entire response must be a single JSON object, starting with { and ending with }. Do not include any text before or after the JSON object.
 </output>
+
+{intents_catalog}
 ```

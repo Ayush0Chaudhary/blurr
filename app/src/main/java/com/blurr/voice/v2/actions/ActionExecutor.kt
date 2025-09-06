@@ -4,13 +4,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresApi
-import com.blurr.voice.agent.v1.InfoPool
 import com.blurr.voice.api.Finger
 import com.blurr.voice.utilities.SpeechCoordinator
 import com.blurr.voice.utilities.UserInputManager
 import com.blurr.voice.v2.ActionResult
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.perception.ScreenAnalysis
+import com.blurr.voice.intents.IntentRegistry
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -174,7 +174,7 @@ class ActionExecutor(private val finger: Finger) {
 //            is Action.ExtractStructuredData -> {
 //                // This is a placeholder for a complex action.
 //                // A full implementation would require another LLM call with the screen content.
-//                // For now, we return an error indicating it's not implemented.
+//                // For now, we return an error indicating it's not yet implemented.
 //                ActionResult(error = "Action 'ExtractStructuredData' is not yet implemented.")
 //            }
             is Action.InputText -> {
@@ -235,6 +235,29 @@ class ActionExecutor(private val finger: Finger) {
                     }
                 } else {
                     ActionResult(error = "Element with ID ${action.index} for input not found.")
+                }
+            }
+            is Action.LaunchIntent -> {
+                val name = action.intentName
+                val params = action.parameters
+                val appIntent = IntentRegistry.findByName(context, name)
+                if (appIntent == null) {
+                    return ActionResult(error = "Intent '$name' not found. Check intents catalog for valid names.")
+                }
+                val intent = appIntent.buildIntent(context, params)
+                return if (intent == null) {
+                    ActionResult(error = "Intent '$name' missing or invalid parameters: ${params}")
+                } else {
+                    return try {
+                        val launchSuccess = finger.launchIntent(intent)
+                        if (launchSuccess) {
+                            ActionResult(longTermMemory = "Launched intent '$name' with params ${params}")
+                        } else {
+                            ActionResult(error = "Failed to launch intent '$name' with params ${params}")
+                        }
+                    } catch (t: Throwable) {
+                        ActionResult(error = "Failed to launch intent '$name': ${t.message}")
+                    }
                 }
             }
         }

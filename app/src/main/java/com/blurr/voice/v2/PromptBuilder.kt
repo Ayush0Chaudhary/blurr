@@ -11,6 +11,7 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.blurr.voice.intents.IntentRegistry
 
 private const val DEFAULT_PROMPT_TEMPLATE = "prompts/system_prompt.md"
 
@@ -30,11 +31,17 @@ class SystemPromptLoader(private val context: Context) {
      */
     fun getSystemMessage(settings: AgentSettings): GeminiMessage {
         val actionsDescription = generateActionsDescription()
+        val intentsCatalog = generateIntentsCatalog()
 
         var prompt = settings.overrideSystemMessage ?: loadDefaultTemplate()
             .replace("{max_actions}", settings.maxActionsPerStep.toString())
             .replace("{available_actions}", actionsDescription)
 
+        // Append intents catalog and a usage hint for the launch_intent action
+        if (intentsCatalog.isNotBlank()) {
+            prompt += "\n\n<intents_catalog>\n$intentsCatalog\n</intents_catalog>\n\n" +
+                "Usage: To launch any of the above intents, add an action like {\"launch_intent\": {\"intent_name\": \"Dial\", \"parameters\": {\"phone_number\": \"+123456789\"}}}."
+        }
 
         if (!settings.extendSystemMessage.isNullOrBlank()) {
             prompt += "\n${settings.extendSystemMessage}"
@@ -65,6 +72,33 @@ class SystemPromptLoader(private val context: Context) {
                     append("  </parameters>\n")
                 }
                 append("</action>\n\n")
+            }
+        }.trim()
+    }
+
+    // New: Describe all registered AppIntents for the model
+    private fun generateIntentsCatalog(): String {
+        val intents = IntentRegistry.listIntents(context)
+        if (intents.isEmpty()) return ""
+        return buildString {
+            intents.forEach { intent ->
+                append("<intent>\n")
+                append("  <name>${intent.name}</name>\n")
+                append("  <description>${intent.description()}</description>\n")
+                val params = intent.parametersSpec()
+                if (params.isNotEmpty()) {
+                    append("  <parameters>\n")
+                    params.forEach { p ->
+                        append("    <param>\n")
+                        append("      <name>${p.name}</name>\n")
+                        append("      <type>${p.type}</type>\n")
+                        append("      <required>${p.required}</required>\n")
+                        append("      <description>${p.description}</description>\n")
+                        append("    </param>\n")
+                    }
+                    append("  </parameters>\n")
+                }
+                append("</intent>\n\n")
             }
         }.trim()
     }
@@ -155,7 +189,7 @@ object UserMessageBuilder {
         }
 
         val stepInfoDescription = args.stepInfo?.let {
-            val timeStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            val timeStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
             "Step ${it.stepNumber + 1} of ${it.maxSteps} max possible steps\nCurrent date and time: $timeStr"
         } ?: "Step information not available."
 

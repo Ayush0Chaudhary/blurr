@@ -39,6 +39,8 @@ sealed class Action {
     data class AppendFile(val fileName: String, val content: String) : Action()
     data class ReadFile(val fileName: String) : Action()
     data class Done(val success: Boolean, val text: String, val filesToDisplay: List<String>? = null) : Action()
+    // New: Launch an Android AppIntent by name with parameters
+    data class LaunchIntent(val intentName: String, val parameters: Map<String, String>) : Action()
 
     // --- The Custom Serializer ---
     // This serializer is now data-driven, using the `allSpecs` map as its source of truth.
@@ -73,6 +75,10 @@ sealed class Action {
                         String::class -> jsonValue.jsonPrimitive.content
                         Boolean::class -> jsonValue.jsonPrimitive.boolean
                         List::class -> jsonValue.jsonArray.map { el -> el.jsonPrimitive.content }
+                        Map::class -> jsonValue.jsonObject.mapValues { entry ->
+                            // We coerce all values to string for intent parameter passing
+                            entry.value.jsonPrimitive.content
+                        }
                         else -> throw IllegalStateException("Unsupported parameter type in Spec: ${paramSpec.type}")
                     }
                     args[paramName] = value
@@ -196,6 +202,22 @@ sealed class Action {
                 description = "Type text into a focused input field.",
                 params = listOf(ParamSpec("text", String::class, "The text to type.")),
                 build = { args -> InputText(args["text"] as String) }
+            ),
+            // New action spec: launch_intent
+            "launch_intent" to Spec(
+                name = "launch_intent",
+                description = "Launch an Android AppIntent by name with parameters. Use this for OS-level actions like Dial, Share, etc.",
+                params = listOf(
+                    ParamSpec("intent_name", String::class, "The name of the intent to launch (see intents catalog)."),
+                    ParamSpec("parameters", Map::class, "A map of parameter names to their string values as required by the intent.")
+                ),
+                build = { args ->
+                    @Suppress("UNCHECKED_CAST")
+                    LaunchIntent(
+                        intentName = args["intent_name"] as String,
+                        parameters = args["parameters"] as? Map<String, String> ?: emptyMap()
+                    )
+                }
             ),
         )
 
