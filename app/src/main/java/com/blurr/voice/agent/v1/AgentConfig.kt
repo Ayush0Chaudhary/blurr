@@ -15,7 +15,9 @@ data class AgentConfig(
     val maxRepetitiveActions: Int = 100,
     val errorThreshold: Int = 5,
     val context: Context,
-    val enableDirectAppOpening: Boolean = false // Debug flag for direct app opening
+    val enableDirectAppOpening: Boolean = false,
+    val enableTipGeneration: Boolean = true,
+    val tipGenerationFrequency: Int = 1
 ) {
     val isXmlMode: Boolean
         get() = visionMode == VisionMode.XML
@@ -41,8 +43,10 @@ object AgentConfigFactory {
         maxConsecutiveFailures: Int = 3,
         maxRepetitiveActions: Int = 3,
         errorThreshold: Int = 2,
-        enableDirectAppOpening: Boolean = false // Default to false for production safety
-    ): AgentConfig {
+        enableDirectAppOpening: Boolean = false, // Default to false for production safety
+        enableTipGeneration: Boolean = true, // New parameter
+        tipGenerationFrequency: Int = 1
+        ): AgentConfig {
         val mode = when (visionMode.uppercase()) {
             "XML" -> VisionMode.XML
             "SCREENSHOT" -> VisionMode.SCREENSHOT
@@ -57,7 +61,9 @@ object AgentConfigFactory {
             maxRepetitiveActions = maxRepetitiveActions,
             errorThreshold = errorThreshold,
             context = context,
-            enableDirectAppOpening = enableDirectAppOpening
+            enableDirectAppOpening = enableDirectAppOpening,
+            enableTipGeneration = enableTipGeneration,
+            tipGenerationFrequency = tipGenerationFrequency
         )
     }
 } 

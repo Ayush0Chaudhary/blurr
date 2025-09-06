@@ -92,6 +92,12 @@ class Operator(private val finger: Finger) : BaseAgent() {
         sb.appendLine(infoPool.instruction)
         sb.appendLine()
 
+        if (infoPool.tips.isNotEmpty()){
+            sb.appendLine("### Tips ###")
+            sb.appendLine("From previous experience interacting with the device, you have collected the following tips that might be useful for deciding what to do next:\n")
+            sb.appendLine(infoPool.tips)
+        }
+
         sb.appendLine("### Overall Plan ###")
         sb.appendLine(infoPool.plan)
         sb.appendLine()
@@ -153,12 +159,6 @@ class Operator(private val finger: Finger) : BaseAgent() {
         sb.appendLine(if (infoPool.keyboardPre) "The keyboard has been activated and you can type." else "The keyboard has not been activated and you can\\'t type.")
         sb.appendLine("\n")
 
-        if (infoPool.tips.isNotEmpty()){
-            sb.appendLine("### Tips ###")
-            sb.appendLine("From previous experience interacting with the device, you have collected the following tips that might be useful for deciding what to do next:\n")
-            sb.appendLine(infoPool.tips)
-        }
-
         if (infoPool.importantNotes.isNotBlank()) {
             sb.appendLine("\n### Important Notes ###")
             sb.appendLine("Here are some potentially important content relevant to the user's request you already recorded:\n")
@@ -216,7 +216,7 @@ class Operator(private val finger: Finger) : BaseAgent() {
         }
 
         sb.appendLine("---\n")
-        sb.appendLine("Provide your output in the following format, which contains three parts:\n")
+        sb.appendLine("Provide your output in the following format, which contains four parts:\n")
 
         sb.appendLine("### Thought ###\n")
         sb.appendLine("Provide a detailed explanation of your rationale for the chosen action.\n\n")
@@ -228,17 +228,25 @@ class Operator(private val finger: Finger) : BaseAgent() {
         sb.appendLine("### Description ###\n")
         sb.appendLine("A brief description of the chosen action and the expected outcome.")
 
+        sb.appendLine("### Tips ###\n")
+        sb.appendLine("Important tips (2-3 tips) that you encountered while deciding the action and could be useful later. tips should be concise (1 or 2 statements).\n")
+        sb.appendLine("tip-title: first tip concise description\n")
+        sb.appendLine("tip-title: second tip concise description\n")
+        sb.appendLine("...\n")
+
         return sb.toString()
     }
 
     override fun parseResponse(response: String):  Map<String, String>  {
         val thought = extractSection(response, "### Thought ###", "### Action ###")
         val action = extractSection(response, "### Action ###", "### Description ###")
-        val description = extractSection(response, "### Description ###", null)
+        val description = extractSection(response, "### Description ###", "### Tips ###")
+        val tips = extractSection(response, "### Tips ###", null)
         return mapOf(
             "thought" to thought,
             "action" to action,
-            "description" to description
+            "description" to description,
+            "tips" to tips
         )
     }
 
