@@ -156,6 +156,9 @@ class AgentService : Service() {
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand: Service has been started.")
+        val initialNotification = createNotification("Agent is starting...")
+        startForeground(NOTIFICATION_ID, initialNotification)
+
         if (intent?.action == ACTION_STOP_SERVICE) {
             Log.i(TAG, "Received stop action. Stopping service.")
             stopSelf()
@@ -175,7 +178,6 @@ class AgentService : Service() {
         // Start the service in the foreground.
         val notification = createNotification("Agent is running task: $task")
         startForeground(NOTIFICATION_ID, notification)
-
         // Track the task in Firebase before starting execution
         serviceScope.launch {
             trackTaskInFirebase(task)

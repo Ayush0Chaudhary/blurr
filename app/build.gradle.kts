@@ -26,8 +26,8 @@ android {
         applicationId = "com.blurr.voice"
         minSdk = 24
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.0.13" +
+        versionCode = 15
+        versionName = "1.0.15" +
                 ""
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -75,6 +75,9 @@ android {
             buildConfigField("String", "GCLOUD_PROXY_URL", "\"$googlecloudProxyURL\"")
             buildConfigField("String", "GCLOUD_PROXY_URL_KEY", "\"$googlecloudProxyURLKey\"")
 
+            val revenueCatSDK = localProperties.getProperty("REVENUE_CAT_PUBLIC_URL") ?:""
+            buildConfigField("String", "REVENUE_CAT_PUBLIC_URL", "\"$revenueCatSDK\"")
+//            REVENUE_CAT_PUBLIC_URL
         }
         debug {
             // Also add it to the 'debug' block so it works when you run from Android Studio
@@ -108,6 +111,8 @@ android {
             buildConfigField("String", "GCLOUD_PROXY_URL", "\"$googlecloudProxyURL\"")
             buildConfigField("String", "GCLOUD_PROXY_URL_KEY", "\"$googlecloudProxyURLKey\"")
 
+            val revenueCatSDK = localProperties.getProperty("REVENUE_CAT_PUBLIC_URL") ?:""
+            buildConfigField("String", "REVENUE_CAT_PUBLIC_URL", "\"$revenueCatSDK\"")
         }
     }
     compileOptions {
@@ -175,5 +180,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics-ndk")
     implementation(libs.firebase.firestore)
+
+    implementation("com.revenuecat.purchases:purchases:9.1.0")
 
 }

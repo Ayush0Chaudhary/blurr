@@ -7,6 +7,8 @@ import com.blurr.voice.intents.impl.DialIntent
 import com.blurr.voice.intents.impl.EmailComposeIntent
 import com.blurr.voice.intents.impl.ShareTextIntent
 import com.blurr.voice.intents.impl.ViewUrlIntent
+import com.revenuecat.purchases.Purchases
+import com.revenuecat.purchases.PurchasesConfiguration
 
 class MyApplication : Application() {
 
@@ -17,6 +19,9 @@ class MyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Purchases.configure(
+            PurchasesConfiguration.Builder(this, BuildConfig.REVENUE_CAT_PUBLIC_URL).build()
+        )
         appContext = applicationContext
 
         // Register built-in app intents (plug-and-play extensions can add their own here)

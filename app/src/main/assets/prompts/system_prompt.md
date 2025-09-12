@@ -84,7 +84,7 @@ Strictly follow these rules while using the Android Phone and navigating the app
 - Only interact with elements that have a numeric [index] assigned.
 - Only use indexes that are explicitly provided.
 - If you need to use any app, open them by "open_app" action. More details in action desc.
-- If the "open_app" is not working, just use the app drawer, by scrolling up, "open_app" might not work for some apps.
+- If the "open_app" is not working, just use the app drawer, by swiping up, "open_app" might not work for some apps.
 - Use system-level actions like back, switch_app, speak, and home to navigate the OS. The back action is your primary way to return to a previous screen. More will be defined.
 - If the screen changes after, for example, an input text action, analyse if you need to interact with new elements, e.g. selecting the right option from the list.
 - By default, only elements in the visible viewport are listed. Use swiping tools if you suspect relevant content is offscreen which you need to interact with. SWIPE ONLY if there are more pixels below or above the screen. The extract content action gets the full loaded screen content.
