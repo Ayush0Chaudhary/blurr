@@ -137,24 +137,17 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                 setBackgroundColor(0x80FFFFFF.toInt())
             }
 
-            // Calculate top margin to leave space for input box (120dp)
-            val topMarginDp = 120
-            val topMarginPx = (topMarginDp * context.resources.displayMetrics.density).toInt()
-
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.TOP
-                y = topMarginPx // Leave space at top for input box
-            }
+            )
 
             try {
                 windowManager.addView(speakingOverlay, params)
-                Log.d(TAG, "Speaking overlay added with top margin: ${topMarginPx}px")
+                Log.d(TAG, "Speaking overlay added (full screen)")
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding speaking overlay", e)
             }
@@ -235,8 +228,8 @@ class VisualFeedbackManager private constructor(private val context: Context) {
         onOutsideTap: () -> Unit
     ) {
         // This method creates an overlay input box that appears over other apps
-        // FIXED: Input box now appears at the top above the speaking overlay
-        // The speaking overlay leaves 120dp at top, input box uses 20dp margin
+        // FIXED: Input box appears above speaking overlay in Z-axis (layering), not Y-axis (position)
+        // Uses re-add technique to ensure it's always on top of the speaking overlay
         mainHandler.post {
             if (inputBoxView?.isAttachedToWindow == true) {
                 // If already showing, just ensure focus
@@ -265,9 +258,9 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                         WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM, // Better keyboard handling
                 PixelFormat.TRANSLUCENT
             ).apply {
-                gravity = Gravity.TOP
-                // Top margin with sufficient space - positioned above speaking overlay
-                y = (20 * context.resources.displayMetrics.density).toInt() // 20dp top margin
+                gravity = Gravity.BOTTOM
+                // Position at bottom to avoid keyboard overlap issues
+                // This ensures input box appears above (Z-axis) the speaking overlay
             }
 
             inputField?.setOnEditorActionListener { v, actionId, _ ->
@@ -302,7 +295,15 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
             try {
                 windowManager.addView(inputBoxView, params)
-                Log.d(TAG, "Input box added with initial y position: ${params.y}")
+                Log.d(TAG, "Input box added - positioned above speaking overlay in Z-axis")
+                
+                // Ensure input box appears above speaking overlay by re-adding if overlay exists
+                if (speakingOverlay != null) {
+                    // Remove and re-add to bring to front (above speaking overlay)
+                    windowManager.removeView(inputBoxView)
+                    windowManager.addView(inputBoxView, params)
+                    Log.d(TAG, "Input box re-added to appear above speaking overlay")
+                }
                 
                 // **IMPROVEMENT**: Explicitly request focus and show the keyboard
                 inputField?.requestFocus()
