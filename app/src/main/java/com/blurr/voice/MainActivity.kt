@@ -47,6 +47,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.revenuecat.purchases.Package
+import com.revenuecat.purchases.Purchases
+import com.revenuecat.purchases.getOfferingsWith
+import com.revenuecat.purchases.purchasePackageWith
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -101,12 +105,10 @@ class MainActivity : AppCompatActivity() {
         val profileManager = UserProfileManager(this)
 
         // --- UNIFIED AUTHENTICATION & PROFILE CHECK ---
-        // We check both conditions at once. If the user is either not logged in
-        // OR their profile is incomplete, we send them to the LoginActivity.
         if (currentUser == null || !profileManager.isProfileComplete()) {
             startActivity(Intent(this, LoginActivity::class.java))
-            finish() // Destroy MainActivity
-            return   // Stop executing any more code in this method
+            finish()
+            return
         }
         onboardingManager = OnboardingManager(this)
         if (!onboardingManager.isOnboardingCompleted()) {
@@ -116,27 +118,10 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-//        val roleManager = getSystemService(RoleManager::class.java)
-//        if (roleManager?.isRoleAvailable(RoleManager.ROLE_ASSISTANT) == true &&
-//            !roleManager.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
-//            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT)
-//            startActivityForResult(intent, 1001)
-//        } else {
-//            // Fallbacks if the role UI isn’t available
-//            val intents = listOf(
-//                Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
-//                Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)
-//            )
-//            for (i in intents) if (i.resolveActivity(packageManager) != null) {
-//                startActivity(i); break
-//            }
-//        }
-
         requestRoleLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 Toast.makeText(this, "Set as default assistant successfully!", Toast.LENGTH_SHORT).show()
             } else {
-                // Explain and offer Settings
                 Toast.makeText(this, "Couldn’t become default assistant. Opening settings…", Toast.LENGTH_SHORT).show()
                 Log.w("MainActivity", "Role request canceled or app not eligible.\n${explainAssistantEligibility()}")
                 openAssistantPickerSettings()
@@ -146,40 +131,33 @@ class MainActivity : AppCompatActivity() {
 
 
         setContentView(R.layout.activity_main)
-        // existing click listener
         findViewById<TextView>(R.id.btn_set_default_assistant).setOnClickListener {
             startActivity(Intent(this, RoleRequestActivity::class.java))
         }
 
-        // show/hide based on current status
         updateDefaultAssistantButtonVisibility()
 
         handleIntent(intent)
-        managePermissionsButton = findViewById(R.id.btn_manage_permissions) // ADDED
+        managePermissionsButton = findViewById(R.id.btn_manage_permissions)
 
         val userIdManager = UserIdManager(applicationContext)
         userId = userIdManager.getOrCreateUserId()
-        increaseLimitsLink = findViewById(R.id.increase_limits_link) // ADDED
+        increaseLimitsLink = findViewById(R.id.increase_limits_link)
 
         permissionManager = PermissionManager(this)
         permissionManager.initializePermissionLauncher()
 
-        // Initialize UI components
         managePermissionsButton = findViewById(R.id.btn_manage_permissions)
-
         tvPermissionStatus = findViewById(R.id.tv_permission_status)
         settingsButton = findViewById(R.id.settingsButton)
         wakeWordHelpLink = findViewById(R.id.wakeWordHelpLink)
-
         wakeWordButton = findViewById(R.id.wakeWordButton)
         tasksRemainingTextView = findViewById(R.id.tasks_remaining_textview)
         freemiumManager = FreemiumManager()
-        // Initialize managers
+
         wakeWordManager = WakeWordManager(this, requestPermissionLauncher)
         handler = Handler(Looper.getMainLooper())
 
-
-        // Setup UI and listeners
         setupClickListeners()
         setupSettingsButton()
         setupGradientText()
@@ -191,7 +169,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openAssistantPickerSettings() {
-        // Try the dedicated assistant settings screen first
         val specifics = listOf(
             Intent("android.settings.VOICE_INPUT_SETTINGS"),
             Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
@@ -217,15 +194,10 @@ class MainActivity : AppCompatActivity() {
     private fun explainAssistantEligibility(): String {
         val pm = packageManager
         val pkg = packageName
-
-        // Does my app have an activity that handles ACTION_ASSIST?
         val assistIntent = Intent(Intent.ACTION_ASSIST).setPackage(pkg)
         val assistActivities = pm.queryIntentActivities(assistIntent, 0)
-
-        // Does my app declare a VoiceInteractionService? (Most third-party apps won't)
         val visIntent = Intent("android.service.voice.VoiceInteractionService").setPackage(pkg)
         val visServices = pm.queryIntentServices(visIntent, 0)
-
         return buildString {
             append("Assistant eligibility:\n")
             append("• ACTION_ASSIST activity: ${if (assistActivities.isNotEmpty()) "FOUND" else "NOT FOUND"}\n")
@@ -236,23 +208,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // It's good practice to re-check authentication in onStart as well.
         if (auth.currentUser == null) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
         }
     }
-//    private fun signOut() {
-//        auth.signOut()
-//        // Optional: Also sign out from the Google account on the device
-//        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-//        val googleSignInClient = GoogleSignIn.getClient(this, gso)
-//        googleSignInClient.signOut().addOnCompleteListener {
-//            // After signing out, redirect to LoginActivity
-//            startActivity(Intent(this, LoginActivity::class.java))
-//            finish()
-//        }
-//    }
+
     private fun handleIntent(intent: Intent?) {
         if (intent?.action == "com.blurr.voice.WAKE_UP_PANDA") {
             Log.d("MainActivity", "Wake up Panda shortcut activated!")
@@ -278,16 +239,20 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, MemoriesActivity::class.java))
         }
         wakeWordButton.setOnClickListener {
-            wakeWordManager.handleWakeWordButtonClick(wakeWordButton)
-            // Give the service a moment to update its state before refreshing the UI
-            handler.postDelayed({ updateUI() }, 500)
+            // This is an example of a limited action
+            attemptLimitedAction {
+                // This code block will run only if the user is allowed to perform the task
+                wakeWordManager.handleWakeWordButtonClick(wakeWordButton)
+                handler.postDelayed({ updateUI() }, 500)
+            }
         }
 
         managePermissionsButton.setOnClickListener {
             startActivity(Intent(this, PermissionsActivity::class.java))
         }
         increaseLimitsLink.setOnClickListener {
-            requestLimitIncrease()
+            // This is now the entry point to our paywall
+            showPaywall()
         }
         findViewById<TextView>(R.id.github_link_textview).setOnClickListener {
             val url = "https://github.com/Ayush0Chaudhary/blurr"
@@ -307,31 +272,57 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
     }
-    private fun requestLimitIncrease() {
-        val userEmail = auth.currentUser?.email
-        if (userEmail.isNullOrEmpty()) {
-            Toast.makeText(this, "Could not get your email. Please try again.", Toast.LENGTH_SHORT).show()
-            return
-        }
 
-        val recipient = "ayush0000ayush@gmail.com"
-        val subject = "Please increase limits"
-        val body = "Hello,\n\nPlease increase the task limits for my account: $userEmail\n\nThank you."
+    // *** PAYWALL AND PURCHASE LOGIC ***
 
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("mailto:") // Only email apps should handle this
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
-            putExtra(Intent.EXTRA_SUBJECT, subject)
-            putExtra(Intent.EXTRA_TEXT, body)
-        }
-
-        // Verify that the intent will resolve to an activity
-        if (intent.resolveActivity(packageManager) != null) {
-            startActivity(intent)
-        } else {
-            Toast.makeText(this, "No email application found.", Toast.LENGTH_SHORT).show()
+    private fun attemptLimitedAction(action: () -> Unit) {
+        lifecycleScope.launch {
+            if (freemiumManager.canPerformTask()) {
+                freemiumManager.decrementTaskCount() // Will only decrement for free users
+                action() // Execute the passed action
+            } else {
+                // User is out of tasks, show the paywall
+                showPaywall()
+            }
         }
     }
+
+    private fun showPaywall() {
+        Purchases.sharedInstance.getOfferingsWith(
+            onError = { error ->
+                Toast.makeText(this, "Error fetching subscription: $error", Toast.LENGTH_SHORT).show()
+            },
+            onSuccess = { offerings ->
+                val monthlyPackage = offerings.current?.getPackage("default") // Use your package identifier
+                if (monthlyPackage != null) {
+                    purchasePackage(monthlyPackage)
+                } else {
+                    Toast.makeText(this, "No subscription available at this time.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    private fun purchasePackage(packageToPurchase: Package) {
+        Purchases.sharedInstance.purchasePackageWith(
+            this,
+            packageToPurchase,
+            onError = { error, userCancelled ->
+                if (!userCancelled) {
+                    Toast.makeText(this, "Purchase failed: $error", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSuccess = { storeTransaction, customerInfo ->
+                if (customerInfo.entitlements.active.containsKey("premium")) {
+                    Toast.makeText(this, "Success! You now have unlimited tasks.", Toast.LENGTH_LONG).show()
+                    updateTaskCounter() // Refresh the UI to show premium status
+                }
+            }
+        )
+    }
+
+    // **********************************
+
     private fun setupGradientText() {
         val karanTextView = findViewById<TextView>(R.id.karan_textview_gradient)
         karanTextView.measure(0, 0)
@@ -347,7 +338,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateTaskCounter()
-
         updateUI()
         val filter = IntentFilter(ACTION_WAKE_WORD_FAILED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -358,9 +348,9 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onPause() {
         super.onPause()
-        // Unregister the BroadcastReceiver to avoid leaks
         unregisterReceiver(wakeWordFailureReceiver)
     }
+
     private fun showDisclaimerDialog() {
         AlertDialog.Builder(this)
             .setTitle("Disclaimer")
@@ -371,21 +361,16 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-
     private fun showWakeWordFailureDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_wake_word_failure, null)
         val videoView = dialogView.findViewById<VideoView>(R.id.video_demo)
         val videoContainer = dialogView.findViewById<View>(R.id.video_container_card)
-
         val builder = AlertDialog.Builder(this)
             .setView(dialogView)
             .setPositiveButton("Got it") { dialog, _ ->
                 dialog.dismiss()
             }
-
         val alertDialog = builder.create()
-
-        // Use a coroutine to get the file, as it might trigger a download
         lifecycleScope.launch {
             val videoUrl = "https://storage.googleapis.com/blurr-app-assets/wake_word_demo.mp4"
             val videoFile: File? = VideoAssetManager.getVideoFile(this@MainActivity, videoUrl)
@@ -393,40 +378,39 @@ class MainActivity : AppCompatActivity() {
             if (videoFile != null && videoFile.exists()) {
                 videoContainer.visibility = View.VISIBLE
                 videoView.setVideoURI(Uri.fromFile(videoFile))
-                videoView.setOnPreparedListener { mp ->
-                    mp.isLooping = true
-                }
-                alertDialog.setOnShowListener {
-                    videoView.start()
-                }
+                videoView.setOnPreparedListener { mp -> mp.isLooping = true }
+                alertDialog.setOnShowListener { videoView.start() }
             } else {
-                // If file doesn't exist (e.g., download failed), hide the video player
                 Log.e("MainActivity", "Video file not found, hiding video container.")
                 videoContainer.visibility = View.GONE
             }
         }
-
         alertDialog.show()
     }
+
     private fun updateTaskCounter() {
         lifecycleScope.launch {
             val tasksLeft = freemiumManager.getTasksRemaining()
-            if (tasksLeft != null && tasksLeft >= 0) {
+            if (tasksLeft == Long.MAX_VALUE) {
+                // User is on premium plan
+                tasksRemainingTextView.text = "You have unlimited tasks with Premium."
+                tasksRemainingTextView.visibility = View.VISIBLE
+                increaseLimitsLink.visibility = View.GONE // Hide the link for premium users
+            } else if (tasksLeft != null && tasksLeft >= 0) {
+                // User is on free plan
                 tasksRemainingTextView.text = "You have $tasksLeft free tasks remaining."
                 tasksRemainingTextView.visibility = View.VISIBLE
-
-                // ADDED: Logic to show/hide the increase limits link
-                // Show the link if the user has 5 or fewer tasks left.
+                // Show the link if the user has 10 or fewer tasks left.
                 if (tasksLeft <= 10) {
+                    increaseLimitsLink.text = "Upgrade to Premium" // Change text
                     increaseLimitsLink.visibility = View.VISIBLE
                 } else {
                     increaseLimitsLink.visibility = View.GONE
                 }
-
             } else {
-                // Hide both text views if there's an error or count is invalid
+                // Error or invalid state
                 tasksRemainingTextView.visibility = View.GONE
-                increaseLimitsLink.visibility = View.GONE // ADDED
+                increaseLimitsLink.visibility = View.GONE
             }
         }
     }
@@ -450,7 +434,6 @@ class MainActivity : AppCompatActivity() {
             val rm = getSystemService(RoleManager::class.java)
             rm?.isRoleHeld(RoleManager.ROLE_ASSISTANT) == true
         } else {
-            // Pre-Q best-effort: check the current VoiceInteractionService owner
             val flat = Settings.Secure.getString(contentResolver, "voice_interaction_service")
             val currentPkg = flat?.substringBefore('/')
             currentPkg == packageName
@@ -461,5 +444,4 @@ class MainActivity : AppCompatActivity() {
         val btn = findViewById<TextView>(R.id.btn_set_default_assistant)
         btn.visibility = if (isThisAppDefaultAssistant()) View.GONE else View.VISIBLE
     }
-
 }
