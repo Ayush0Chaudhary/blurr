@@ -137,17 +137,24 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                 setBackgroundColor(0x80FFFFFF.toInt())
             }
 
+            // Calculate top margin to leave space for input box (120dp)
+            val topMarginDp = 120
+            val topMarginPx = (topMarginDp * context.resources.displayMetrics.density).toInt()
+
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
-            )
+            ).apply {
+                gravity = Gravity.TOP
+                y = topMarginPx // Leave space at top for input box
+            }
 
             try {
                 windowManager.addView(speakingOverlay, params)
-                Log.d(TAG, "Speaking overlay added.")
+                Log.d(TAG, "Speaking overlay added with top margin: ${topMarginPx}px")
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding speaking overlay", e)
             }
@@ -228,8 +235,8 @@ class VisualFeedbackManager private constructor(private val context: Context) {
         onOutsideTap: () -> Unit
     ) {
         // This method creates an overlay input box that appears over other apps
-        // Key fix: Proper keyboard positioning using WindowInsetsCompat to prevent
-        // the input box from being hidden behind the keyboard when it appears
+        // FIXED: Input box now appears at the top above the speaking overlay
+        // The speaking overlay leaves 120dp at top, input box uses 20dp margin
         mainHandler.post {
             if (inputBoxView?.isAttachedToWindow == true) {
                 // If already showing, just ensure focus
@@ -254,12 +261,13 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                         WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM, // Better keyboard handling
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP
-                // Top margin with sufficient space
-                y = (80 * context.resources.displayMetrics.density).toInt() // 80dp top margin
+                // Top margin with sufficient space - positioned above speaking overlay
+                y = (20 * context.resources.displayMetrics.density).toInt() // 20dp top margin
             }
 
             inputField?.setOnEditorActionListener { v, actionId, _ ->
