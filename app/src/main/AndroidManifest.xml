@@ -73,7 +73,7 @@
         </activity>
 
         <activity android:name=".triggers.ui.TriggersActivity" android:exported="false" android:label="Triggers" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".triggers.ui.CreateTriggerActivity" android:exported="false" android:label="Create Trigger" android:theme="@style/Theme.Blurr" />
+        <activity android:name=".triggers.ui.CreateTriggerActivity" android:exported="false" android:label="Create Trigger" android:theme="@style/Theme.Blurr" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".triggers.ui.ChooseTriggerTypeActivity" android:exported="false" android:label="Choose Trigger Type" android:theme="@style/Theme.Blurr" />
 
 
