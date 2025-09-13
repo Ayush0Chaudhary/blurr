@@ -283,6 +283,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
+        findViewById<TextView>(R.id.goProButton).setOnClickListener {
+            startActivity(Intent(this, PaywallActivity::class.java))
+        }
+
         managePermissionsButton.setOnClickListener {
             startActivity(Intent(this, PermissionsActivity::class.java))
         }
@@ -421,22 +425,29 @@ class MainActivity : AppCompatActivity() {
     private fun updateTaskCounter() {
         lifecycleScope.launch {
             val tasksLeft = freemiumManager.getTasksRemaining()
-            if (tasksLeft != null && tasksLeft >= 0) {
+            val goProButton = findViewById<TextView>(R.id.goProButton)
+
+            if (tasksLeft == Long.MAX_VALUE) {
+                // User is subscribed
+                tasksRemainingTextView.visibility = View.GONE
+                increaseLimitsLink.visibility = View.GONE
+                goProButton.visibility = View.GONE // User is already pro
+            } else if (tasksLeft != null && tasksLeft >= 0) {
+                // User is on a free plan
                 tasksRemainingTextView.text = "You have $tasksLeft free tasks remaining."
                 tasksRemainingTextView.visibility = View.VISIBLE
+                goProButton.visibility = View.VISIBLE
 
-                // ADDED: Logic to show/hide the increase limits link
-                // Show the link if the user has 5 or fewer tasks left.
                 if (tasksLeft <= 10) {
                     increaseLimitsLink.visibility = View.VISIBLE
                 } else {
                     increaseLimitsLink.visibility = View.GONE
                 }
-
             } else {
-                // Hide both text views if there's an error or count is invalid
+                // Error or invalid state
                 tasksRemainingTextView.visibility = View.GONE
-                increaseLimitsLink.visibility = View.GONE // ADDED
+                increaseLimitsLink.visibility = View.GONE
+                goProButton.visibility = View.VISIBLE // Still allow to upgrade
             }
         }
     }
