@@ -31,6 +31,7 @@ class CreateTriggerActivity : AppCompatActivity() {
     private lateinit var appsRecyclerView: RecyclerView
     private lateinit var dayOfWeekChipGroup: com.google.android.material.chip.ChipGroup
     private lateinit var appAdapter: AppAdapter
+    private lateinit var scrollView: android.widget.ScrollView
 
     private var selectedTriggerType = TriggerType.SCHEDULED_TIME
     private var selectedApp: AppInfo? = null
@@ -44,12 +45,22 @@ class CreateTriggerActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         triggerManager = TriggerManager.getInstance(this)
+        scrollView = findViewById(R.id.scrollView)
         instructionEditText = findViewById(R.id.instructionEditText)
         scheduledTimeOptions = findViewById(R.id.scheduledTimeOptions)
         notificationOptions = findViewById(R.id.notificationOptions)
         timePicker = findViewById(R.id.timePicker)
         appsRecyclerView = findViewById(R.id.appsRecyclerView)
         dayOfWeekChipGroup = findViewById(R.id.dayOfWeekChipGroup)
+
+        // Ensure instruction EditText scrolls into view when focused
+        instructionEditText.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                scrollView.post {
+                    scrollView.smoothScrollTo(0, instructionEditText.bottom)
+                }
+            }
+        }
 
         // Set default checked state for all day chips
         for (i in 0 until dayOfWeekChipGroup.childCount) {
