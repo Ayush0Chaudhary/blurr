@@ -50,8 +50,10 @@ The Trigger System allows Panda to be initiated from various entry points, enabl
 1.  The `PandaNotificationListenerService` is constantly running in the background (once enabled by the user).
 2.  When a notification is posted by any app, the service's `onNotificationPosted` method is called.
 3.  The service checks if the notification's source package name matches any enabled notification triggers stored in the `TriggerManager`.
-4.  If a match is found, it fires an `Intent` to the `TriggerReceiver`.
-5.  The `TriggerReceiver` starts the `AgentService` with the corresponding task instruction.
+4.  If a match is found, it extracts the notification content (title, text) from the notification extras.
+5.  It fires an `Intent` to the `TriggerReceiver` with both the trigger instruction and notification content.
+6.  The `TriggerReceiver` builds an enhanced instruction that includes notification context for better AI understanding.
+7.  The `TriggerReceiver` starts the `AgentService` with the enhanced instruction containing both the predefined task and notification details.
 
 ## Technical Implementation
 
@@ -73,8 +75,9 @@ The Trigger System allows Panda to be initiated from various entry points, enabl
 - **Purpose**: A single entry point for all trigger events.
 - **Responsibilities**:
   - Receives `Intent` broadcasts from both `AlarmManager` and `PandaNotificationListenerService`.
-  - Extracts the task instruction.
-  - Starts the `v2.AgentService` to execute the task.
+  - Extracts the task instruction and optional notification content.
+  - For notification triggers, enhances the instruction with notification context (title, text, package).
+  - Starts the `v2.AgentService` to execute the task with the enhanced instruction.
   - Calls back to the `TriggerManager` to reschedule a time-based alarm after it has fired.
 
 #### `BootReceiver` (BroadcastReceiver)
@@ -87,7 +90,8 @@ The Trigger System allows Panda to be initiated from various entry points, enabl
 - **Purpose**: Listens for system-wide notifications.
 - **Responsibilities**:
   - Compares the package name of incoming notifications against stored notification triggers.
-  - Broadcasts an `Intent` to the `TriggerReceiver` when a match is found.
+  - Extracts notification content (title, text) from notification extras.
+  - Broadcasts an `Intent` to the `TriggerReceiver` when a match is found, including notification context.
 
 #### UI Activities
 - **`TriggersActivity`**: Displays a list of all configured triggers. Handles enabling/disabling and deleting triggers.
