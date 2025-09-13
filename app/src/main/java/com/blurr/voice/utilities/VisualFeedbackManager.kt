@@ -254,12 +254,12 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                         WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT
             ).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+                gravity = Gravity.TOP
+                // Top margin with sufficient space
+                y = (80 * context.resources.displayMetrics.density).toInt() // 80dp top margin
             }
 
             inputField?.setOnEditorActionListener { v, actionId, _ ->
@@ -294,7 +294,7 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
             try {
                 windowManager.addView(inputBoxView, params)
-                Log.d(TAG, "Input box added with center-vertical positioning")
+                Log.d(TAG, "Input box added with initial y position: ${params.y}")
                 
                 // **IMPROVEMENT**: Explicitly request focus and show the keyboard
                 inputField?.requestFocus()
