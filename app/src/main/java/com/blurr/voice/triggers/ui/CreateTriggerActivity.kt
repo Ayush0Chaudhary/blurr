@@ -7,6 +7,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.TimePicker
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -31,6 +32,7 @@ class CreateTriggerActivity : AppCompatActivity() {
     private lateinit var appsRecyclerView: RecyclerView
     private lateinit var dayOfWeekChipGroup: com.google.android.material.chip.ChipGroup
     private lateinit var appAdapter: AppAdapter
+    private lateinit var scrollView: ScrollView
 
     private var selectedTriggerType = TriggerType.SCHEDULED_TIME
     private var selectedApp: AppInfo? = null
@@ -50,6 +52,16 @@ class CreateTriggerActivity : AppCompatActivity() {
         timePicker = findViewById(R.id.timePicker)
         appsRecyclerView = findViewById(R.id.appsRecyclerView)
         dayOfWeekChipGroup = findViewById(R.id.dayOfWeekChipGroup)
+        scrollView = findViewById(R.id.scrollView)
+
+        instructionEditText.setOnFocusChangeListener { view, hasFocus ->
+            if (hasFocus) {
+                // Delay scrolling until the keyboard is likely to be visible
+                view.postDelayed({
+                    scrollView.smoothScrollTo(0, view.bottom)
+                }, 200)
+            }
+        }
 
         // Set default checked state for all day chips
         for (i in 0 until dayOfWeekChipGroup.childCount) {
