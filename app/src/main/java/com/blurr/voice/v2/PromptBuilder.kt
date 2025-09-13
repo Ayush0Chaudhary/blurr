@@ -31,17 +31,10 @@ class SystemPromptLoader(private val context: Context) {
      */
     fun getSystemMessage(settings: AgentSettings): GeminiMessage {
         val actionsDescription = generateActionsDescription()
-        val intentsCatalog = generateIntentsCatalog()
 
         var prompt = settings.overrideSystemMessage ?: loadDefaultTemplate()
             .replace("{max_actions}", settings.maxActionsPerStep.toString())
             .replace("{available_actions}", actionsDescription)
-
-        // Append intents catalog and a usage hint for the launch_intent action
-        if (intentsCatalog.isNotBlank()) {
-            prompt += "\n\n<intents_catalog>\n$intentsCatalog\n</intents_catalog>\n\n" +
-                "Usage: To launch any of the above intents, add an action like {\"launch_intent\": {\"intent_name\": \"Dial\", \"parameters\": {\"phone_number\": \"+123456789\"}}}."
-        }
 
         if (!settings.extendSystemMessage.isNullOrBlank()) {
             prompt += "\n${settings.extendSystemMessage}"
@@ -76,33 +69,6 @@ class SystemPromptLoader(private val context: Context) {
         }.trim()
     }
 
-    // New: Describe all registered AppIntents for the model
-    private fun generateIntentsCatalog(): String {
-        val intents = IntentRegistry.listIntents(context)
-        if (intents.isEmpty()) return ""
-        return buildString {
-            intents.forEach { intent ->
-                append("<intent>\n")
-                append("  <name>${intent.name}</name>\n")
-                append("  <description>${intent.description()}</description>\n")
-                val params = intent.parametersSpec()
-                if (params.isNotEmpty()) {
-                    append("  <parameters>\n")
-                    params.forEach { p ->
-                        append("    <param>\n")
-                        append("      <name>${p.name}</name>\n")
-                        append("      <type>${p.type}</type>\n")
-                        append("      <required>${p.required}</required>\n")
-                        append("      <description>${p.description}</description>\n")
-                        append("    </param>\n")
-                    }
-                    append("  </parameters>\n")
-                }
-                append("</intent>\n\n")
-            }
-        }.trim()
-    }
-
     private fun loadDefaultTemplate(): String {
         return try {
             context.assets.open(DEFAULT_PROMPT_TEMPLATE).bufferedReader().use { it.readText() }
@@ -130,6 +96,7 @@ object UserMessageBuilder {
         val stepInfo: AgentStepInfo?,
         val sensitiveDataDescription: String?,
         val availableFilePaths: List<String>?,
+        val dynamicIntentContext: String?,
         val maxUiRepresentationLength: Int = 40000
     )
 
@@ -144,6 +111,12 @@ object UserMessageBuilder {
             append("<agent_history>\n")
             append(args.agentHistoryDescription?.trim() ?: "No history yet.")
             append("\n</agent_history>\n\n")
+
+            if (!args.dynamicIntentContext.isNullOrBlank()) {
+                append("<available_intents_and_shortcuts>\n")
+                append(args.dynamicIntentContext.trim())
+                append("\n</available_intents_and_shortcuts>\n\n")
+            }
 
             append("<agent_state>\n")
             append(buildAgentStateBlock(args))

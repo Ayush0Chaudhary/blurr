@@ -121,6 +121,8 @@ The `done` action is your opportunity to terminate and share your findings with 
 - If the user asks for specified format, such as "return JSON with following structure", "return a list of format...", MAKE sure to use the right format in your answer.
 </task_completion_rules>
 
+Note: App shortcuts and share targets will only be shown for the first 4 turns.
+
 <action_rules>
 - You are allowed to use a maximum of {max_actions} actions per step.
 
@@ -201,6 +203,4 @@ Your response must follow this structure:
 The action list must NEVER be empty.
 IMPORTANT: Your entire response must be a single JSON object, starting with { and ending with }. Do not include any text before or after the JSON object.
 </output>
-
-{intents_catalog}
 ```
