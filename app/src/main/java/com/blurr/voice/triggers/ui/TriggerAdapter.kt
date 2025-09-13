@@ -3,11 +3,13 @@ package com.blurr.voice.triggers.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.blurr.voice.R
 import com.blurr.voice.triggers.Trigger
+import com.blurr.voice.triggers.TriggerType
 import java.util.Locale
 
 class TriggerAdapter(
@@ -38,7 +40,7 @@ class TriggerAdapter(
         private val instructionTextView: TextView = itemView.findViewById(R.id.triggerInstructionTextView)
         private val timeTextView: TextView = itemView.findViewById(R.id.triggerTimeTextView)
         private val enabledSwitch: SwitchCompat = itemView.findViewById(R.id.triggerEnabledSwitch)
-        private val deleteButton: android.widget.ImageButton = itemView.findViewById(R.id.deleteTriggerButton)
+        private val deleteButton: ImageButton = itemView.findViewById(R.id.deleteTriggerButton)
 
         fun bind(trigger: Trigger) {
             instructionTextView.text = trigger.instruction
@@ -61,7 +63,7 @@ class TriggerAdapter(
                 }
             }
 
-            enabledSwitch.setOnCheckedChangeListener(null) // Avoid triggering listener during bind
+            enabledSwitch.setOnCheckedChangeListener(null)
             enabledSwitch.isChecked = trigger.isEnabled
             enabledSwitch.setOnCheckedChangeListener { _, isChecked ->
                 onCheckedChange(trigger, isChecked)

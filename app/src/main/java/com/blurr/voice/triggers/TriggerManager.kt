@@ -1,13 +1,12 @@
 package com.blurr.voice.triggers
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-
-import android.app.AlarmManager
-import android.app.PendingIntent
-import android.content.Intent
 import java.util.Calendar
 
 class TriggerManager(private val context: Context) {
@@ -24,7 +23,7 @@ class TriggerManager(private val context: Context) {
         val triggers = loadTriggers()
         triggers.add(trigger)
         saveTriggers(triggers)
-        if (trigger.isEnabled) {
+        if (trigger.isEnabled && trigger.type == TriggerType.SCHEDULED_TIME) {
             scheduleAlarm(trigger)
         }
     }
@@ -33,7 +32,9 @@ class TriggerManager(private val context: Context) {
         val triggers = loadTriggers()
         val triggerToRemove = triggers.find { it.id == trigger.id }
         if (triggerToRemove != null) {
-            cancelAlarm(triggerToRemove)
+            if (triggerToRemove.type == TriggerType.SCHEDULED_TIME) {
+                cancelAlarm(triggerToRemove)
+            }
             triggers.remove(triggerToRemove)
             saveTriggers(triggers)
         }
@@ -46,8 +47,7 @@ class TriggerManager(private val context: Context) {
     fun rescheduleTrigger(triggerId: String) {
         val triggers = loadTriggers()
         val trigger = triggers.find { it.id == triggerId }
-        if (trigger != null && trigger.isEnabled) {
-            // This will calculate the next day's time and set a new exact alarm
+        if (trigger != null && trigger.isEnabled && trigger.type == TriggerType.SCHEDULED_TIME) {
             scheduleAlarm(trigger)
             android.util.Log.d("TriggerManager", "Rescheduled trigger: ${trigger.id}")
         }
@@ -59,10 +59,12 @@ class TriggerManager(private val context: Context) {
         if (index != -1) {
             triggers[index] = trigger
             saveTriggers(triggers)
-            if (trigger.isEnabled) {
-                scheduleAlarm(trigger)
-            } else {
-                cancelAlarm(trigger)
+            if (trigger.type == TriggerType.SCHEDULED_TIME) {
+                if (trigger.isEnabled) {
+                    scheduleAlarm(trigger)
+                } else {
+                    cancelAlarm(trigger)
+                }
             }
         }
     }
@@ -70,6 +72,12 @@ class TriggerManager(private val context: Context) {
     private fun scheduleAlarm(trigger: Trigger) {
         if (trigger.type != TriggerType.SCHEDULED_TIME) {
             android.util.Log.w("TriggerManager", "Attempted to schedule alarm for non-time-based trigger: ${trigger.id}")
+            return
+        }
+
+        val nextTriggerTime = getNextTriggerTime(trigger.hour!!, trigger.minute!!, trigger.daysOfWeek)
+        if (nextTriggerTime == null) {
+            android.util.Log.w("TriggerManager", "No valid day of week for trigger: ${trigger.id}")
             return
         }
 
@@ -86,59 +94,42 @@ class TriggerManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val nextTriggerTime = getNextTriggerTime(trigger.hour!!, trigger.minute!!, trigger.daysOfWeek)
-        if (nextTriggerTime == null) {
-            android.util.Log.w("TriggerManager", "No valid day of week for trigger: ${trigger.id}")
-            return
-        }
-
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    nextTriggerTime.timeInMillis,
-                    pendingIntent
-                )
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTriggerTime.timeInMillis, pendingIntent)
             } else {
-                // Handle case where permission is not granted.
-                // For now, we'll log a warning. The UI part of the plan will handle prompting the user.
                 android.util.Log.w("TriggerManager", "Cannot schedule exact alarm, permission not granted.")
             }
         } else {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                nextTriggerTime.timeInMillis,
-                pendingIntent
-            )
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTriggerTime.timeInMillis, pendingIntent)
         }
     }
 
     private fun getNextTriggerTime(hour: Int, minute: Int, daysOfWeek: Set<Int>): Calendar? {
         val now = Calendar.getInstance()
-        var nextTrigger = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
 
         for (i in 0..7) {
-            val day = (now.get(Calendar.DAY_OF_WEEK) + i - 1) % 7 + 1
-            if (day in daysOfWeek) {
-                nextTrigger.add(Calendar.DAY_OF_YEAR, i)
+            val nextDay = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, i) }
+            val dayOfWeek = nextDay.get(Calendar.DAY_OF_WEEK)
+
+            if (dayOfWeek in daysOfWeek) {
+                val nextTrigger = (nextDay.clone() as Calendar).apply {
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
                 if (nextTrigger.after(now)) {
                     return nextTrigger
                 }
-                // Reset for next iteration
-                nextTrigger.add(Calendar.DAY_OF_YEAR, -i)
             }
         }
-        return null // Should not happen if at least one day is selected
+        return null
     }
 
     private fun cancelAlarm(trigger: Trigger) {
         if (trigger.type != TriggerType.SCHEDULED_TIME) {
-            return // No alarm to cancel for non-time-based triggers
+            return
         }
         val intent = Intent(context, TriggerReceiver::class.java).apply {
             action = TriggerReceiver.ACTION_EXECUTE_TASK

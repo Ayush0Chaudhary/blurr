@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg"
+    android:fitsSystemWindows="true"
     tools:context=".triggers.ui.CreateTriggerActivity">
 
     <androidx.appcompat.widget.Toolbar

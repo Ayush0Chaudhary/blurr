@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.blurr.voice.v2.AgentService
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class TriggerReceiver : BroadcastReceiver() {
 
@@ -23,6 +25,7 @@ class TriggerReceiver : BroadcastReceiver() {
 
         if (intent.action == ACTION_EXECUTE_TASK) {
             val taskInstruction = intent.getStringExtra(EXTRA_TASK_INSTRUCTION)
+            val triggerId = intent.getStringExtra(EXTRA_TRIGGER_ID)
 
             if (taskInstruction.isNullOrBlank()) {
                 Log.e(TAG, "Received execute task action but instruction was null or empty.")
@@ -30,14 +33,11 @@ class TriggerReceiver : BroadcastReceiver() {
             }
 
             Log.d(TAG, "Received task to execute: '$taskInstruction'")
-
-            // Directly start the v2 AgentService
             AgentService.start(context, taskInstruction)
 
-            // Reschedule the alarm for the next day
-            val triggerId = intent.getStringExtra(EXTRA_TRIGGER_ID)
+            // If it was a time-based trigger, reschedule it for the next day
             if (triggerId != null) {
-                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     TriggerManager.getInstance(context).rescheduleTrigger(triggerId)
                 }
             }

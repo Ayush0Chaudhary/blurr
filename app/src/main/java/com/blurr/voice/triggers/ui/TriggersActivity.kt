@@ -2,15 +2,12 @@ package com.blurr.voice.triggers.ui
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
-import android.content.Intent
-import android.os.Bundle
 import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blurr.voice.R
+import com.blurr.voice.triggers.PermissionUtils
 import com.blurr.voice.triggers.TriggerManager
 import com.blurr.voice.triggers.TriggerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -27,7 +24,6 @@ class TriggersActivity : AppCompatActivity() {
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-
 
         triggerManager = TriggerManager.getInstance(this)
 
@@ -48,7 +44,7 @@ class TriggersActivity : AppCompatActivity() {
 
     private fun checkNotificationPermission() {
         val hasNotificationTriggers = triggerManager.getTriggers().any { it.type == TriggerType.NOTIFICATION && it.isEnabled }
-        if (hasNotificationTriggers && !com.blurr.voice.triggers.PermissionUtils.isNotificationListenerEnabled(this)) {
+        if (hasNotificationTriggers && !PermissionUtils.isNotificationListenerEnabled(this)) {
             showPermissionDialog()
         }
     }
@@ -88,7 +84,7 @@ class TriggersActivity : AppCompatActivity() {
             .setMessage("Are you sure you want to delete this trigger?")
             .setPositiveButton("Delete") { _, _ ->
                 triggerManager.removeTrigger(trigger)
-                loadTriggers() // Refresh the list
+                loadTriggers()
             }
             .setNegativeButton("Cancel", null)
             .show()

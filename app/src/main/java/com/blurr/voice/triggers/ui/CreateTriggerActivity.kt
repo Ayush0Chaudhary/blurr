@@ -1,23 +1,11 @@
 package com.blurr.voice.triggers.ui
 
-import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TimePicker
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import com.blurr.voice.R
-import com.blurr.voice.triggers.Trigger
-import com.blurr.voice.triggers.TriggerManager
-import com.blurr.voice.triggers.TriggerType
-
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.RadioGroup
 import android.widget.TimePicker
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -25,12 +13,14 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blurr.voice.R
+import com.blurr.voice.triggers.PermissionUtils
 import com.blurr.voice.triggers.Trigger
 import com.blurr.voice.triggers.TriggerManager
 import com.blurr.voice.triggers.TriggerType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 class CreateTriggerActivity : AppCompatActivity() {
 
@@ -62,7 +52,6 @@ class CreateTriggerActivity : AppCompatActivity() {
         appsRecyclerView = findViewById(R.id.appsRecyclerView)
         dayOfWeekChipGroup = findViewById(R.id.dayOfWeekChipGroup)
 
-        // Set default checked state for all day chips
         for (i in 0 until dayOfWeekChipGroup.childCount) {
             (dayOfWeekChipGroup.getChildAt(i) as com.google.android.material.chip.Chip).isChecked = true
         }
@@ -73,8 +62,7 @@ class CreateTriggerActivity : AppCompatActivity() {
         setupRecyclerView()
         loadApps()
 
-        val saveButton = findViewById<Button>(R.id.saveTriggerButton)
-        saveButton.setOnClickListener {
+        findViewById<Button>(R.id.saveTriggerButton).setOnClickListener {
             saveTrigger()
         }
     }
@@ -110,19 +98,11 @@ class CreateTriggerActivity : AppCompatActivity() {
             val pm = packageManager
             val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
                 .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
-                .map {
-                    AppInfo(
-                        appName = it.loadLabel(pm).toString(),
-                        packageName = it.packageName,
-                        icon = it.loadIcon(pm)
-                    )
-                }
+                .map { AppInfo(it.loadLabel(pm).toString(), it.packageName, it.loadIcon(pm)) }
                 .sortedBy { it.appName }
 
             withContext(Dispatchers.Main) {
-                appAdapter = AppAdapter(apps) { app ->
-                    selectedApp = app
-                }
+                appAdapter = AppAdapter(apps) { app -> selectedApp = app }
                 appsRecyclerView.adapter = appAdapter
             }
         }
@@ -137,7 +117,7 @@ class CreateTriggerActivity : AppCompatActivity() {
 
         val trigger = when (selectedTriggerType) {
             TriggerType.SCHEDULED_TIME -> {
-                if (!com.blurr.voice.triggers.PermissionUtils.canScheduleExactAlarms(this)) {
+                if (!PermissionUtils.canScheduleExactAlarms(this)) {
                     showExactAlarmPermissionDialog()
                     return
                 }
@@ -146,25 +126,14 @@ class CreateTriggerActivity : AppCompatActivity() {
                     Toast.makeText(this, "Please select at least one day", Toast.LENGTH_SHORT).show()
                     return
                 }
-                Trigger(
-                    type = TriggerType.SCHEDULED_TIME,
-                    hour = timePicker.hour,
-                    minute = timePicker.minute,
-                    instruction = instruction,
-                    daysOfWeek = selectedDays
-                )
+                Trigger(TriggerType.SCHEDULED_TIME, instruction, hour = timePicker.hour, minute = timePicker.minute, daysOfWeek = selectedDays)
             }
             TriggerType.NOTIFICATION -> {
                 if (selectedApp == null) {
                     Toast.makeText(this, "Please select an app", Toast.LENGTH_SHORT).show()
                     return
                 }
-                Trigger(
-                    type = TriggerType.NOTIFICATION,
-                    packageName = selectedApp!!.packageName,
-                    appName = selectedApp!!.appName,
-                    instruction = instruction
-                )
+                Trigger(TriggerType.NOTIFICATION, instruction, packageName = selectedApp!!.packageName, appName = selectedApp!!.appName)
             }
         }
 
@@ -175,11 +144,11 @@ class CreateTriggerActivity : AppCompatActivity() {
 
     private fun getSelectedDays(): Set<Int> {
         val selectedDays = mutableSetOf<Int>()
+        val dayMapping = listOf(Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY)
         for (i in 0 until dayOfWeekChipGroup.childCount) {
             val chip = dayOfWeekChipGroup.getChildAt(i) as com.google.android.material.chip.Chip
             if (chip.isChecked) {
-                // Mapping index to Calendar.DAY_OF_WEEK constants (Sunday=1, Monday=2, etc.)
-                selectedDays.add(i + 1)
+                selectedDays.add(dayMapping[i])
             }
         }
         return selectedDays

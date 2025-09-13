@@ -1,5 +1,6 @@
 package com.blurr.voice.triggers
 
+import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -32,8 +33,8 @@ class PandaNotificationListenerService : NotificationListenerService() {
 
             if (matchingTrigger != null) {
                 Log.d(TAG, "Found matching trigger for package: $packageName. Executing instruction: ${matchingTrigger.instruction}")
-                // Use the TriggerReceiver to start the agent service
-                val intent = android.content.Intent(this@PandaNotificationListenerService, TriggerReceiver::class.java).apply {
+
+                val intent = Intent(this@PandaNotificationListenerService, TriggerReceiver::class.java).apply {
                     action = TriggerReceiver.ACTION_EXECUTE_TASK
                     putExtra(TriggerReceiver.EXTRA_TASK_INSTRUCTION, matchingTrigger.instruction)
                 }

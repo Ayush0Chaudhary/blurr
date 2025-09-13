@@ -15,9 +15,8 @@ data class Trigger(
     // For SCHEDULED_TIME triggers
     val hour: Int? = null,
     val minute: Int? = null,
+    val daysOfWeek: Set<Int> = setOf(1, 2, 3, 4, 5, 6, 7), // Default to all days
     // For NOTIFICATION triggers
     val packageName: String? = null,
-    val appName: String? = null, // For display purposes
-    // For SCHEDULED_TIME triggers
-    val daysOfWeek: Set<Int> = setOf(1, 2, 3, 4, 5, 6, 7) // Default to all days
+    val appName: String? = null // For display purposes
 )
