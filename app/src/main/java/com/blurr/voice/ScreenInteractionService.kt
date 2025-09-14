@@ -384,8 +384,11 @@ class ScreenInteractionService : AccessibilityService() {
 
     suspend fun dumpWindowHierarchy(pureXML: Boolean = false): String {
         return withContext(Dispatchers.Default) {
-            val rootNode = rootInActiveWindow ?: run {
-                Log.e("InteractionService", "Root node is null, cannot dump hierarchy.")
+            // NEW: Use getWindows() to capture all on-screen windows, not just the active one.
+            // This is crucial for seeing content behind overlays.
+            val windows = windows
+            if (windows.isEmpty()) {
+                Log.e("InteractionService", "No windows found, cannot dump hierarchy.")
                 return@withContext "Error: UI hierarchy is not available."
             }
 
@@ -395,36 +398,24 @@ class ScreenInteractionService : AccessibilityService() {
                 serializer.setOutput(stringWriter)
                 serializer.startDocument("UTF-8", true)
                 serializer.startTag(null, "hierarchy")
-                dumpNode(rootNode, serializer, 0)
+
+                // Dump the hierarchy of each window. The windows are ordered from top to bottom.
+                windows.forEach { window ->
+                    window.root?.let { rootNode ->
+                        dumpNode(rootNode, serializer, 0) // The index is relative to the parent, so 0 is fine for roots.
+                        rootNode.recycle() // Crucial to avoid memory leaks.
+                    }
+                }
+
                 serializer.endTag(null, "hierarchy")
                 serializer.endDocument()
 
                 val rawXml = stringWriter.toString()
-//                logLongString("rawXml", rawXml)
 
-                // Get screen dimensions
-                val screenWidth: Int
-                val screenHeight: Int
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val windowMetrics = windowManager?.currentWindowMetrics
-                    val insets = windowMetrics?.windowInsets?.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars())
-                    screenWidth = windowMetrics?.bounds?.width() ?: 0
-                    screenHeight = windowMetrics?.bounds?.height() ?: 0
-                } else {
-                    val display = windowManager?.defaultDisplay
-                    val size = Point()
-                    display?.getSize(size)
-                    screenWidth = size.x
-                    screenHeight = size.y
-                }
-
-
-//                 val semanticParser = SemanticParser()
-//                 val simplifiedJson = semanticParser.toHierarchicalString(rawXml)
-//                // 1. Parse the raw XML into a structured list.
+                // The rest of the pipeline remains the same. It will now operate on the
+                // complete XML from all windows.
                 val simplifiedElements = parseXmlToSimplifiedElements(rawXml)
-                println("SIZEEEE : " + simplifiedElements.size)
-                // 2. If debug mode is on, draw the bounding boxes.
+
                 if (DEBUG_SHOW_BOUNDING_BOXES) {
                     drawDebugBoundingBoxes(simplifiedElements)
                 }
@@ -784,34 +775,34 @@ class ScreenInteractionService : AccessibilityService() {
         val retryDelay = 800L // 200 milliseconds
 
         for (attempt in 1..maxRetries) {
-            // Attempt to get the root node in each iteration.
-            val rootNode = rootInActiveWindow
-
-            if (rootNode != null) {
+            // NEW: Check if any windows are available. This is more reliable than checking
+            // the rootInActiveWindow, which can sometimes be null even if the screen is active.
+            if (windows.isNotEmpty()) {
                 // --- SUCCESS PATH ---
-                // If the root node is available, proceed with the analysis and return.
-                Log.d("InteractionService", "Got rootInActiveWindow on attempt $attempt.")
+                Log.d("InteractionService", "Screen content is available on attempt $attempt.")
 
-                // 1. Get scroll info by traversing the live nodes
-                val (pixelsAbove, pixelsBelow) = findScrollableNodeAndGetInfo(rootNode)
+                // 1. Get scroll info by traversing the live nodes of the *active* window.
+                // This is still the correct context for determining scrollability.
+                val (pixelsAbove, pixelsBelow) = findScrollableNodeAndGetInfo(rootInActiveWindow)
 
-                // 2. Get the XML dump
+                // 2. Get the XML dump of ALL windows.
                 val xmlString = dumpWindowHierarchy(true)
+
                 // Return the complete data, exiting the function successfully.
                 return RawScreenData(xmlString, pixelsAbove, pixelsBelow, screenWidth, screenHeight)
             }
 
             // --- RETRY PATH ---
-            // If the root node is null and this isn't the last attempt, wait and retry.
+            // If no windows are found, wait and try again.
             if (attempt < maxRetries) {
-                Log.d("InteractionService", "rootInActiveWindow is null on attempt $attempt. Retrying in ${retryDelay}ms...")
+                Log.d("InteractionService", "No windows found on attempt $attempt. Retrying in ${retryDelay}ms...")
                 delay(retryDelay)
             }
         }
 
         // --- FAILURE PATH ---
         // If the loop completes, all retries have failed.
-        Log.e("InteractionService", "Failed to get rootInActiveWindow after $maxRetries attempts.")
+        Log.e("InteractionService", "Failed to get screen content after $maxRetries attempts.")
         // Return the placeholder to indicate failure.
         return RawScreenData("<hierarchy/>", 0, 0, screenWidth, screenHeight)
     }
