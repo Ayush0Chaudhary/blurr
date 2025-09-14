@@ -49,6 +49,18 @@
             android:textColor="@android:color/white"
             android:textSize="16sp" />
 
+        <TextView
+            android:id="@+id/learnMoreLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="16dp"
+            android:text="Learn how to enable this permission"
+            android:textColorLink="@color/white"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/grantButton"
             style="@style/Widget.AppCompat.Button.Colored"
