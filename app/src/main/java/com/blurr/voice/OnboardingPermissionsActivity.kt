@@ -18,8 +18,10 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.MediaController
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.VideoView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
@@ -28,9 +30,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.blurr.voice.utilities.OnboardingManager
+import com.blurr.voice.utilities.PermissionVideoAssetManager
 
 class OnboardingPermissionsActivity : AppCompatActivity() {
 
+    private lateinit var videoAssetManager: PermissionVideoAssetManager
     private lateinit var permissionIcon: ImageView
     private lateinit var permissionTitle: TextView
     private lateinit var permissionDescription: TextView
@@ -38,6 +42,7 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
     private lateinit var nextButton: Button
     private lateinit var skipButton: Button
     private lateinit var stepperIndicator: TextView
+    private lateinit var learnMoreLink: TextView
 
 
     private var currentStep = 0
@@ -65,6 +70,15 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         nextButton = findViewById(R.id.nextButton)
         skipButton = findViewById(R.id.skipButton)
         stepperIndicator = findViewById(R.id.stepperIndicator)
+        learnMoreLink = findViewById(R.id.learnMoreLink)
+
+        videoAssetManager = PermissionVideoAssetManager(this)
+        val videoUrlsToPreload = listOf(
+            "http://example.com/accessibility_tip.mp4",
+            "http://example.com/overlay_tip.mp4",
+            "http://example.com/assistant_tip.mp4"
+        )
+        videoAssetManager.preloadVideos(videoUrlsToPreload)
 
         setupLaunchers()
         // Initialize permission steps
@@ -95,8 +109,8 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 descRes = R.string.accessibility_permission_full_desc,
                 iconRes = R.drawable.ic_accessibility,
                 isGranted = { accessibilityServiceChecker.isAccessibilityServiceEnabled() },
-                // The action now shows the consent dialog instead of going directly to settings
-                action = { showAccessibilityConsentDialog() }
+                action = { showAccessibilityConsentDialog() },
+                tipVideoUrl = "http://example.com/accessibility_tip.mp4"
             )
         )
 
@@ -118,11 +132,13 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 titleRes = R.string.overlay_permission_title,
                 descRes = R.string.overlay_permission_desc,
                 iconRes = R.drawable.ic_overlay,
-                isGranted = { Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this) }
-            ) {
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                requestOverlayLauncher.launch(intent)
-            }
+                isGranted = { Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this) },
+                action = {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    requestOverlayLauncher.launch(intent)
+                },
+                tipVideoUrl = "http://example.com/overlay_tip.mp4"
+            )
         )
 
         // Step 4: Notifications (Standard Permission - Android 13+)
@@ -155,7 +171,8 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 },
                 action = {
                     startActivity(Intent(this, RoleRequestActivity::class.java))
-                }
+                },
+                tipVideoUrl = "http://example.com/assistant_tip.mp4"
             )
         )
 
@@ -299,6 +316,17 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         permissionDescription.setText(step.descRes)
         stepperIndicator.text = "Step ${stepIndex + 1} of ${permissionSteps.size}"
 
+        // Handle "Learn how" link
+        if (step.tipVideoUrl != null) {
+            learnMoreLink.visibility = View.VISIBLE
+            learnMoreLink.text = "Learn how to give ${getString(step.titleRes)}"
+            learnMoreLink.setOnClickListener {
+                showVideoTipDialog(step.tipVideoUrl)
+            }
+        } else {
+            learnMoreLink.visibility = View.GONE
+        }
+
         val isGranted = step.isGranted()
 
         if (isGranted) {
@@ -346,6 +374,34 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         startActivity(intent)
         finish() // End the onboarding flow
     }
+
+    private fun showVideoTipDialog(videoUrl: String) {
+        val videoUri = videoAssetManager.getVideoUri(videoUrl)
+        if (videoUri == null) {
+            Toast.makeText(this, "Video tip not available. Please check your internet connection.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val videoView = VideoView(this)
+        videoView.setVideoURI(videoUri)
+
+        val mediaController = MediaController(this)
+        mediaController.setAnchorView(videoView)
+        videoView.setMediaController(mediaController)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(videoView)
+            .setPositiveButton("Close") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .create()
+
+        dialog.setOnShowListener {
+            videoView.start()
+        }
+
+        dialog.show()
+    }
 }
 
 // Data class to represent each step
@@ -354,7 +410,8 @@ data class PermissionStep(
     val titleRes: Int,
     val descRes: Int,
     val isGranted: () -> Boolean,
-    val action: () -> Unit
+    val action: () -> Unit,
+    val tipVideoUrl: String? = null
 )
 
 // Helper class to check accessibility service status
