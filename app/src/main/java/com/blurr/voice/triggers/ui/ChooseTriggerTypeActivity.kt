@@ -24,6 +24,10 @@ class ChooseTriggerTypeActivity : AppCompatActivity() {
         findViewById<CardView>(R.id.notificationCard).setOnClickListener {
             launchCreateTriggerActivity(TriggerType.NOTIFICATION)
         }
+
+        findViewById<CardView>(R.id.chargingStateCard).setOnClickListener {
+            launchCreateTriggerActivity(TriggerType.CHARGING_STATE)
+        }
     }
 
     private fun launchCreateTriggerActivity(triggerType: TriggerType) {

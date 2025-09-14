@@ -24,7 +24,7 @@ class TriggerManager(private val context: Context) {
         val triggers = loadTriggers()
         triggers.add(trigger)
         saveTriggers(triggers)
-        if (trigger.isEnabled) {
+        if (trigger.isEnabled && trigger.type == TriggerType.SCHEDULED_TIME) {
             scheduleAlarm(trigger)
         }
     }
@@ -57,12 +57,17 @@ class TriggerManager(private val context: Context) {
         val triggers = loadTriggers()
         val index = triggers.indexOfFirst { it.id == trigger.id }
         if (index != -1) {
+            // Cancel the old alarm before updating to be safe
+            val oldTrigger = triggers[index]
+            if (oldTrigger.type == TriggerType.SCHEDULED_TIME) {
+                cancelAlarm(oldTrigger)
+            }
+
             triggers[index] = trigger
             saveTriggers(triggers)
-            if (trigger.isEnabled) {
+
+            if (trigger.isEnabled && trigger.type == TriggerType.SCHEDULED_TIME) {
                 scheduleAlarm(trigger)
-            } else {
-                cancelAlarm(trigger)
             }
         }
     }

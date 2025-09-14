@@ -103,6 +103,87 @@
                     tools:listitem="@layout/item_app" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/chargingStateOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="16dp">
+
+                <TextView
+                    style="@style/PermissionHeading"
+                    android:text="Trigger Condition" />
+
+                <RadioGroup
+                    android:id="@+id/chargingStatusRadioGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/radioCharging"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Starts Charging"
+                        android:textColor="@color/white"
+                        android:checked="true"/>
+
+                    <RadioButton
+                        android:id="@+id/radioDischarging"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Stops Charging"
+                        android:textColor="@color/white"
+                        android:layout_marginStart="16dp"/>
+                </RadioGroup>
+
+                <CheckBox
+                    android:id="@+id/batteryConditionCheckBox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Only if battery level is..."
+                    android:textColor="@color/white"/>
+
+                <LinearLayout
+                    android:id="@+id/batteryConditionLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:visibility="gone"
+                    android:gravity="center_vertical">
+
+                    <Spinner
+                        android:id="@+id/batteryConditionSpinner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/edit_text_border"
+                        android:theme="@style/AppTheme.Spinner"/>
+
+                    <EditText
+                        android:id="@+id/batteryPercentageEditText"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="number"
+                        android:maxLength="3"
+                        android:hint="80"
+                        android:background="@drawable/edit_text_border"
+                        android:padding="12dp"
+                        android:layout_marginStart="8dp"
+                        android:textColor="@color/white"
+                        android:textColorHint="#8A8A8E"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="%"
+                        android:layout_marginStart="4dp"
+                        android:textColor="@color/white"
+                        android:textSize="18sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
 
             <Button
                 android:id="@+id/saveTriggerButton"

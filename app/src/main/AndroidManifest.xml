@@ -165,6 +165,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Receiver for charging state changes -->
+        <receiver
+            android:name=".triggers.ChargingStateReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

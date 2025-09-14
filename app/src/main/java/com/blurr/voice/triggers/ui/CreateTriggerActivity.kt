@@ -3,18 +3,23 @@ package com.blurr.voice.triggers.ui
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioGroup
-import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TimePicker
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.blurr.voice.R
+import com.blurr.voice.triggers.BatteryCondition
+import com.blurr.voice.triggers.ChargingStatus
 import com.blurr.voice.triggers.Trigger
 import com.blurr.voice.triggers.TriggerManager
 import com.blurr.voice.triggers.TriggerType
@@ -28,11 +33,16 @@ class CreateTriggerActivity : AppCompatActivity() {
     private lateinit var instructionEditText: EditText
     private lateinit var scheduledTimeOptions: LinearLayout
     private lateinit var notificationOptions: LinearLayout
+    private lateinit var chargingStateOptions: LinearLayout
     private lateinit var timePicker: TimePicker
     private lateinit var appsRecyclerView: RecyclerView
     private lateinit var dayOfWeekChipGroup: com.google.android.material.chip.ChipGroup
     private lateinit var appAdapter: AppAdapter
-    private lateinit var scrollView: ScrollView
+    private lateinit var chargingStatusRadioGroup: RadioGroup
+    private lateinit var batteryConditionCheckBox: CheckBox
+    private lateinit var batteryConditionLayout: LinearLayout
+    private lateinit var batteryConditionSpinner: Spinner
+    private lateinit var batteryPercentageEditText: EditText
 
     private var selectedTriggerType = TriggerType.SCHEDULED_TIME
     private var selectedApp: AppInfo? = null
@@ -49,19 +59,15 @@ class CreateTriggerActivity : AppCompatActivity() {
         instructionEditText = findViewById(R.id.instructionEditText)
         scheduledTimeOptions = findViewById(R.id.scheduledTimeOptions)
         notificationOptions = findViewById(R.id.notificationOptions)
+        chargingStateOptions = findViewById(R.id.chargingStateOptions)
         timePicker = findViewById(R.id.timePicker)
         appsRecyclerView = findViewById(R.id.appsRecyclerView)
         dayOfWeekChipGroup = findViewById(R.id.dayOfWeekChipGroup)
-//        scrollView = findViewById(R.id.scrollView)
-
-//        instructionEditText.setOnFocusChangeListener { view, hasFocus ->
-//            if (hasFocus) {
-//                // Delay scrolling until the keyboard is likely to be visible
-//                view.postDelayed({
-//                    scrollView.smoothScrollTo(0, view.bottom)
-//                }, 200)
-//            }
-//        }
+        chargingStatusRadioGroup = findViewById(R.id.chargingStatusRadioGroup)
+        batteryConditionCheckBox = findViewById(R.id.batteryConditionCheckBox)
+        batteryConditionLayout = findViewById(R.id.batteryConditionLayout)
+        batteryConditionSpinner = findViewById(R.id.batteryConditionSpinner)
+        batteryPercentageEditText = findViewById(R.id.batteryPercentageEditText)
 
         // Set default checked state for all day chips
         for (i in 0 until dayOfWeekChipGroup.childCount) {
@@ -73,6 +79,7 @@ class CreateTriggerActivity : AppCompatActivity() {
 
         setupRecyclerView()
         loadApps()
+        setupChargingStateOptions()
 
         val saveButton = findViewById<Button>(R.id.saveTriggerButton)
         saveButton.setOnClickListener {
@@ -86,15 +93,29 @@ class CreateTriggerActivity : AppCompatActivity() {
     }
 
     private fun setupInitialView() {
+        scheduledTimeOptions.visibility = View.GONE
+        notificationOptions.visibility = View.GONE
+        chargingStateOptions.visibility = View.GONE
+
         when (selectedTriggerType) {
-            TriggerType.SCHEDULED_TIME -> {
-                scheduledTimeOptions.visibility = View.VISIBLE
-                notificationOptions.visibility = View.GONE
-            }
-            TriggerType.NOTIFICATION -> {
-                scheduledTimeOptions.visibility = View.GONE
-                notificationOptions.visibility = View.VISIBLE
-            }
+            TriggerType.SCHEDULED_TIME -> scheduledTimeOptions.visibility = View.VISIBLE
+            TriggerType.NOTIFICATION -> notificationOptions.visibility = View.VISIBLE
+            TriggerType.CHARGING_STATE -> chargingStateOptions.visibility = View.VISIBLE
+        }
+    }
+
+    private fun setupChargingStateOptions() {
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.battery_conditions,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            batteryConditionSpinner.adapter = adapter
+        }
+
+        batteryConditionCheckBox.setOnCheckedChangeListener { _, isChecked ->
+            batteryConditionLayout.isVisible = isChecked
         }
     }
 
@@ -165,6 +186,37 @@ class CreateTriggerActivity : AppCompatActivity() {
                     packageName = selectedApp!!.packageName,
                     appName = selectedApp!!.appName,
                     instruction = instruction
+                )
+            }
+            TriggerType.CHARGING_STATE -> {
+                val triggerOn = if (chargingStatusRadioGroup.checkedRadioButtonId == R.id.radioCharging) {
+                    ChargingStatus.CHARGING
+                } else {
+                    ChargingStatus.DISCHARGING
+                }
+                var batteryPercentage: Int? = null
+                var batteryCondition: BatteryCondition? = null
+
+                if (batteryConditionCheckBox.isChecked) {
+                    val percentageString = batteryPercentageEditText.text.toString()
+                    if (percentageString.isBlank() || percentageString.toInt() > 100) {
+                        Toast.makeText(this, "Please enter a valid percentage (0-100)", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    batteryPercentage = percentageString.toInt()
+                    batteryCondition = if (batteryConditionSpinner.selectedItem.toString() == "Above") {
+                        BatteryCondition.ABOVE
+                    } else {
+                        BatteryCondition.BELOW
+                    }
+                }
+
+                Trigger(
+                    type = TriggerType.CHARGING_STATE,
+                    instruction = instruction,
+                    triggerOn = triggerOn,
+                    batteryPercentage = batteryPercentage,
+                    batteryCondition = batteryCondition
                 )
             }
         }

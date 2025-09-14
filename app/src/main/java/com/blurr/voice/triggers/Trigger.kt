@@ -4,7 +4,18 @@ import java.util.UUID
 
 enum class TriggerType {
     SCHEDULED_TIME,
-    NOTIFICATION
+    NOTIFICATION,
+    CHARGING_STATE
+}
+
+enum class ChargingStatus {
+    CHARGING,
+    DISCHARGING
+}
+
+enum class BatteryCondition {
+    ABOVE,
+    BELOW
 }
 
 data class Trigger(
@@ -15,9 +26,12 @@ data class Trigger(
     // For SCHEDULED_TIME triggers
     val hour: Int? = null,
     val minute: Int? = null,
+    val daysOfWeek: Set<Int> = setOf(),
     // For NOTIFICATION triggers
     val packageName: String? = null,
     val appName: String? = null, // For display purposes
-    // For SCHEDULED_TIME triggers
-    val daysOfWeek: Set<Int> = setOf(1, 2, 3, 4, 5, 6, 7) // Default to all days
+    // For CHARGING_STATE triggers
+    val triggerOn: ChargingStatus? = null,
+    val batteryPercentage: Int? = null,
+    val batteryCondition: BatteryCondition? = null
 )
