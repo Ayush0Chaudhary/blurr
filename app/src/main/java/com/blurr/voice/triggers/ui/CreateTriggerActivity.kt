@@ -11,6 +11,7 @@ import android.widget.ScrollView
 import android.widget.TimePicker
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -35,7 +36,9 @@ class CreateTriggerActivity : AppCompatActivity() {
     private lateinit var dayOfWeekChipGroup: com.google.android.material.chip.ChipGroup
     private lateinit var appAdapter: AppAdapter
     private lateinit var scrollView: ScrollView
+    private lateinit var searchAppEditText: EditText
 
+    private var allApps: List<AppInfo> = emptyList()
     private var selectedTriggerType = TriggerType.SCHEDULED_TIME
     private var selectedApp: AppInfo? = null
     private var existingTrigger: Trigger? = null
@@ -56,6 +59,7 @@ class CreateTriggerActivity : AppCompatActivity() {
         timePicker = findViewById(R.id.timePicker)
         appsRecyclerView = findViewById(R.id.appsRecyclerView)
         dayOfWeekChipGroup = findViewById(R.id.dayOfWeekChipGroup)
+        searchAppEditText = findViewById(R.id.searchAppEditText)
 //        scrollView = findViewById(R.id.scrollView)
 
 //        instructionEditText.setOnFocusChangeListener { view, hasFocus ->
@@ -97,6 +101,11 @@ class CreateTriggerActivity : AppCompatActivity() {
 
         setupRecyclerView()
         loadApps()
+
+        searchAppEditText.addTextChangedListener { text ->
+            val query = text.toString()
+            filterApps(query)
+        }
 
         saveButton.setOnClickListener {
             saveTrigger()
@@ -182,6 +191,7 @@ class CreateTriggerActivity : AppCompatActivity() {
                     )
                 }
                 .sortedBy { it.appName }
+            allApps = apps
 
             withContext(Dispatchers.Main) {
                 appAdapter.updateApps(apps)
@@ -195,6 +205,17 @@ class CreateTriggerActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun filterApps(query: String) {
+        val filteredList = if (query.isEmpty()) {
+            allApps
+        } else {
+            allApps.filter {
+                it.appName.contains(query, ignoreCase = true)
+            }
+        }
+        appAdapter.updateApps(filteredList)
     }
 
     private fun saveTrigger() {

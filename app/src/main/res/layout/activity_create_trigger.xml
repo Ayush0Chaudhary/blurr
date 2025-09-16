@@ -95,6 +95,18 @@
                     style="@style/PermissionHeading"
                     android:text="Select App" />
 
+                <EditText
+                    android:id="@+id/searchAppEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/edit_text_border"
+                    android:hint="Search for an app"
+                    android:inputType="text"
+                    android:padding="12dp"
+                    android:textColor="@color/white"
+                    android:textColorHint="#8A8A8E" />
+
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/appsRecyclerView"
                     android:layout_width="match_parent"
