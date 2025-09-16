@@ -194,13 +194,11 @@ class CreateTriggerActivity : AppCompatActivity() {
             allApps = apps
 
             withContext(Dispatchers.Main) {
-                appAdapter.updateApps(apps)
+                appAdapter.updateApps(allApps, selectedApp)
                 if (existingTrigger != null && existingTrigger!!.type == TriggerType.NOTIFICATION) {
-                    val position = apps.indexOfFirst { it.packageName == existingTrigger!!.packageName }
+                    val position = allApps.indexOfFirst { it.packageName == existingTrigger!!.packageName }
                     if (position != -1) {
-                        appAdapter.setSelectedPosition(position)
                         appsRecyclerView.scrollToPosition(position)
-                        selectedApp = apps[position]
                     }
                 }
             }
@@ -215,7 +213,14 @@ class CreateTriggerActivity : AppCompatActivity() {
                 it.appName.contains(query, ignoreCase = true)
             }
         }
-        appAdapter.updateApps(filteredList)
+        appAdapter.updateApps(filteredList, selectedApp)
+
+        if (selectedApp != null) {
+            val position = filteredList.indexOfFirst { it.packageName == selectedApp!!.packageName }
+            if (position != -1) {
+                appsRecyclerView.scrollToPosition(position)
+            }
+        }
     }
 
     private fun saveTrigger() {

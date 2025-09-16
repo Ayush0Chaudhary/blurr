@@ -22,8 +22,13 @@ class AppAdapter(
 
     private var selectedPosition = RecyclerView.NO_POSITION
 
-    fun updateApps(newApps: List<AppInfo>) {
-        this.apps = newApps
+    fun updateApps(newApps: List<AppInfo>, selectedApp: AppInfo?) {
+        apps = newApps
+        selectedPosition = if (selectedApp != null) {
+            apps.indexOfFirst { it.packageName == selectedApp.packageName }
+        } else {
+            RecyclerView.NO_POSITION
+        }
         notifyDataSetChanged()
     }
 
