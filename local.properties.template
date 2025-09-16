@@ -1,9 +1,24 @@
 # This is a template for local.properties
-# Copy this file to local.properties and add your actual Picovoice access key
+# Copy this file to local.properties and add your actual API keys
 
-# Add your Picovoice access key here
-# Get it from: https://console.picovoice.ai/
-PICOVOICE_ACCESS_KEY=your_actual_access_key_here
+# Required API keys
+GEMINI_API_KEYS=your_gemini_keys_here_comma_separated
 
-# Other Android SDK properties (these are usually auto-generated)
-# sdk.dir=/path/to/your/android/sdk 
+# Optional API keys (leave empty if not available)
+PICOVOICE_ACCESS_KEY=your_picovoice_access_key_here
+GOOGLE_TTS_API_KEY=your_google_cloud_tts_api_key_here
+TAVILY_API=your_tavily_api_key_here
+MEM0_API=your_mem0_api_key_here
+
+# Cloud gateway settings (optional)
+GCLOUD_GATEWAY_PICOVOICE_KEY=your_gateway_key_here
+GCLOUD_GATEWAY_URL=your_gateway_url_here
+GCLOUD_PROXY_URL=your_proxy_url_here
+GCLOUD_PROXY_URL_KEY=your_proxy_key_here
+
+# Revenue Cat settings (optional)
+REVENUE_CAT_PUBLIC_URL=your_revenue_cat_url_here
+REVENUECAT_API_KEY=your_revenue_cat_key_here
+
+# Android SDK properties (these are usually auto-generated)
+sdk.dir=/path/to/your/android/sdk

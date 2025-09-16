@@ -301,8 +301,21 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
                 }
             })
             isNativeTtsInitialized.complete(Unit)
+            
+            // Log TTS readiness with current configuration
+            val audioSessionId = audioTrack?.audioSessionId ?: 0
+            Log.i("TTSManager", "TTS Singleton is ready with Audio Session ID: $audioSessionId (Debug Mode: $isDebugMode)")
+            
+            // Check if Google Cloud TTS is available
+            val hasGoogleTtsKey = BuildConfig.GOOGLE_TTS_API_KEY.isNotEmpty() && BuildConfig.GOOGLE_TTS_API_KEY.isNotBlank()
+            if (hasGoogleTtsKey) {
+                Log.i("TTSManager", "Google Cloud TTS is available with API key configured")
+            } else {
+                Log.i("TTSManager", "Google Cloud TTS API key not configured - will use native Android TTS only")
+            }
         } else {
             isNativeTtsInitialized.completeExceptionally(Exception("Native TTS Initialization failed"))
+            Log.e("TTSManager", "Native TTS initialization failed with status: $status")
         }
     }
 
@@ -320,12 +333,34 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     suspend fun speakText(text: String) {
-        if (!isDebugMode) return
+        if (!isDebugMode) {
+            Log.d("TTSManager", "TTS: Skipping speech in release mode - '${text.take(50)}${if (text.length > 50) "..." else ""}'")
+            return
+        }
+        Log.d("TTSManager", "TTS: Speaking '${text.take(50)}${if (text.length > 50) "..." else ""}'")
         speak(text)
     }
 
     suspend fun speakToUser(text: String) {
+        Log.d("TTSManager", "TTS: Speaking to user - '${text.take(50)}${if (text.length > 50) "..." else ""}'")
         speak(text)
+    }
+
+    /**
+     * Manually override the debug mode setting
+     * @param enabled true to enable TTS, false to disable
+     */
+    fun setDebugMode(enabled: Boolean) {
+        isDebugMode = enabled
+        Log.d("TTSManager", "Debug mode manually set to: $enabled")
+    }
+
+    /**
+     * Check if debug mode is currently enabled
+     * @return true if TTS is enabled, false if disabled
+     */
+    fun isDebugModeEnabled(): Boolean {
+        return isDebugMode
     }
 
     fun getAudioSessionId(): Int {
@@ -349,9 +384,22 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
 
         } catch (e: Exception) {
             if (e is CancellationException) throw e // Re-throw cancellation to stop execution
-            Log.e("TTSManager", "Google TTS failed: ${e.message}. Falling back to native engine.")
-            isNativeTtsInitialized.await()
-            nativeTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, this.hashCode().toString())
+            
+            // Enhanced logging to explain why we're falling back
+            if (e.message?.contains("API key is not configured") == true) {
+                Log.i("TTSManager", "Google Cloud TTS API key not configured. Using native Android TTS as fallback.")
+            } else {
+                Log.w("TTSManager", "Google Cloud TTS failed (${e.message}). Falling back to native Android TTS.")
+            }
+            
+            // Fallback to native TTS
+            try {
+                isNativeTtsInitialized.await()
+                nativeTts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, this.hashCode().toString())
+                Log.d("TTSManager", "Successfully using native Android TTS for fallback")
+            } catch (nativeException: Exception) {
+                Log.e("TTSManager", "Both Google Cloud TTS and native TTS failed: ${nativeException.message}")
+            }
         }
     }
     
@@ -578,8 +626,31 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
             
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e("TTSManager", "Failed to speak chunk: ${chunk.take(50)}... Error: ${e.message}")
-            // Continue with next chunk instead of falling back to native TTS for the entire text
+            
+            // Enhanced error handling for chunk-level failures
+            if (e.message?.contains("API key is not configured") == true) {
+                Log.i("TTSManager", "Google Cloud TTS API key not configured for chunk. Using native TTS fallback.")
+            } else {
+                Log.w("TTSManager", "Failed to speak chunk with Google Cloud TTS: ${chunk.take(50)}... Error: ${e.message}. Using native TTS fallback.")
+            }
+            
+            // Fallback to native TTS for this chunk
+            try {
+                isNativeTtsInitialized.await()
+                withContext(Dispatchers.Main) {
+                    showCaption(chunk)
+                    utteranceListener?.invoke(true)
+                }
+                nativeTts?.speak(chunk, TextToSpeech.QUEUE_FLUSH, null, this.hashCode().toString())
+                // Note: Native TTS completion is handled by the utterance listener
+                Log.d("TTSManager", "Successfully using native TTS for chunk fallback")
+            } catch (nativeException: Exception) {
+                Log.e("TTSManager", "Both Google Cloud TTS and native TTS failed for chunk: ${nativeException.message}")
+                withContext(Dispatchers.Main) {
+                    removeCaption()
+                    utteranceListener?.invoke(false)
+                }
+            }
         }
     }
 

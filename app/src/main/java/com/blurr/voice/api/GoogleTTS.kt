@@ -72,7 +72,8 @@ object GoogleTts {
      * @throws Exception if the API call fails or the response is invalid.
      */
     suspend fun synthesize(text: String, voice: TTSVoice): ByteArray = withContext(Dispatchers.IO) {
-        if (apiKey.isEmpty()) {
+        if (apiKey.isEmpty() || apiKey.isBlank()) {
+            Log.w("GoogleTts", "Google TTS API key is not configured. Fallback to native TTS will be used.")
             throw Exception("Google TTS API key is not configured.")
         }
         println(voice.displayName)
