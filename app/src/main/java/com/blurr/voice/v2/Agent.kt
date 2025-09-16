@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
+import com.blurr.voice.intents.IntentRegistry
 import com.blurr.voice.v2.actions.ActionExecutor
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.llm.GeminiApi
@@ -67,11 +68,17 @@ class Agent(
             // 2. THINK (Prepare Prompt): Update memory with the results of the LAST step
             // and create the new prompt using the CURRENT screen state.
             Log.d(TAG,"🧠 Preparing prompt...")
+            val intentContext = if (state.nSteps <= 4) {
+                IntentRegistry.getComprehensiveFormattedIntents(context)
+            } else {
+                IntentRegistry.getFormattedIntentsContext(context)
+            }
             memoryManager.createStateMessage(
                 modelOutput = state.lastModelOutput,
                 result = state.lastResult,
                 stepInfo = AgentStepInfo(state.nSteps, maxSteps),
-                screenState = screenState
+                screenState = screenState,
+                dynamicIntentContext = intentContext
             )
 
             // 3. THINK (Get Decision): Send the prepared messages to the LLM.
