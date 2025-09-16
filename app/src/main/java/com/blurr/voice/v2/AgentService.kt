@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import com.blurr.voice.ConversationalAgentService
 import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.api.Eyes
 import com.blurr.voice.api.Finger
@@ -89,6 +90,7 @@ class AgentService : Service() {
         private const val NOTIFICATION_ID = 14
         private const val EXTRA_TASK = "com.blurr.voice.v2.EXTRA_TASK"
         private const val ACTION_STOP_SERVICE = "com.blurr.voice.v2.ACTION_STOP_SERVICE"
+        private const val ACTION_STOP_PANDA = "com.blurr.voice.v2.ACTION_STOP_PANDA"
 
         @Volatile
         var isRunning: Boolean = false
@@ -155,13 +157,27 @@ class AgentService : Service() {
 
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand: Service has been started.")
-        if (intent?.action == ACTION_STOP_SERVICE) {
-            Log.i(TAG, "Received stop action. Stopping service.")
-            stopSelf()
-            return START_NOT_STICKY
+        Log.d(TAG, "onStartCommand: Service has been started with action: ${intent?.action}")
+        when (intent?.action) {
+            ACTION_STOP_SERVICE -> {
+                Log.i(TAG, "Received stop action. Stopping agent service.")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_STOP_PANDA -> {
+                Log.i(TAG, "Received stop panda action. Stopping conversational agent.")
+                // Stop the ConversationalAgentService
+                val conversationalServiceIntent = Intent(this, ConversationalAgentService::class.java)
+                stopService(conversationalServiceIntent)
+
+                // Also stop this agent service
+                Log.i(TAG, "Stopping agent service as well.")
+                stopSelf()
+                return START_NOT_STICKY
+            }
         }
-        // Extract the task from the intent
+
+        // If no action, proceed with starting the task
         val task = intent?.getStringExtra(EXTRA_TASK)
         if (task.isNullOrBlank()) {
             Log.e(TAG, "Service started without a task. Stopping service.")
@@ -250,27 +266,50 @@ class AgentService : Service() {
      * Creates the persistent notification for the foreground service.
      */
     private fun createNotification(contentText: String): Notification {
-        // Create PendingIntent for the stop action
-        val stopIntent = Intent(this, AgentService::class.java).apply {
+        // --- FIX: Stop Agent Button ---
+        // Using FLAG_CANCEL_CURRENT ensures that a new, fresh PendingIntent is created,
+        // which resolves issues where the intent would not be delivered if the service was restarted.
+        // Using a unique request code (0) for this intent.
+        val stopAgentIntent = Intent(this, AgentService::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
-        val stopPendingIntent = PendingIntent.getService(
+        val stopAgentPendingIntent = PendingIntent.getService(
             this,
-            0,
-            stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            0, // Request code
+            stopAgentIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // --- NEW: Stop Panda Button ---
+        // This creates a new action to stop the ConversationalAgentService.
+        // It uses a different request code (1) to ensure it's a unique PendingIntent.
+        val stopPandaIntent = Intent(this, AgentService::class.java).apply {
+            action = ACTION_STOP_PANDA
+        }
+        val stopPandaPendingIntent = PendingIntent.getService(
+            this,
+            1, // Unique request code
+            stopPandaIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("AI Agent Active")
+            .setContentTitle("Panda Agent Active")
             .setContentText(contentText)
+            // Stop Agent button - stops just the current task
             .addAction(
-                android.R.drawable.ic_media_pause, // Using built-in pause icon as stop button
-                "Stop Agent",
-                stopPendingIntent
+                android.R.drawable.ic_media_pause,
+                "Stop Task",
+                stopAgentPendingIntent
             )
-            .setOngoing(true) // Makes notification persistent and harder to dismiss
-            // .setSmallIcon(R.drawable.ic_agent_notification) // TODO: Add a notification icon
+            // Stop Panda button - stops the whole assistant
+            .addAction(
+                android.R.drawable.ic_delete, // A more definitive "stop everything" icon
+                "Stop Panda",
+                stopPandaPendingIntent
+            )
+            .setOngoing(true)
+            // .setSmallIcon(R.drawable.ic_agent_notification) // TODO: Add a proper icon
             .build()
     }
 
