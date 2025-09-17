@@ -191,13 +191,14 @@ class ConversationalAgentService : Service() {
         try {
             startForeground(NOTIFICATION_ID, createNotification())
         } catch (e: SecurityException) {
-            serviceScope.launch {
-                speechCoordinator.speakText("Hello, please give microphone permission or some other type of permission you have not given me! My code is open source, so you can check that out if you have any doubts.")
-                delay(2000) // Wait for TTS to complete before closing service
-                stopSelf()
+            Log.e("ConvAgent", "SecurityException starting foreground service: ${e.message}")
+            Toast.makeText(this, "Panda needs to be the default assistant app to start from the background.", Toast.LENGTH_LONG).show()
+            // Optionally, launch RoleRequestActivity directly from here
+            val roleIntent = Intent(this, RoleRequestActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            Log.e("ConvAgent", "Failed to start foreground service: ${e.message}")
-            Toast.makeText(this, "Cannot start voice assistant - permission missing", Toast.LENGTH_LONG).show()
+            startActivity(roleIntent)
+            stopSelf()
             return START_NOT_STICKY
         }
 
