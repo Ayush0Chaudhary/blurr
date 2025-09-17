@@ -9,6 +9,7 @@ import com.blurr.voice.intents.impl.EmailComposeIntent
 import com.blurr.voice.intents.impl.ShareTextIntent
 import com.blurr.voice.intents.impl.ViewUrlIntent
 import com.blurr.voice.triggers.TriggerMonitoringService
+import com.blurr.voice.utilities.ActivityLifecycleManager
 import com.revenuecat.purchases.LogLevel
 import com.revenuecat.purchases.Purchases
 import com.revenuecat.purchases.PurchasesConfiguration
@@ -23,6 +24,7 @@ class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appContext = applicationContext
+        registerActivityLifecycleCallbacks(ActivityLifecycleManager)
 
         Purchases.logLevel = LogLevel.DEBUG
         Purchases.configure(

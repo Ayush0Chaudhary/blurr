@@ -1,6 +1,7 @@
 package com.blurr.voice.utilities
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -24,9 +25,10 @@ import androidx.core.view.WindowInsetsCompat
 import com.blurr.voice.AudioWaveView
 import com.blurr.voice.R
 
-class VisualFeedbackManager private constructor(private val context: Context) {
+class VisualFeedbackManager private constructor() {
 
-    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private var currentActivity: Activity? = null
+    private var windowManager: WindowManager? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // --- Components ---
@@ -42,17 +44,30 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
         @Volatile private var INSTANCE: VisualFeedbackManager? = null
 
-        fun getInstance(context: Context): VisualFeedbackManager {
+        fun getInstance(): VisualFeedbackManager {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: VisualFeedbackManager(context.applicationContext).also { INSTANCE = it }
+                INSTANCE ?: VisualFeedbackManager().also { INSTANCE = it }
             }
         }
     }
+
+    private fun updateActivity(activity: Activity) {
+        currentActivity = activity
+        windowManager = activity.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    }
+
 
     // --- TTS Wave Methods ---
 
     fun showTtsWave() {
         mainHandler.post {
+            val activity = ActivityLifecycleManager.getCurrentActivity()
+            if (activity == null) {
+                Log.e(TAG, "Cannot show TTS wave, no activity is available.")
+                return@post
+            }
+            updateActivity(activity)
+
             if (audioWaveView != null) {
                 Log.d(TAG, "Audio wave is already showing.")
                 return@post
@@ -63,9 +78,13 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
     fun hideTtsWave() {
         mainHandler.post {
+            if (windowManager == null || currentActivity == null) {
+                Log.e(TAG, "Cannot hide TTS wave, window manager not available.")
+                return@post
+            }
             audioWaveView?.let {
                 if (it.isAttachedToWindow) {
-                    windowManager.removeView(it)
+                    windowManager?.removeView(it)
                     Log.d(TAG, "Audio wave view removed.")
                 }
             }
@@ -73,7 +92,7 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
             ttsVisualizer?.stop()
             ttsVisualizer = null
-            TTSManager.getInstance(context).utteranceListener = null
+            TTSManager.getInstance(currentActivity!!).utteranceListener = null
             hideSpeakingOverlay()
 
             Log.d(TAG, "Audio wave effect has been torn down.")
@@ -81,10 +100,14 @@ class VisualFeedbackManager private constructor(private val context: Context) {
     }
 
     private fun setupAudioWaveEffect() {
+        if (windowManager == null || currentActivity == null) {
+            Log.e(TAG, "Cannot setup audio wave effect, window manager not available.")
+            return
+        }
         // Create and add the AudioWaveView
-        audioWaveView = AudioWaveView(context)
+        audioWaveView = AudioWaveView(currentActivity)
         val heightInDp = 150
-        val heightInPixels = (heightInDp * context.resources.displayMetrics.density).toInt()
+        val heightInPixels = (heightInDp * currentActivity!!.resources.displayMetrics.density).toInt()
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT, heightInPixels,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -95,11 +118,11 @@ class VisualFeedbackManager private constructor(private val context: Context) {
             gravity = Gravity.BOTTOM
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
-        windowManager.addView(audioWaveView, params)
+        windowManager?.addView(audioWaveView, params)
         Log.d(TAG, "Audio wave view added.")
 
         // Link to TTSManager
-        val ttsManager = TTSManager.getInstance(context)
+        val ttsManager = TTSManager.getInstance(currentActivity!!)
         val audioSessionId = ttsManager.getAudioSessionId()
 
         if (audioSessionId == 0) {
@@ -129,9 +152,11 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
     fun showSpeakingOverlay() {
         mainHandler.post {
+            val activity = ActivityLifecycleManager.getCurrentActivity() ?: return@post
+            updateActivity(activity)
             if (speakingOverlay != null) return@post
 
-            speakingOverlay = View(context).apply {
+            speakingOverlay = View(currentActivity).apply {
                 // CHANGED: Increased opacity from 80 (50%) to E6 (90%) for a more solid feel.
                 // You can adjust this hex value (E6) to your liking.
                 setBackgroundColor(0x80FFFFFF.toInt())
@@ -146,7 +171,7 @@ class VisualFeedbackManager private constructor(private val context: Context) {
             )
 
             try {
-                windowManager.addView(speakingOverlay, params)
+                windowManager?.addView(speakingOverlay, params)
                 Log.d(TAG, "Speaking overlay added.")
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding speaking overlay", e)
@@ -156,13 +181,16 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
 
     fun showTranscription(initialText: String = "Listening...") {
-        if (transcriptionView != null) {
-            updateTranscription(initialText) // Update text if already shown
-            return
-        }
-
         mainHandler.post {
-            transcriptionView = TextView(context).apply {
+            val activity = ActivityLifecycleManager.getCurrentActivity() ?: return@post
+            updateActivity(activity)
+
+            if (transcriptionView != null) {
+                updateTranscription(initialText) // Update text if already shown
+                return@post
+            }
+
+            transcriptionView = TextView(currentActivity).apply {
                 text = initialText
                 val glassBackground = GradientDrawable(
                     GradientDrawable.Orientation.TL_BR,
@@ -190,7 +218,7 @@ class VisualFeedbackManager private constructor(private val context: Context) {
             }
 
             try {
-                windowManager.addView(transcriptionView, params)
+                windowManager?.addView(transcriptionView, params)
                 Log.d(TAG, "Transcription view added.")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to add transcription view.", e)
@@ -207,10 +235,11 @@ class VisualFeedbackManager private constructor(private val context: Context) {
 
     fun hideTranscription() {
         mainHandler.post {
+            if (windowManager == null) return@post
             transcriptionView?.let {
                 if (it.isAttachedToWindow) {
                     try {
-                        windowManager.removeView(it)
+                        windowManager?.removeView(it)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error removing transcription view.", e)
                     }
@@ -227,23 +256,22 @@ class VisualFeedbackManager private constructor(private val context: Context) {
         onSubmit: (String) -> Unit,
         onOutsideTap: () -> Unit
     ) {
-        // This method creates an overlay input box that appears over other apps
-        // Key fix: Proper keyboard positioning using WindowInsetsCompat to prevent
-        // the input box from being hidden behind the keyboard when it appears
         mainHandler.post {
+            val activity = ActivityLifecycleManager.getCurrentActivity() ?: return@post
+            updateActivity(activity)
+
             if (inputBoxView?.isAttachedToWindow == true) {
-                // If already showing, just ensure focus
                 inputBoxView?.findViewById<EditText>(R.id.overlayInputField)?.requestFocus()
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                val imm = currentActivity?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(inputBoxView?.findViewById(R.id.overlayInputField), InputMethodManager.SHOW_IMPLICIT)
                 return@post
             }
 
             if (inputBoxView != null) {
-                try { windowManager.removeView(inputBoxView) } catch (e: Exception) {}
+                try { windowManager?.removeView(inputBoxView) } catch (e: Exception) {}
             }
 
-            val inflater = LayoutInflater.from(context)
+            val inflater = LayoutInflater.from(currentActivity)
             inputBoxView = inflater.inflate(R.layout.overlay_input_box, null)
 
             val inputField = inputBoxView?.findViewById<EditText>(R.id.overlayInputField)
@@ -258,8 +286,7 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP
-                // Top margin with sufficient space
-                y = (80 * context.resources.displayMetrics.density).toInt() // 80dp top margin
+                y = (80 * currentActivity!!.resources.displayMetrics.density).toInt()
             }
 
             inputField?.setOnEditorActionListener { v, actionId, _ ->
@@ -269,7 +296,6 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                         onSubmit(inputText)
                         v.text = ""
                     } else {
-                        // If empty, just hide the box
                         hideInputBox()
                     }
                     true
@@ -286,19 +312,18 @@ class VisualFeedbackManager private constructor(private val context: Context) {
             rootLayout?.setOnTouchListener { _, event ->
                 if (event.action == MotionEvent.ACTION_OUTSIDE) {
                     Log.d(TAG, "Outside touch detected.")
-                    onOutsideTap() // Use the new callback
+                    onOutsideTap()
                     return@setOnTouchListener true
                 }
                 false
             }
 
             try {
-                windowManager.addView(inputBoxView, params)
+                windowManager?.addView(inputBoxView, params)
                 Log.d(TAG, "Input box added with initial y position: ${params.y}")
                 
-                // **IMPROVEMENT**: Explicitly request focus and show the keyboard
                 inputField?.requestFocus()
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                val imm = currentActivity?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showSoftInput(inputField, InputMethodManager.SHOW_IMPLICIT)
 
             } catch (e: Exception) {
@@ -306,25 +331,28 @@ class VisualFeedbackManager private constructor(private val context: Context) {
             }
         }
     }
-    // --- REPLACE the hideInputBox method with this simplified version ---
+
     fun hideInputBox() {
         mainHandler.post {
+            if (windowManager == null || currentActivity == null) return@post
             inputBoxView?.let {
                 if (it.isAttachedToWindow) {
-                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    val imm = currentActivity?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                     imm.hideSoftInputFromWindow(it.windowToken, 0)
-                    windowManager.removeView(it)
+                    windowManager?.removeView(it)
                 }
             }
             inputBoxView = null
         }
     }
+
     fun hideSpeakingOverlay() {
         mainHandler.post {
+            if (windowManager == null) return@post
             speakingOverlay?.let {
                 if (it.isAttachedToWindow) {
                     try {
-                        windowManager.removeView(it)
+                        windowManager?.removeView(it)
                         Log.d(TAG, "Speaking overlay removed.")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error removing speaking overlay", e)

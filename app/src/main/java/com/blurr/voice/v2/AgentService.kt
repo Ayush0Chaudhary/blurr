@@ -51,7 +51,7 @@ class AgentService : Service() {
     // A dedicated coroutine scope tied to the service's lifecycle.
     // Using a SupervisorJob ensures that if one child coroutine fails, it doesn't cancel the whole scope.
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance(this) }
+    private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance() }
 
     // Declare agent and its dependencies. They will be initialized in onCreate.
     private val taskQueue: Queue<String> = ConcurrentLinkedQueue()
@@ -125,8 +125,6 @@ class AgentService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate: Service is being created.")
-        visualFeedbackManager.showTtsWave()
-
         // Create the notification channel required for foreground services on Android 8.0+
         createNotificationChannel()
 
@@ -238,7 +236,6 @@ class AgentService : Service() {
 
         // Cancel the coroutine scope to clean up the agent's running job and prevent leaks.
         serviceScope.cancel()
-        visualFeedbackManager.hideTtsWave()
         Log.i(TAG, "Service destroyed and all resources cleaned up.")
     }
 
