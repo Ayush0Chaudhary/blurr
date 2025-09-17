@@ -26,8 +26,8 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.getSystemService
 import com.blurr.voice.utilities.OnboardingManager
+import com.blurr.voice.utilities.RoleManagerHelper
 
 class OnboardingPermissionsActivity : AppCompatActivity() {
 
@@ -149,10 +149,7 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 titleRes = R.string.default_assistant_role_title,
                 descRes = R.string.default_assistant_role_desc,
                 iconRes = R.drawable.ic_launcher_foreground,
-                isGranted = {
-                    val rm = getSystemService(RoleManager::class.java)
-                    rm?.isRoleHeld(RoleManager.ROLE_ASSISTANT) == true
-                },
+                isGranted = { RoleManagerHelper.isDefaultAssistant(this) },
                 action = {
                     startActivity(Intent(this, RoleRequestActivity::class.java))
                 }
