@@ -53,6 +53,7 @@ class SpeechCoordinator private constructor(private val context: Context) {
 
                 isSpeaking = true
                 Log.d(TAG, "Starting TTS: $text")
+                VisualFeedbackManager.getInstance().showTtsWave()
 
                 // This is a suspend call that will wait until TTS is actually done.
                 ttsManager.speakText(text)
@@ -64,6 +65,7 @@ class SpeechCoordinator private constructor(private val context: Context) {
             } finally {
                 // Ensure the speaking flag is always reset
                 isSpeaking = false
+                VisualFeedbackManager.getInstance().hideTtsWave()
             }
         }
     }
@@ -84,6 +86,7 @@ class SpeechCoordinator private constructor(private val context: Context) {
 
                 isSpeaking = true
                 Log.d(TAG, "Starting TTS to user: $text")
+                VisualFeedbackManager.getInstance().showTtsWave()
 
                 ttsManager.speakToUser(text)
 
@@ -93,6 +96,7 @@ class SpeechCoordinator private constructor(private val context: Context) {
             } finally {
                 // Ensure the speaking flag is always reset
                 isSpeaking = false
+                VisualFeedbackManager.getInstance().hideTtsWave()
             }
         }
     }
