@@ -16,6 +16,7 @@ import com.blurr.voice.R
 import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.api.Eyes
 import com.blurr.voice.api.Finger
+import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
 import com.blurr.voice.v2.actions.ActionExecutor
 import com.blurr.voice.v2.fs.FileSystem
@@ -134,8 +135,10 @@ class AgentService : Service() {
         // This is the logic from your example, now placed within the service's lifecycle.
         settings = AgentSettings() // Use default settings for now
         fileSystem = FileSystem(this)
+        val userProfileManager = UserProfileManager(this)
+        val userName = userProfileManager.getName()
         // Pass an empty initial task; it will be updated in onStartCommand
-        memoryManager = MemoryManager(this, "", fileSystem, settings)
+        memoryManager = MemoryManager(this, "", fileSystem, settings, userName = userName)
         // Assuming Eyes, Finger, and SemanticParser can be instantiated directly
         perception = Perception(Eyes(this), SemanticParser())
         llmApi = GeminiApi(

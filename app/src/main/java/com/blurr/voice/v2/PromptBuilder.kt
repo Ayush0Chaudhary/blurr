@@ -29,13 +29,15 @@ class SystemPromptLoader(private val context: Context) {
      * @param settings The agent's configuration.
      * @return A GeminiMessage containing the fully formatted system prompt.
      */
-    fun getSystemMessage(settings: AgentSettings): GeminiMessage {
+    fun getSystemMessage(settings: AgentSettings, userName: String?): GeminiMessage {
         val actionsDescription = generateActionsDescription()
         val intentsCatalog = generateIntentsCatalog()
 
+        val finalUserName = if (userName.isNullOrBlank()) "the user" else userName
         var prompt = settings.overrideSystemMessage ?: loadDefaultTemplate()
             .replace("{max_actions}", settings.maxActionsPerStep.toString())
             .replace("{available_actions}", actionsDescription)
+            .replace("{user_name}", finalUserName)
 
         // Append intents catalog and a usage hint for the launch_intent action
         if (intentsCatalog.isNotBlank()) {

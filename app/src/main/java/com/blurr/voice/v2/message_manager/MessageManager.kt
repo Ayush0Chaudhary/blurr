@@ -29,7 +29,8 @@ class MemoryManager(
     private val fileSystem: FileSystem,
     private val settings: AgentSettings,
     private val sensitiveData: Map<String, String>? = null,
-    initialState: MemoryState = MemoryState()
+    initialState: MemoryState = MemoryState(),
+    userName: String?
 ) {
     val state: MemoryState = initialState
 
@@ -37,7 +38,7 @@ class MemoryManager(
         // On initialization, create and set the system message if it doesn't already exist.
         if (state.history.systemMessage == null) {
             val systemPromptLoader = SystemPromptLoader(context)
-            val systemMessage = systemPromptLoader.getSystemMessage(settings)
+            val systemMessage = systemPromptLoader.getSystemMessage(settings, userName)
             state.history.systemMessage = filterSensitiveData(systemMessage)
         }
     }
