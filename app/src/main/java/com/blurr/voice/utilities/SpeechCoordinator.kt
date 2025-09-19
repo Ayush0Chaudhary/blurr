@@ -137,7 +137,18 @@ class SpeechCoordinator private constructor(private val context: Context) {
                         delay(200)
                     }
                     // 1. Synthesize audio with the specific voice HERE
-                    val audioData = GoogleTts.synthesize(text, voice)
+                    val audioData = try {
+                        GoogleTts.synthesize(text, voice)
+                    } catch (e: Exception) {
+                        if (e.message?.contains("API key is not configured") == true) {
+                            Log.i(TAG, "Google Cloud TTS not available for voice test - using TTSManager fallback")
+                            // Use TTSManager's built-in fallback mechanism instead
+                            ttsManager.speakToUser(text)
+                            return@launch
+                        } else {
+                            throw e
+                        }
+                    }
 
                     // 2. Play the synthesized audio data
                     ttsManager.playAudioData(audioData)

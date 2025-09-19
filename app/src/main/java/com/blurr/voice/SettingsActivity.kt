@@ -229,6 +229,7 @@ class SettingsActivity : AppCompatActivity() {
             if (!cacheDir.exists()) cacheDir.mkdirs()
 
             var downloadedCount = 0
+            var skippedCount = 0
             for (voice in availableVoices) {
                 val voiceFile = File(cacheDir, "${voice.name}.wav")
                 if (!voiceFile.exists()) {
@@ -237,13 +238,23 @@ class SettingsActivity : AppCompatActivity() {
                         voiceFile.writeBytes(audioData)
                         downloadedCount++
                     } catch (e: Exception) {
-                        Log.e("SettingsActivity", "Failed to cache voice ${voice.name}", e)
+                        if (e.message?.contains("API key is not configured") == true) {
+                            Log.i("SettingsActivity", "Google Cloud TTS not available - skipping voice sample caching for ${voice.name}")
+                            skippedCount++
+                        } else {
+                            Log.e("SettingsActivity", "Failed to cache voice ${voice.name}", e)
+                        }
                     }
                 }
             }
-            if (downloadedCount > 0) {
-                runOnUiThread {
-                    Toast.makeText(this@SettingsActivity, "$downloadedCount voice samples prepared.", Toast.LENGTH_SHORT).show()
+            runOnUiThread {
+                when {
+                    downloadedCount > 0 -> {
+                        Toast.makeText(this@SettingsActivity, "$downloadedCount voice samples prepared.", Toast.LENGTH_SHORT).show()
+                    }
+                    skippedCount > 0 -> {
+                        Toast.makeText(this@SettingsActivity, "Voice samples skipped - Google Cloud TTS not configured. Native TTS will be used.", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
