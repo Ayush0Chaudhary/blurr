@@ -34,6 +34,7 @@ class VisualFeedbackManager private constructor(private val context: Context) {
     private var ttsVisualizer: TtsVisualizer? = null
     private var transcriptionView: TextView? = null
     private var inputBoxView: View? = null
+    private var thinkingIndicatorView: View? = null
 
     private var speakingOverlay: View? = null
 
@@ -332,6 +333,48 @@ class VisualFeedbackManager private constructor(private val context: Context) {
                 }
             }
             speakingOverlay = null
+        }
+    }
+
+    fun showThinkingIndicator() {
+        mainHandler.post {
+            if (thinkingIndicatorView != null) return@post
+
+            val inflater = LayoutInflater.from(context)
+            thinkingIndicatorView = inflater.inflate(R.layout.thinking_indicator, null)
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+
+            try {
+                windowManager.addView(thinkingIndicatorView, params)
+                Log.d(TAG, "Thinking indicator added.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error adding thinking indicator", e)
+            }
+        }
+    }
+
+    fun hideThinkingIndicator() {
+        mainHandler.post {
+            thinkingIndicatorView?.let {
+                if (it.isAttachedToWindow) {
+                    try {
+                        windowManager.removeView(it)
+                        Log.d(TAG, "Thinking indicator removed.")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error removing thinking indicator", e)
+                    }
+                }
+            }
+            thinkingIndicatorView = null
         }
     }
 }

@@ -506,8 +506,10 @@ class ConversationalAgentService : Service() {
                     gracefulShutdown("Goodbye!", "command")
                     return@launch
                 }
+                visualFeedbackManager.showThinkingIndicator()
                 val defaultJsonResponse = """{"Type": "Reply", "Reply": "I'm sorry, I had an issue.", "Instruction": "", "Should End": "Continue"}"""
                 val rawModelResponse = getReasoningModelApiResponse(conversationHistory) ?: defaultJsonResponse
+                visualFeedbackManager.hideThinkingIndicator()
                 val decision = parseModelResponse(rawModelResponse)
                 Log.d("TTS_DEBUG", "Reply received from GeminiApi: -->${rawModelResponse}<--")
                 when (decision.type) {
