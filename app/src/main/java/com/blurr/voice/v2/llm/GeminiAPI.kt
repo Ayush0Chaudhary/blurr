@@ -35,11 +35,23 @@ import kotlin.time.Duration.Companion.seconds
  * @property apiKeyManager An instance of [ApiKeyManager] to handle API key retrieval.
  * @property maxRetry The maximum number of times to retry a failed API call.
  */
+import android.content.Context
+import android.content.SharedPreferences
+
 class GeminiApi(
+    private val context: Context,
     private val modelName: String,
     private val apiKeyManager: ApiKeyManager, // Injected dependency
     private val maxRetry: Int = 3
 ) {
+
+    private val customLlmBaseUrl: String?
+    private val customLlmApiKey: String?
+
+    init {
+        customLlmBaseUrl = VoicePreferenceManager.getCustomLlmBaseUrl(context)?.trim()
+        customLlmApiKey = VoicePreferenceManager.getCustomLlmApiKey(context)?.trim()
+    }
 
     companion object {
         private const val TAG = "GeminiV2Api"
@@ -94,15 +106,75 @@ class GeminiApi(
 
     /**
      * AUTOMATIC DISPATCHER: Checks internal config and decides whether to use
-     * the secure proxy or a direct API call.
+     * a custom LLM endpoint, the secure proxy, or a direct API call.
      */
     private suspend fun performApiCall(messages: List<GeminiMessage>): String {
-        return if (!proxyUrl.isNullOrBlank() && !proxyKey.isNullOrBlank()) {
+        return if (!customLlmBaseUrl.isNullOrBlank()) {
+            Log.i(TAG, "Custom LLM endpoint found. Using OpenAI-compatible API call.")
+            performOpenAICompatibleApiCall(messages)
+        } else if (!proxyUrl.isNullOrBlank() && !proxyKey.isNullOrBlank()) {
             Log.i(TAG, "Proxy config found. Using secure Cloud Function.")
             performProxyApiCall(messages)
         } else {
-            Log.i(TAG, "Proxy config not found. Using direct Gemini SDK call (Fallback).")
+            Log.i(TAG, "No custom endpoint or proxy. Using direct Gemini SDK call.")
             performDirectApiCall(messages)
+        }
+    }
+
+    /**
+     * CUSTOM LLM MODE: Performs the API call to an OpenAI-compatible endpoint.
+     */
+    private suspend fun performOpenAICompatibleApiCall(messages: List<GeminiMessage>): String {
+        val url = if (customLlmBaseUrl!!.endsWith("/v1/chat/completions")) {
+            customLlmBaseUrl
+        } else {
+            // Append the standard path if the user only provided the base
+            customLlmBaseUrl.removeSuffix("/") + "/v1/chat/completions"
+        }
+
+        val openAiMessages = messages.map {
+            OpenAIRequestMessage(
+                role = it.role.name.lowercase(),
+                content = it.parts.filterIsInstance<TextPart>().joinToString(" ") { part -> part.text }
+            )
+        }
+
+        val requestPayload = OpenAIRequestBody(
+            model = modelName, // Or a model name expected by the local server
+            messages = openAiMessages
+        )
+
+        val jsonBody = jsonParser.encodeToString(OpenAIRequestBody.serializer(), requestPayload)
+
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+            .addHeader("Content-Type", "application/json")
+
+        if (!customLlmApiKey.isNullOrBlank()) {
+            requestBuilder.addHeader("Authorization", "Bearer $customLlmApiKey")
+        }
+
+        val request = requestBuilder.build()
+
+        httpClient.newCall(request).execute().use { response ->
+            val responseBodyString = response.body?.string()
+            if (!response.isSuccessful || responseBodyString.isNullOrBlank()) {
+                val errorMsg = "Custom LLM API call failed with code: ${response.code}, body: $responseBodyString"
+                Log.e(TAG, errorMsg)
+                throw IOException(errorMsg)
+            }
+
+            // Parse the response to extract the content of the message
+            val jsonResponse = JSONObject(responseBodyString)
+            val choices = jsonResponse.getJSONArray("choices")
+            if (choices.length() > 0) {
+                val firstChoice = choices.getJSONObject(0)
+                val message = firstChoice.getJSONObject("message")
+                return message.getString("content")
+            } else {
+                throw IOException("No choices returned from custom LLM endpoint.")
+            }
         }
     }
 
@@ -257,13 +329,14 @@ class GeminiApi(
 }
 
 @Serializable
-private data class ProxyRequestPart(val text: String)
+private data class OpenAIRequestMessage(val role: String, val content: String)
 
 @Serializable
-private data class ProxyRequestMessage(val role: String, val parts: List<ProxyRequestPart>)
-
-@Serializable
-private data class ProxyRequestBody(val modelName: String, val messages: List<ProxyRequestMessage>)
+private data class OpenAIRequestBody(
+    val model: String,
+    val messages: List<OpenAIRequestMessage>,
+    val stream: Boolean = false
+)
 
 
 /**
