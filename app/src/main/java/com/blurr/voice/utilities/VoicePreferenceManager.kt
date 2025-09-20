@@ -8,6 +8,10 @@ object VoicePreferenceManager {
     private const val KEY_SELECTED_VOICE = "selected_voice"
     private const val KEY_CUSTOM_LLM_BASE_URL = "custom_llm_base_url"
     private const val KEY_CUSTOM_LLM_API_KEY = "custom_llm_api_key"
+    private const val KEY_CUSTOM_TTS_BASE_URL = "custom_tts_base_url"
+    private const val KEY_CUSTOM_TTS_API_KEY = "custom_tts_api_key"
+    private const val KEY_CUSTOM_STT_BASE_URL = "custom_stt_base_url"
+    private const val KEY_CUSTOM_STT_API_KEY = "custom_stt_api_key"
 
     fun getSelectedVoice(context: Context): TTSVoice {
         val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -38,5 +42,45 @@ object VoicePreferenceManager {
     fun saveCustomLlmApiKey(context: Context, apiKey: String) {
         val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         sharedPreferences.edit().putString(KEY_CUSTOM_LLM_API_KEY, apiKey).apply()
+    }
+
+    fun getCustomTtsBaseUrl(context: Context): String? {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPreferences.getString(KEY_CUSTOM_TTS_BASE_URL, null)
+    }
+
+    fun saveCustomTtsBaseUrl(context: Context, baseUrl: String) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().putString(KEY_CUSTOM_TTS_BASE_URL, baseUrl).apply()
+    }
+
+    fun getCustomTtsApiKey(context: Context): String? {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPreferences.getString(KEY_CUSTOM_TTS_API_KEY, null)
+    }
+
+    fun saveCustomTtsApiKey(context: Context, apiKey: String) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().putString(KEY_CUSTOM_TTS_API_KEY, apiKey).apply()
+    }
+
+    fun getCustomSttBaseUrl(context: Context): String? {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPreferences.getString(KEY_CUSTOM_STT_BASE_URL, null)
+    }
+
+    fun saveCustomSttBaseUrl(context: Context, baseUrl: String) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().putString(KEY_CUSTOM_STT_BASE_URL, baseUrl).apply()
+    }
+
+    fun getCustomSttApiKey(context: Context): String? {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPreferences.getString(KEY_CUSTOM_STT_API_KEY, null)
+    }
+
+    fun saveCustomSttApiKey(context: Context, apiKey: String) {
+        val sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences.edit().putString(KEY_CUSTOM_STT_API_KEY, apiKey).apply()
     }
 }

@@ -3,6 +3,7 @@ package com.blurr.voice.api
 import android.util.Base64
 import android.util.Log
 import com.blurr.voice.BuildConfig
+import com.blurr.voice.utilities.VoicePreferenceManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -53,6 +54,16 @@ enum class TTSVoice(val displayName: String, val voiceName: String, val descript
  * Handles communication with the Google Cloud Text-to-Speech API.
  */
 object GoogleTts {
+    private var customTtsBaseUrl: String? = null
+    private var customTtsApiKey: String? = null
+    private lateinit var networkManager: NetworkConnectivityManager
+
+    fun init(context: Context) {
+        customTtsBaseUrl = VoicePreferenceManager.getCustomTtsBaseUrl(context)?.trim()
+        customTtsApiKey = VoicePreferenceManager.getCustomTtsApiKey(context)?.trim()
+        networkManager = NetworkConnectivityManager(context)
+    }
+
     const val apiKey = BuildConfig.GOOGLE_TTS_API_KEY
     private val client = OkHttpClient()
     private const val API_URL = "https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=$apiKey"
@@ -72,22 +83,24 @@ object GoogleTts {
      * @throws Exception if the API call fails or the response is invalid.
      */
     suspend fun synthesize(text: String, voice: TTSVoice): ByteArray = withContext(Dispatchers.IO) {
+        if (!customTtsBaseUrl.isNullOrBlank()) {
+            return@withContext synthesizeWithCustomEndpoint(text, voice)
+        }
+
         if (apiKey.isEmpty()) {
             throw Exception("Google TTS API key is not configured.")
         }
-        println(voice.displayName)
 
-        // Network check
-        val isOnline = try {
-            true
-        } catch (e: Exception) {
-            Log.e("GoogleTts", "Network check failed, assuming offline. ${'$'}{e.message}")
-            false
+        // Network check for Google TTS
+        try {
+            if (!networkManager.isOnline()) {
+                NetworkNotifier.notifyOffline()
+                throw Exception("No internet connection for TTS request.")
+            }
+        } catch (e: UninitializedPropertyAccessException) {
+            throw IllegalStateException("GoogleTts has not been initialized. Call GoogleTts.init() in your Application class.", e)
         }
-        if (!isOnline) {
-            NetworkNotifier.notifyOffline()
-            throw Exception("No internet connection for TTS request.")
-        }
+
 
         // 1. Construct the JSON payload
         val jsonPayload = JSONObject().apply {
@@ -137,4 +150,51 @@ object GoogleTts {
      * @return List of all available TTS voices
      */
     fun getAvailableVoices(): List<TTSVoice> = TTSVoice.values().toList()
+
+    private suspend fun synthesizeWithCustomEndpoint(text: String, voice: TTSVoice): ByteArray {
+        val url = if (customTtsBaseUrl!!.endsWith("/v1/audio/speech")) {
+            customTtsBaseUrl
+        } else {
+            customTtsBaseUrl!!.removeSuffix("/") + "/v1/audio/speech"
+        }
+
+        val requestPayload = OpenAITtsRequest(
+            model = "tts-1", // A common default for OpenAI-compatible TTS
+            input = text,
+            voice = "alloy" // A common default voice
+        )
+        val jsonBody = JSONObject().apply {
+            put("model", requestPayload.model)
+            put("input", requestPayload.input)
+            put("voice", requestPayload.voice)
+        }.toString()
+
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .post(jsonBody.toRequestBody("application/json".toMediaType()))
+            .header("Content-Type", "application/json")
+
+        if (!customTtsApiKey.isNullOrBlank()) {
+            requestBuilder.header("Authorization", "Bearer $customTtsApiKey")
+        }
+
+        val request = requestBuilder.build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string()
+                Log.e("GoogleTts", "Custom TTS API Error: ${response.code} - $errorBody")
+                throw Exception("Custom TTS API request failed with code ${response.code}")
+            }
+
+            return response.body?.bytes() ?: throw Exception("Received an empty response from Custom TTS API.")
+        }
+    }
 }
+
+@Serializable
+private data class OpenAITtsRequest(
+    val model: String,
+    val input: String,
+    val voice: String
+)

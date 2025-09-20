@@ -325,6 +325,80 @@
 
         </LinearLayout>
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/rounded_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Custom Speech"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Use custom endpoints for TTS and STT."
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/editCustomTtsBaseUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/edit_text_border"
+                android:hint="TTS Base URL"
+                android:inputType="textUri"
+                android:padding="12dp"
+                android:textColor="#CECECE"
+                android:textColorHint="#888888" />
+
+            <EditText
+                android:id="@+id/editCustomTtsApiKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/edit_text_border"
+                android:hint="TTS API Key (optional)"
+                android:inputType="textPassword"
+                android:padding="12dp"
+                android:textColor="#CECECE"
+                android:textColorHint="#888888" />
+
+            <EditText
+                android:id="@+id/editCustomSttBaseUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/edit_text_border"
+                android:hint="STT Base URL"
+                android:inputType="textUri"
+                android:padding="12dp"
+                android:textColor="#CECECE"
+                android:textColorHint="#888888" />
+
+            <EditText
+                android:id="@+id/editCustomSttApiKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/edit_text_border"
+                android:hint="STT API Key (optional)"
+                android:inputType="textPassword"
+                android:padding="12dp"
+                android:textColor="#CECECE"
+                android:textColorHint="#888888" />
+
+        </LinearLayout>
+
         <TextView
             android:id="@+id/permissionsInfoButton"
             android:layout_width="wrap_content"
