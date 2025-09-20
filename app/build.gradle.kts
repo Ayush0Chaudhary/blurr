@@ -29,6 +29,7 @@ if (versionPropsFile.exists()) {
 android {
     namespace = "com.blurr.voice"
     compileSdk = 35
+    ndkVersion = "25.1.8937393"
 
     // Common API keys and configuration - extracted to avoid duplication
     val apiKeys = localProperties.getProperty("GEMINI_API_KEYS") ?: ""
@@ -81,10 +82,31 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            
+            // Ensure debug symbols are included in release builds
+            packaging {
+                doNotStrip "*/arm64-v8a/*.so"
+                doNotStrip "*/armeabi-v7a/*.so"
+                doNotStrip "*/x86/*.so"
+                doNotStrip "*/x86_64/*.so"
+            }
         }
         debug {
             // Debug-specific field only
             buildConfigField("String", "SHA1_FINGERPRINT", "\"$debugSha1\"")
+            
+            // Also configure crashlytics for debug builds
+            firebaseCrashlytics {
+                nativeSymbolUploadEnabled = true
+            }
+            
+            // Ensure debug symbols are preserved for debugging
+            packaging {
+                doNotStrip "*/arm64-v8a/*.so"
+                doNotStrip "*/armeabi-v7a/*.so"
+                doNotStrip "*/x86/*.so"
+                doNotStrip "*/x86_64/*.so"
+            }
         }
     }
     compileOptions {
@@ -98,6 +120,19 @@ android {
         compose = true
         viewBinding = true
         buildConfig = true
+    }
+    
+    bundle {
+        // Configure App Bundle to include debug info for crash reporting
+        abi {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
+        }
+        language {
+            enableSplit = false
+        }
     }
 }
 val libsuVersion = "6.0.0"
