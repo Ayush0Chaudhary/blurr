@@ -73,7 +73,7 @@ class ConversationalAgentService : Service() {
     private val ttsManager by lazy { TTSManager.getInstance(this) }
     private val clarificationQuestionViews = mutableListOf<View>()
     private var transcriptionView: TextView? = null
-    private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance(this) }
+    private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance() }
     private var isTextModeActive = false
     private val freemiumManager by lazy { FreemiumManager() }
     private val servicePermissionManager by lazy { ServicePermissionManager(this) }
@@ -125,9 +125,7 @@ class ConversationalAgentService : Service() {
         sttErrorAttempts = 0 // Reset STT error attempts counter
         usedMemories.clear() // Clear used memories for new conversation
         hasHeardFirstUtterance = false // Reset first utterance flag
-        visualFeedbackManager.showTtsWave()
         showInputBoxIfNeeded()
-        visualFeedbackManager.showSpeakingOverlay() // <-- ADD THIS LINE
 
 
     }
@@ -1319,11 +1317,6 @@ class ConversationalAgentService : Service() {
         serviceScope.cancel()
         ttsManager.setCaptionsEnabled(false)
         isRunning = false
-        visualFeedbackManager.hideSpeakingOverlay() // <-- ADD THIS LINE
-        // USE the new manager to hide the wave and transcription view
-        visualFeedbackManager.hideTtsWave()
-        visualFeedbackManager.hideTranscription()
-        visualFeedbackManager.hideInputBox()
 
     }
 
