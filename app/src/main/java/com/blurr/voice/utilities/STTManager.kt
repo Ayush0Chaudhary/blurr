@@ -11,11 +11,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class STTManager(private val context: Context) {
     
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
+    private val customSttBaseUrl: String?
+    private val customSttApiKey: String?
     private var onResultCallback: ((String) -> Unit)? = null
     private var onErrorCallback: ((String) -> Unit)? = null
     private var onListeningStateChange: ((Boolean) -> Unit)? = null
@@ -26,7 +32,10 @@ class STTManager(private val context: Context) {
     private val POSSIBLE_SILENCE_MS = 2000  // shorter silence hint window
     private val MIN_UTTERANCE_MS     = 1500 // enforce a minimum listening duration
 
-    
+    init {
+        customSttBaseUrl = VoicePreferenceManager.getCustomSttBaseUrl(context)?.trim()
+        customSttApiKey = VoicePreferenceManager.getCustomSttApiKey(context)?.trim()
+    }
 
     private fun initializeSpeechRecognizer() {
         if (isInitialized) return
@@ -136,6 +145,11 @@ class STTManager(private val context: Context) {
             Log.w("STTManager", "Already listening")
             return
         }
+
+        if (!customSttBaseUrl.isNullOrBlank()) {
+            startListeningWithCustomEndpoint(onResult, onError, onListeningStateChange)
+            return
+        }
         
         this.onResultCallback = onResult
         this.onErrorCallback = onError
@@ -170,6 +184,157 @@ class STTManager(private val context: Context) {
                 onError("Failed to start speech recognition: ${e.message}")
             }
         }
+    }
+
+    private fun startListeningWithCustomEndpoint(
+        onResult: (String) -> Unit,
+        onError: (String) -> Unit,
+        onListeningStateChange: (Boolean) -> Unit
+    ) {
+        if (context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            onError("RECORD_AUDIO permission not granted.")
+            return
+        }
+
+        isListening = true
+        onListeningStateChange(true)
+        visualizerManager.show()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val audioData = recordAudio()
+                val wavData = createWavFile(audioData)
+                val result = sendAudioToCustomEndpoint(wavData)
+                CoroutineScope(Dispatchers.Main).launch {
+                    onResult(result)
+                }
+            } catch (e: Exception) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    onError(e.message ?: "Unknown error in custom STT.")
+                }
+            } finally {
+                isListening = false
+                CoroutineScope(Dispatchers.Main).launch {
+                    onListeningStateChange(false)
+                    visualizerManager.hide()
+                }
+            }
+        }
+    }
+
+    private fun recordAudio(): ByteArray {
+        val sampleRate = 16000
+        val channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO
+        val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
+        val bufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+
+        val audioRecord = android.media.AudioRecord(
+            android.media.MediaRecorder.AudioSource.MIC,
+            sampleRate,
+            channelConfig,
+            audioFormat,
+            bufferSize
+        )
+
+        val buffer = ByteArray(bufferSize)
+        val outputStream = java.io.ByteArrayOutputStream()
+
+        audioRecord.startRecording()
+
+        // For simplicity, record for a fixed duration.
+        // A more advanced implementation would detect silence.
+        val recordingDurationMs = 5000
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < recordingDurationMs) {
+            val read = audioRecord.read(buffer, 0, buffer.size)
+            outputStream.write(buffer, 0, read)
+        }
+
+        audioRecord.stop()
+        audioRecord.release()
+
+        return outputStream.toByteArray()
+    }
+
+    private fun createWavFile(audioData: ByteArray): ByteArray {
+        val outputStream = java.io.ByteArrayOutputStream()
+        val sampleRate = 16000
+        val numChannels = 1
+        val bitsPerSample = 16
+
+        val byteRate = sampleRate * numChannels * bitsPerSample / 8
+        val blockAlign = numChannels * bitsPerSample / 8
+        val audioDataSize = audioData.size
+        val riffDataSize = audioDataSize + 36
+
+        // WAV header
+        outputStream.write("RIFF".toByteArray())
+        outputStream.write(writeInt(riffDataSize))
+        outputStream.write("WAVE".toByteArray())
+        outputStream.write("fmt ".toByteArray())
+        outputStream.write(writeInt(16)) // Sub-chunk size
+        outputStream.write(writeShort(1.toShort())) // Audio format (PCM)
+        outputStream.write(writeShort(numChannels.toShort()))
+        outputStream.write(writeInt(sampleRate))
+        outputStream.write(writeInt(byteRate))
+        outputStream.write(writeShort(blockAlign.toShort()))
+        outputStream.write(writeShort(bitsPerSample.toShort()))
+        outputStream.write("data".toByteArray())
+        outputStream.write(writeInt(audioDataSize))
+        outputStream.write(audioData)
+
+        return outputStream.toByteArray()
+    }
+
+    private fun writeInt(value: Int): ByteArray {
+        return byteArrayOf(
+            (value and 0xff).toByte(),
+            (value shr 8 and 0xff).toByte(),
+            (value shr 16 and 0xff).toByte(),
+            (value shr 24 and 0xff).toByte()
+        )
+    }
+
+    private fun writeShort(value: Short): ByteArray {
+        return byteArrayOf(
+            (value.toInt() and 0xff).toByte(),
+            (value.toInt() shr 8 and 0xff).toByte()
+        )
+    }
+
+    private suspend fun sendAudioToCustomEndpoint(audioData: ByteArray): String {
+        val url = if (customSttBaseUrl!!.endsWith("/v1/audio/transcriptions")) {
+            customSttBaseUrl
+        } else {
+            customSttBaseUrl!!.removeSuffix("/") + "/v1/audio/transcriptions"
+        }
+
+        val client = okhttp3.OkHttpClient()
+        val requestBody = okhttp3.MultipartBody.Builder()
+            .setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("file", "audio.wav", audioData.toRequestBody("audio/wav".toMediaType()))
+            .addFormDataPart("model", "whisper-1")
+            .build()
+
+        val requestBuilder = okhttp3.Request.Builder()
+            .url(url)
+            .post(requestBody)
+
+        if (!customSttApiKey.isNullOrBlank()) {
+            requestBuilder.addHeader("Authorization", "Bearer $customSttApiKey")
+        }
+
+        val request = requestBuilder.build()
+
+        val response = client.newCall(request).execute()
+        val responseBody = response.body?.string()
+
+        if (!response.isSuccessful || responseBody.isNullOrBlank()) {
+            throw Exception("Custom STT API request failed with code: ${response.code}, body: $responseBody")
+        }
+
+        val jsonResponse = org.json.JSONObject(responseBody)
+        return jsonResponse.getString("text")
     }
     
     fun stopListening() {

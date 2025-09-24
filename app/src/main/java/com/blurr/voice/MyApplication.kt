@@ -24,6 +24,9 @@ class MyApplication : Application() {
         super.onCreate()
         appContext = applicationContext
 
+        // Initialize singletons that need context
+        GoogleTts.init(this)
+
         Purchases.logLevel = LogLevel.DEBUG
         Purchases.configure(
             PurchasesConfiguration.Builder(this, BuildConfig.REVENUECAT_API_KEY).build()
