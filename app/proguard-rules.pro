@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep the data classes
+-keep class com.blurr.voice.data.** { *; }
+-keep class com.blurr.voice.v2.llm.** { *; }
+-keep class com.blurr.voice.v2.message_manager.** { *; }
