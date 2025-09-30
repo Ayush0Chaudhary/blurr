@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg"
+    android:fitsSystemWindows="true"
+    tools:context=".triggers.ui.TriggersActivity">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        app:title="Your Triggers"
+        app:titleTextColor="@color/white" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/triggersRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/toolbar"
+        android:padding="8dp"
+        android:clipToPadding="false"
+        tools:listitem="@layout/item_trigger" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/addTriggerFab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="16dp"
+        android:src="@drawable/ic_add"
+        app:backgroundTint="@color/button_blue"
+        app:tint="@color/white"
+        android:contentDescription="Add new trigger" />
+
+</RelativeLayout>

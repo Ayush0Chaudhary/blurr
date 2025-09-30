@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".MyApplication"
@@ -126,6 +128,35 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/panda_widget_info" />
+        </receiver>
+
+        <!-- Trigger Infrastructure Components -->
+        <service
+            android:name=".triggers.PandaNotificationListenerService"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".triggers.TriggerReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.blurr.voice.action.EXECUTE_TASK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".triggers.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
         </receiver>
 
     </application>

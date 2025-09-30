@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg"
+    android:fitsSystemWindows="true"
+    tools:context=".triggers.ui.CreateTriggerActivity">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        app:title="Create Trigger"
+        app:titleTextColor="@color/white" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/toolbar"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <LinearLayout
+                android:id="@+id/scheduledTimeOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/PermissionHeading"
+                    android:text="Set Trigger Time" />
+
+                <TimePicker
+                    android:id="@+id/timePicker"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:theme="@style/AppTheme.NumberPicker"
+                    android:timePickerMode="spinner" />
+
+                <TextView
+                    style="@style/PermissionHeading"
+                    android:layout_marginTop="8dp"
+                    android:text="Repeat on" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/dayOfWeekChipGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:singleSelection="false">
+
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="S"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="M"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="T"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="W"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="T"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="F"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="S"/>
+                </com.google.android.material.chip.ChipGroup>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/notificationOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/PermissionHeading"
+                    android:text="Select App" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/appsRecyclerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:layout_marginTop="8dp"
+                    tools:listitem="@layout/item_app" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/PermissionHeading"
+                android:text="Task Instruction" />
+
+            <EditText
+                android:id="@+id/instructionEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/edit_text_border"
+                android:hint="e.g., 'Read the notification'"
+                android:inputType="textMultiLine"
+                android:minLines="2"
+                android:maxLines="5"
+                android:scrollbars="vertical"
+                android:gravity="top"
+                android:padding="12dp"
+                android:textColor="@color/white"
+                android:textColorHint="#8A8A8E" />
+
+            <Button
+                android:id="@+id/saveTriggerButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="24dp"
+                android:background="@drawable/rounded_button"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:text="Save Trigger"
+                android:textColor="@color/white" />
+
+        </LinearLayout>
+    </ScrollView>
+</RelativeLayout>

@@ -274,6 +274,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupClickListeners() {
+        findViewById<TextView>(R.id.triggersButton).setOnClickListener {
+            startActivity(Intent(this, com.blurr.voice.triggers.ui.TriggersActivity::class.java))
+        }
         findViewById<TextView>(R.id.memoriesButton).setOnClickListener {
             startActivity(Intent(this, MemoriesActivity::class.java))
         }
