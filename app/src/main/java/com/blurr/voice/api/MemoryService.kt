@@ -1,3 +1,11 @@
+/**
+ * @file MemoryService.kt
+ * @brief Provides an interface for interacting with the Mem0 API for memory storage and retrieval.
+ *
+ * This file contains the `MemoryService` class, which is responsible for adding new memories
+ * and searching for existing ones using the Mem0 backend. It handles API requests,
+ * authentication, and network connectivity checks.
+ */
 package com.blurr.voice.api
 
 import android.util.Log
@@ -15,16 +23,26 @@ import com.blurr.voice.utilities.NetworkConnectivityManager
 import com.blurr.voice.utilities.NetworkNotifier
 
 /**
- * A service to interact with the Mem0 API for persistent memory storage and retrieval.
+ * A service class to interact with the Mem0 API for persistent memory storage and retrieval.
+ *
+ * This class encapsulates the logic for making authenticated requests to the Mem0 API endpoints
+ * for creating and searching memories associated with a specific user.
  */
 class MemoryService {
 
+    /** The OkHttpClient instance used for all API requests. */
     private val client = OkHttpClient()
-    // --- CORRECTED: Use the correct BuildConfig field name ---
+    /** The API key for authenticating with the Mem0 service. */
     private val apiKey = BuildConfig.MEM0_API
 
     /**
-     * Adds a new memory to Mem0 based on the user's instruction.
+     * Adds a new memory to the Mem0 backend based on a user's instruction.
+     *
+     * This function constructs a payload from the user's instruction and sends it to the
+     * Mem0 API to be stored. The memory is associated with the provided `userId`.
+     *
+     * @param instruction The user's instruction or statement to be stored as a memory.
+     * @param userId The unique identifier for the user to associate the memory with.
      */
     suspend fun addMemory(instruction: String, userId: String) {
         if (apiKey.isEmpty()) {
@@ -33,16 +51,17 @@ class MemoryService {
         }
         // Network check
         try {
-            val isOnline = true
+            val isOnline = NetworkConnectivityManager(MyApplication.appContext).isNetworkAvailable()
             if (!isOnline) {
                 Log.e("MemoryService", "No internet connection. Skipping addMemory call.")
                 NetworkNotifier.notifyOffline()
                 return
             }
         } catch (e: Exception) {
-            Log.e("MemoryService", "Network check failed, assuming offline. ${'$'}{e.message}")
+            Log.e("MemoryService", "Network check failed, assuming offline. ${e.message}")
             return
         }
+
         withContext(Dispatchers.IO) {
             try {
                 val message = JSONObject().put("role", "user").put("content", instruction)
@@ -62,15 +81,11 @@ class MemoryService {
                     .build()
 
                 client.newCall(request).execute().use { response ->
-                    // --- THIS IS THE FIX ---
-                    // Read the response body into a variable ONCE.
                     val responseBodyString = response.body?.string()
 
                     if (response.isSuccessful) {
-                        // Now, print the body you captured.
                         Log.d("MemoryService", "Successfully added memory. Response: $responseBodyString")
                     } else {
-                        // Log the body on failure as well.
                         Log.e("MemoryService", "Failed to add memory. Code: ${response.code}, Body: $responseBodyString")
                     }
                 }
@@ -81,7 +96,12 @@ class MemoryService {
     }
 
     /**
-     * Searches for memories relevant to the current query for a specific user.
+     * Searches for memories relevant to a given query for a specific user.
+     *
+     * @param query The search query to find relevant memories.
+     * @param userId The unique identifier for the user whose memories are to be searched.
+     * @return A formatted string containing the search results, or a message indicating
+     *         that no memories were found or an error occurred.
      */
     suspend fun searchMemory(query: String, userId: String): String {
         if (apiKey.isEmpty()) {
@@ -90,14 +110,14 @@ class MemoryService {
         }
         // Network check
         try {
-            val isOnline = true
+            val isOnline = NetworkConnectivityManager(MyApplication.appContext).isNetworkAvailable()
             if (!isOnline) {
                 Log.e("MemoryService", "No internet connection. Skipping searchMemory call.")
                 NetworkNotifier.notifyOffline()
                 return "Could not retrieve memories due to no internet connection."
             }
         } catch (e: Exception) {
-            Log.e("MemoryService", "Network check failed, assuming offline. ${'$'}{e.message}")
+            Log.e("MemoryService", "Network check failed, assuming offline. ${e.message}")
             return "Could not retrieve memories due to connectivity check error."
         }
 

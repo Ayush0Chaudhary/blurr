@@ -1,3 +1,13 @@
+/**
+ * @file SemanticParser.kt
+ * @brief Defines a parser for simplifying and interpreting raw Android UI XML.
+ *
+ * This file contains the `SemanticParser` class, which is a sophisticated tool for
+ * converting the verbose XML output from Android's accessibility service into a clean,
+ * semantically meaningful list of UI elements. It includes logic for merging descriptive
+ * child nodes into their interactive parents, pruning redundant elements, and formatting
+ * the output in various ways (JSON, Markdown, etc.).
+ */
 package com.blurr.voice.crawler
 
 import android.content.Context
@@ -11,7 +21,15 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Data class to store UI elements with their numeric IDs and coordinates
+ * A data class that associates a [UIElement] with a simple numeric ID and its center coordinates.
+ *
+ * This is useful for providing a simplified reference to UI elements, for example, when
+ * presenting them to a language model or user for selection.
+ *
+ * @property id The simple numeric identifier (1-based index).
+ * @property element The full [UIElement] object.
+ * @property centerX The x-coordinate of the center of the element's bounds.
+ * @property centerY The y-coordinate of the center of the element's bounds.
  */
 data class UIElementWithId(
     val id: Int,
@@ -21,22 +39,38 @@ data class UIElementWithId(
 )
 
 /**
- * A sophisticated parser that simplifies the raw UI XML into a clean,
- * semantically meaningful list of UI elements. It merges descriptive child nodes
- * into their interactive parents and then prunes nested interactive elements.
+ * A sophisticated parser that simplifies raw UI XML into a clean, semantically
+ * meaningful list of [UIElement] objects.
+ *
+ * The parser performs several key operations:
+ * 1.  **Tree Building:** Constructs a complete node tree from the raw XML string.
+ * 2.  **Semantic Merging:** Traverses the tree to find non-clickable, descriptive nodes
+ *     (e.g., a `TextView` next to a checkbox) and merges their text into their nearest
+ *     clickable ancestor. This groups labels with their controls.
+ * 3.  **Filtering & Flattening:** Traverses the merged tree to create a flat list of
+ *     "important" UI elements, filtering out nodes that were merged or are outside
+ *     the screen bounds.
+ *
+ * @param applicationContext The application context, used for debugging visualizations.
  */
 class SemanticParser(private  val applicationContext: Context) {
 
-    // Internal data class to represent the XML tree structure.
+    /**
+     * An internal data class to represent the hierarchical structure of the XML UI tree.
+     *
+     * @property attributes A map of the XML attributes for this node.
+     * @property parent A reference to the parent node in the tree.
+     * @property children A list of child nodes.
+     * @property mergedText A list of strings "donated" from descriptive child nodes during the merge process.
+     * @property isSubsumed A flag indicating that this node's description has been merged into an ancestor.
+     */
     private data class XmlNode(
         val attributes: MutableMap<String, String> = mutableMapOf(),
         var parent: XmlNode? = null,
         val children: MutableList<XmlNode> = mutableListOf(),
-        // --- Fields for merging logic ---
         var mergedText: MutableList<String> = mutableListOf(),
         var isSubsumed: Boolean = false
     ) {
-        // Helper to get an attribute
         fun get(key: String): String? = attributes[key]
         fun getBool(key: String): Boolean = attributes[key]?.toBoolean() ?: false
     }
@@ -44,56 +78,50 @@ class SemanticParser(private  val applicationContext: Context) {
     /**
      * Parses the raw XML hierarchy and returns a simplified, semantically merged JSON string.
      *
+     * This is a primary entry point for the parser.
+     *
      * @param xmlString The raw XML content from the accessibility service.
-     * @param screenWidth The physical width of the device screen.
-     * @param screenHeight The physical height of the device screen.
-     * @return A JSON string representing a list of clean UIElements.
+     * @param screenWidth The physical width of the device screen for bounds checking.
+     * @param screenHeight The physical height of the device screen for bounds checking.
+     * @return A JSON string representing a list of clean [UIElement] objects.
      */
     fun parse(xmlString: String, screenWidth: Int, screenHeight: Int): String {
-        // Step 1: Build the complete tree from the XML.
-        val rootNode = buildTreeFromXml(xmlString)
-
-        // Step 2: Perform the semantic merge (upward text propagation).
-        if (rootNode != null) {
-            mergeDescriptiveChildren(rootNode)
-        }
-
-        // Step 3: Flatten the tree to a preliminary list of important elements.
-        val preliminaryElements = mutableListOf<UIElement>()
-        if (rootNode != null) {
-            flattenAndFilter(rootNode, preliminaryElements, screenWidth, screenHeight)
-        }
-
+        val preliminaryElements = parseToUIElement(xmlString, screenWidth, screenHeight)
         visualizeCurrentScreen(applicationContext, preliminaryElements )
-
-        // Step 5: Serialize the final list to a pretty JSON string.
         val gson = GsonBuilder().setPrettyPrinting().create()
         return gson.toJson(preliminaryElements)
     }
 
+    /**
+     * Parses the raw XML and returns a mutable list of [UIElement] objects.
+     *
+     * This method performs the core parsing and semantic merging logic.
+     *
+     * @param xmlString The raw XML content from the accessibility service.
+     * @param screenWidth The physical width of the device screen.
+     * @param screenHeight The physical height of the device screen.
+     * @return A mutable list of processed [UIElement] objects.
+     */
     fun parseToUIElement(xmlString: String, screenWidth: Int, screenHeight: Int):  MutableList<UIElement> {
-        // Step 1: Build the complete tree from the XML.
         val rootNode = buildTreeFromXml(xmlString)
-
-        // Step 2: Perform the semantic merge (upward text propagation).
         if (rootNode != null) {
             mergeDescriptiveChildren(rootNode)
         }
-
-        // Step 3: Flatten the tree to a preliminary list of important elements.
         val preliminaryElements = mutableListOf<UIElement>()
         if (rootNode != null) {
             flattenAndFilter(rootNode, preliminaryElements, screenWidth, screenHeight)
         }
         return preliminaryElements
-
     }
 
     /**
-     * Converts UI elements to markdown format with numeric IDs for easy reference.
+     * Converts a list of UI elements into a human-readable markdown format.
      *
-     * @param elements List of UI elements to convert
-     * @return A markdown string with numbered elements
+     * Each element is assigned a numeric ID for easy reference, and its key properties
+     * are listed.
+     *
+     * @param elements The list of [UIElement] objects to format.
+     * @return A markdown string representing the list of elements.
      */
     fun elementsToMarkdown(elements: List<UIElement>): String {
         if (elements.isEmpty()) {
@@ -110,33 +138,25 @@ class SemanticParser(private  val applicationContext: Context) {
             val elementId = index + 1
             markdown.appendLine("## $elementId. ${getElementDescription(element)}")
             
-            // Add details about the element
             val details = mutableListOf<String>()
-            
             if (!element.text.isNullOrBlank()) {
                 details.add("**Text:** ${element.text}")
             }
-            
             if (!element.content_description.isNullOrBlank()) {
                 details.add("**Description:** ${element.content_description}")
             }
-            
             if (!element.class_name.isNullOrBlank()) {
                 details.add("**Type:** ${element.class_name}")
             }
-            
             if (!element.resource_id.isNullOrBlank()) {
                 details.add("**ID:** ${element.resource_id}")
             }
-            
             if (element.is_clickable) {
                 details.add("**Action:** Clickable")
             }
-            
             if (element.is_long_clickable) {
                 details.add("**Action:** Long-clickable")
             }
-            
             if (element.is_password) {
                 details.add("**Type:** Password field")
             }
@@ -152,7 +172,12 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
     /**
-     * Helper function to get a human-readable description of an element
+     * Generates a simple, human-readable description for a UI element.
+     *
+     * It prioritizes text, then content description, then resource ID, and finally class name.
+     *
+     * @param element The [UIElement] to describe.
+     * @return A descriptive string for the element.
      */
     private fun getElementDescription(element: UIElement): String {
         val text = element.text
@@ -169,31 +194,18 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
     /**
-     * Parses the raw XML hierarchy and returns both JSON and markdown formats.
+     * Parses the raw XML and returns both a JSON and a markdown representation.
      *
-     * @param xmlString The raw XML content from the accessibility service.
-     * @param screenWidth The physical width of the device screen.
-     * @param screenHeight The physical height of the device screen.
-     * @return A pair containing (JSON string, markdown string)
+     * This is a convenience method that combines the results of `parse` and `elementsToMarkdown`.
+     *
+     * @param xmlString The raw XML content.
+     * @param screenWidth The screen width.
+     * @param screenHeight The screen height.
+     * @return A [Pair] containing the JSON string as the first element and the markdown string as the second.
      */
     fun parseWithMarkdown(xmlString: String, screenWidth: Int, screenHeight: Int): Pair<String, String> {
-        // Step 1: Build the complete tree from the XML.
-        val rootNode = buildTreeFromXml(xmlString)
-
-        // Step 2: Perform the semantic merge (upward text propagation).
-        if (rootNode != null) {
-            mergeDescriptiveChildren(rootNode)
-        }
-
-        // Step 3: Flatten the tree to a preliminary list of important elements.
-        val preliminaryElements = mutableListOf<UIElement>()
-        if (rootNode != null) {
-            flattenAndFilter(rootNode, preliminaryElements, screenWidth, screenHeight)
-        }
-
+        val preliminaryElements = parseToUIElement(xmlString, screenWidth, screenHeight)
         visualizeCurrentScreen(applicationContext, preliminaryElements)
-
-        // Step 4: Generate both JSON and markdown formats
         val gson = GsonBuilder().setPrettyPrinting().create()
         val jsonString = gson.toJson(preliminaryElements)
         val markdownString = elementsToMarkdown(preliminaryElements)
@@ -202,31 +214,17 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
     /**
-     * Parses the raw XML hierarchy and returns elements with IDs and coordinates.
+     * Parses the raw XML and returns a list of elements with simplified numeric IDs and center coordinates.
      *
-     * @param xmlString The raw XML content from the accessibility service.
-     * @param screenWidth The physical width of the device screen.
-     * @param screenHeight The physical height of the device screen.
-     * @return A list of UIElementWithId containing elements with their IDs and coordinates
+     * @param xmlString The raw XML content.
+     * @param screenWidth The screen width.
+     * @param screenHeight The screen height.
+     * @return A list of [UIElementWithId] objects.
      */
     fun parseWithIds(xmlString: String, screenWidth: Int, screenHeight: Int): List<UIElementWithId> {
-        // Step 1: Build the complete tree from the XML.
-        val rootNode = buildTreeFromXml(xmlString)
-
-        // Step 2: Perform the semantic merge (upward text propagation).
-        if (rootNode != null) {
-            mergeDescriptiveChildren(rootNode)
-        }
-
-        // Step 3: Flatten the tree to a preliminary list of important elements.
-        val preliminaryElements = mutableListOf<UIElement>()
-        if (rootNode != null) {
-            flattenAndFilter(rootNode, preliminaryElements, screenWidth, screenHeight)
-        }
-
+        val preliminaryElements = parseToUIElement(xmlString, screenWidth, screenHeight)
         visualizeCurrentScreen(applicationContext, preliminaryElements)
 
-        // Step 4: Convert to UIElementWithId with coordinates
         return preliminaryElements.mapIndexed { index, element ->
             val bounds = parseBounds(element.bounds)
             val centerX = bounds?.let { (it.left + it.right) / 2 } ?: 0
@@ -242,11 +240,11 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
     /**
-     * Gets the coordinates of an element by its numeric ID.
+     * Gets the center coordinates of an element given its numeric ID.
      *
-     * @param elementId The numeric ID of the element (1-based)
-     * @param elementsWithIds List of elements with IDs
-     * @return Pair of (x, y) coordinates, or null if element not found
+     * @param elementId The 1-based numeric ID of the element.
+     * @param elementsWithIds The list of [UIElementWithId] to search within.
+     * @return A [Pair] of (x, y) coordinates, or null if the element ID is not found.
      */
     fun getElementCoordinates(elementId: Int, elementsWithIds: List<UIElementWithId>): Pair<Int, Int>? {
         val element = elementsWithIds.find { it.id == elementId }
@@ -254,15 +252,23 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
 
+    /**
+     * Triggers the debug overlay to visualize the parsed elements.
+     *
+     * Note: The drawing is commented out by default to prevent it from running in production.
+     *
+     * @param context The application context.
+     * @param elements The list of [UIElement] objects to visualize.
+     */
     fun visualizeCurrentScreen(context: Context, elements: List<UIElement>) {
-        // Create an instance of the drawer
         val overlayDrawer = DebugOverlayDrawer(context)
-
-        // Call the function to draw the boxes. They will disappear automatically.
-//        overlayDrawer.drawLabeledBoxes(elements)
+        // overlayDrawer.drawLabeledBoxes(elements)
     }
     /**
-     * Traverses the XML and builds a tree of XmlNode objects, preserving the hierarchy.
+     * Traverses the XML from the accessibility service and builds a tree of [XmlNode] objects.
+     *
+     * @param xmlString The raw XML hierarchy.
+     * @return The root [XmlNode] of the parsed tree, or null if parsing fails.
      */
     private fun buildTreeFromXml(xmlString: String): XmlNode? {
         val factory = XmlPullParserFactory.newInstance()
@@ -307,30 +313,30 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
     /**
-     * Performs a depth-first traversal. When it finds a descriptive but non-clickable node,
-     * it walks up the tree to find a clickable ancestor and "donates" its text to it.
+     * Performs a depth-first traversal to merge descriptive text from non-clickable children
+     * into their nearest clickable ancestor.
+     *
+     * This is the core of the semantic analysis, grouping labels with their corresponding inputs.
+     *
+     * @param node The current [XmlNode] in the traversal.
      */
     private fun mergeDescriptiveChildren(node: XmlNode) {
-        // First, recurse to the deepest children.
         for (child in node.children) {
             mergeDescriptiveChildren(child)
         }
 
-        // Now, process the current node.
         val text = node.get("text")
         val contentDesc = node.get("content-desc")
         val hasDescriptiveText = !text.isNullOrBlank() || !contentDesc.isNullOrBlank()
 
         if (hasDescriptiveText && !node.getBool("clickable")) {
-            // This node is descriptive but not clickable. Find an interactive ancestor.
             var ancestor = node.parent
             while (ancestor != null) {
                 if (ancestor.getBool("clickable")) {
-                    // Found a clickable ancestor. Donate text and mark this node for pruning.
                     val description = if (!text.isNullOrBlank()) text else contentDesc!!
                     ancestor.mergedText.add(description)
                     node.isSubsumed = true
-                    break // Stop the upward walk
+                    break
                 }
                 ancestor = ancestor.parent
             }
@@ -338,26 +344,29 @@ class SemanticParser(private  val applicationContext: Context) {
     }
 
     /**
-     * Traverses the merged tree and creates the final, flat list of UIElement objects,
-     * filtering out subsumed and unimportant nodes.
+     * Traverses the merged tree and creates the final, flat list of [UIElement] objects.
+     *
+     * It filters out nodes that were subsumed during the merge process or are outside the
+     * visible screen bounds.
+     *
+     * @param node The current [XmlNode] in the traversal.
+     * @param finalElements The list to which the final, filtered elements will be added.
+     * @param screenWidth The width of the screen.
+     * @param screenHeight The height of the screen.
      */
     private fun flattenAndFilter(node: XmlNode, finalElements: MutableList<UIElement>, screenWidth: Int, screenHeight: Int) {
-        // A node is considered important if it's clickable OR has text that wasn't merged away.
         val isImportant = node.getBool("clickable") ||
                 (!node.get("text").isNullOrBlank() && !node.isSubsumed) ||
                 (!node.get("content-desc").isNullOrBlank() && !node.isSubsumed)
 
         if (isImportant && !node.isSubsumed) {
-            // Add a check to ensure the element is within the visible screen bounds.
             val bounds = parseBounds(node.get("bounds"))
             if (bounds != null &&
-//                [2160,690][1080,878]
-               bounds.left >= 0 && bounds.right <= screenWidth && // Horizontal check
-                bounds.top >= 0 && bounds.bottom <= screenHeight  && // Vertical check
-                bounds.left != bounds.right && // none zero widht
-                bounds.top != bounds.bottom  // none zero hieght
+               bounds.left >= 0 && bounds.right <= screenWidth &&
+                bounds.top >= 0 && bounds.bottom <= screenHeight  &&
+                bounds.left != bounds.right &&
+                bounds.top != bounds.bottom
             ) {
-                // Combine original text with any text merged from children.
                 val combinedText = mutableListOf<String>()
                 node.get("text")?.takeIf { it.isNotBlank() }?.let { combinedText.add(it) }
                 combinedText.addAll(node.mergedText)
@@ -365,7 +374,7 @@ class SemanticParser(private  val applicationContext: Context) {
                 finalElements.add(
                     UIElement(
                         resource_id = node.get("resource-id"),
-                        text = combinedText.joinToString(" | "), // Join merged texts
+                        text = combinedText.joinToString(" | "),
                         content_description = node.get("content-desc"),
                         class_name = node.get("class"),
                         bounds = node.get("bounds"),
@@ -377,15 +386,19 @@ class SemanticParser(private  val applicationContext: Context) {
             }
         }
 
-        // Continue traversal.
         for (child in node.children) {
             flattenAndFilter(child, finalElements, screenWidth, screenHeight)
         }
     }
 
     /**
-     * Helper to parse a bounds string "[x1,y1][x2,y2]" into an Android Rect object.
-     * Now includes validation to ensure the rectangle is well-formed.
+     * A robust helper to parse a bounds string (e.g., "[0,0][100,100]") into a [Rect].
+     *
+     * This version includes validation to handle malformed coordinates (e.g., left > right)
+     * by correcting them.
+     *
+     * @param boundsString The string to parse.
+     * @return A corrected [Rect] object, or null if parsing fails.
      */
     private fun parseBounds(boundsString: String?): Rect? {
         if (boundsString == null) return null
@@ -398,7 +411,6 @@ class SemanticParser(private  val applicationContext: Context) {
                 val right = matcher.group(3).toInt()
                 val bottom = matcher.group(4).toInt()
 
-                // NEW: Fix reversed coordinates by taking the min and max of the values.
                 val fixedLeft = min(left, right)
                 val fixedTop = min(top, bottom)
                 val fixedRight = max(left, right)
@@ -406,7 +418,6 @@ class SemanticParser(private  val applicationContext: Context) {
 
                 Rect(fixedLeft, fixedTop, fixedRight, fixedBottom)
             } catch (e: NumberFormatException) {
-                // Handle cases where parsing to Int fails
                 null
             }
         } else {

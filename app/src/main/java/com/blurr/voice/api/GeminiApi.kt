@@ -1,3 +1,12 @@
+/**
+ * @file GeminiApi.kt
+ * @brief Manages all interactions with the Google Gemini API, including proxying, logging, and error handling.
+ *
+ * This file contains the implementation of the `GeminiApi` singleton object. It is the central point
+ * for making generative AI requests. It includes features like API key rotation, request retries,
+ * detailed local file logging, and remote logging to Firestore. All requests are routed through a
+ * specified proxy server.
+ */
 package com.blurr.voice.api
 
 import android.content.Context
@@ -27,26 +36,53 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 /**
- * Refactored GeminiApi as a singleton object.
- * It now gets a rotated API key from ApiKeyManager for every request
- * and logs all requests and responses to a persistent file.
+ * A singleton object responsible for making requests to the Google Gemini API.
+ *
+ * This object handles the entire lifecycle of a Gemini API call, including:
+ * - Building the request payload.
+ * - Routing the request through a proxy.
+ * - Managing API key rotation via [ApiKeyManager].
+ * - Implementing a retry mechanism for transient errors.
+ * - Performing comprehensive logging of requests and responses to both local files and Firestore.
+ * - Checking for network connectivity before making a request.
  */
 object GeminiApi {
+    /** The URL of the proxy server to which all Gemini API requests are sent. */
     private val proxyUrl: String = BuildConfig.GCLOUD_PROXY_URL
+    /** The API key for authenticating with the proxy server. */
     private val proxyKey: String = BuildConfig.GCLOUD_PROXY_URL_KEY
 
+    /** The OkHttpClient instance used for all API requests, configured with timeouts. */
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
+    /** The Firestore database instance for remote logging. */
     val db = Firebase.firestore
 
 
+    /**
+     * The main function to generate content from the Gemini API.
+     *
+     * It orchestrates the process of building a request, sending it through the proxy,
+     * handling retries, and logging the outcome.
+     *
+     * @param chat The conversation history, represented as a list of pairs where the first
+     *             element is the role ("user" or "model") and the second is a list of parts
+     *             (e.g., [TextPart], [ImagePart]).
+     * @param images A list of [Bitmap] images to be included in the request. Note: The current
+     *               proxy implementation ignores images.
+     * @param modelName The name of the Gemini model to use for the request (e.g., "gemini-1.5-flash-latest").
+     * @param maxRetry The maximum number of times to retry the request upon failure.
+     * @param context The Android context, used for network connectivity checks and file logging.
+     * @return A string containing the generated content from the model, or null if the request
+     *         fails after all retries or if there is no network connection.
+     */
     suspend fun generateContent(
         chat: List<Pair<String, List<Any>>>,
         images: List<Bitmap> = emptyList(),
-        modelName: String = "gemini-2.5-flash", // Updated to a more standard model name
+        modelName: String = "gemini-1.5-flash-latest",
         maxRetry: Int = 4,
         context: Context? = null
     ): String? {
@@ -79,11 +115,8 @@ object GeminiApi {
 
             val attemptStartTime = System.currentTimeMillis()
             // IMPORTANT: Define payload here so it's accessible in the catch block for logging.
-            // MODIFIED: Pass modelName to buildPayload
             val payload = buildPayload(chat, modelName)
 
-            Log.d("GeminiApi", "=== GEMINI API REQUEST (Attempt ${attempts + 1}) ===")
-            Log.d("GeminiApi", "Model: $modelName")
             Log.d("GeminiApi", "Payload: ${payload.toString().take(500)}...")
 
             try {
@@ -110,7 +143,7 @@ object GeminiApi {
                         throw Exception("API Error ${response.code}: $responseBody")
                     }
 
-                    // Assuming the proxy returns the standard Gemini API response format
+                    // The proxy is expected to return the direct text response.
                     val parsedResponse = responseBody
 
                     val logEntry = createLogEntry(
@@ -130,11 +163,11 @@ object GeminiApi {
                         modelName = modelName,
                         prompt = lastUserPrompt,
                         imagesCount = images.size,
-                        responseCode = null, // Note: This was null, kept as is
+                        responseCode = response.code,
                         responseTime = requestTime,
                         totalTime = totalAttemptTime,
                         responseBody = responseBody,
-                        status = "pass",
+                        status = "pass"
                     )
                     logToFirestore(logData)
 
@@ -190,9 +223,18 @@ object GeminiApi {
     }
 
     /**
-     * MODIFIED: This function now builds the payload to match the structure required by the proxy in code-2.
-     * The new structure is: { "modelName": "...", "messages": [ { "role": "...", "parts": [ { "text": "..." } ] } ] }
-     * NOTE: This proxy structure does not support images. ImageParts will be ignored.
+     * Builds the JSON payload for the proxy server.
+     *
+     * This function constructs a [JSONObject] with the specified model name and a "messages"
+     * array, formatted according to the proxy's requirements. It converts the abstract
+     * chat history into a concrete JSON structure.
+     *
+     * Note: This implementation currently ignores [ImagePart]s, as the proxy format
+     * does not support them.
+     *
+     * @param chat The conversation history.
+     * @param modelName The name of the model to be included in the payload.
+     * @return A [JSONObject] representing the request payload.
      */
     private fun buildPayload(chat: List<Pair<String, List<Any>>>, modelName: String): JSONObject {
         val rootObject = JSONObject()
@@ -207,18 +249,15 @@ object GeminiApi {
             parts.forEach { part ->
                 when (part) {
                     is TextPart -> {
-                        // The structure for a part is {"text": "..."}
                         val partObject = JSONObject().put("text", part.text)
                         jsonParts.put(partObject)
                     }
                     is ImagePart -> {
-                        // Log a warning that images are being skipped for the proxy call
                         Log.w("GeminiApi", "ImagePart found but skipped. The proxy payload format does not support images.")
                     }
                 }
             }
 
-            // Only add the message to the array if it contains text parts
             if (jsonParts.length() > 0) {
                 messageObject.put("parts", jsonParts)
                 messagesArray.put(messageObject)
@@ -230,62 +269,19 @@ object GeminiApi {
     }
 
     /**
-     * This function parses the standard response from the Gemini API.
-     * It is assumed the proxy forwards this response structure without modification.
+     * Saves a detailed log entry to a local file for debugging purposes.
+     *
+     * The log is appended to `gemini_api_log.txt` in the app's internal files directory.
+     *
+     * @param context The application context, used to access the file system.
+     * @param logEntry The formatted string to be written to the log file.
      */
-    private fun parseSuccessResponse(responseBody: String): String? {
-        return try {
-            val json = JSONObject(responseBody)
-            // Handle cases where the proxy might return a simplified text response directly
-            if (json.has("text")) {
-                return json.getString("text")
-            }
-            // Standard Gemini API response parsing
-            if (!json.has("candidates")) {
-                Log.w("GeminiApi", "API response has no 'candidates'. It was likely blocked. Full response: $responseBody")
-                // Check for proxy-specific error format
-                if (json.has("error")) {
-                    Log.e("GeminiApi", "Proxy returned an error: ${json.getString("error")}")
-                }
-                return null
-            }
-            val candidates = json.getJSONArray("candidates")
-            if (candidates.length() == 0) {
-                Log.w("GeminiApi", "API response has an empty 'candidates' array. Full response: $responseBody")
-                return null
-            }
-            val firstCandidate = candidates.getJSONObject(0)
-            if (!firstCandidate.has("content")) {
-                Log.w("GeminiApi", "First candidate has no 'content' object. Full response: $responseBody")
-                return null
-            }
-            val content = firstCandidate.getJSONObject("content")
-            if (!content.has("parts")) {
-                Log.w("GeminiApi", "Content object has no 'parts' array. Full response: $responseBody")
-                return null
-            }
-            val parts = content.getJSONArray("parts")
-            if (parts.length() == 0) {
-                Log.w("GeminiApi", "Parts array is empty. Full response: $responseBody")
-                return null
-            }
-            parts.getJSONObject(0).getString("text")
-        } catch (e: Exception) {
-            Log.e("GeminiApi", "Failed to parse successful response: $responseBody", e)
-            // As a fallback, if parsing fails but there was a response, return the raw string.
-            // The proxy might be configured to return plain text on success.
-            responseBody
-        }
-    }
-
-
     private fun saveLogToFile(context: Context, logEntry: String) {
         try {
             val logDir = File(context.filesDir, "gemini_logs")
             if (!logDir.exists()) {
                 logDir.mkdirs()
             }
-            // Use a single, rolling log file for simplicity.
             val logFile = File(logDir, "gemini_api_log.txt")
 
             FileWriter(logFile, true).use { writer ->
@@ -297,18 +293,18 @@ object GeminiApi {
             Log.e("GeminiApi", "Failed to save log to file", e)
         }
     }
+
+    /**
+     * Logs a summary of the API call to a Firestore collection for remote monitoring.
+     *
+     * @param logData A map containing the key-value pairs to be logged.
+     */
     private fun logToFirestore(logData: Map<String, Any?>) {
-        // Create a unique and descriptive ID from the timestamp and prompt
         val timestamp = System.currentTimeMillis()
         val promptSnippet = (logData["prompt"] as? String)?.take(40) ?: "log"
-
-        // Sanitize the prompt snippet to be a valid Firestore document ID
-        // (removes spaces and special characters)
         val sanitizedPrompt = promptSnippet.replace(Regex("[^a-zA-Z0-9]"), "_")
-
         val documentId = "${timestamp}_$sanitizedPrompt"
 
-        // Use .document(ID).set(data) instead of .add(data)
         db.collection("gemini_logs")
             .document(documentId)
             .set(logData)
@@ -316,10 +312,17 @@ object GeminiApi {
                 Log.d("GeminiApi", "Log sent to Firestore with ID: $documentId")
             }
             .addOnFailureListener { e ->
-                // This listener is for debugging; it won't block your app's flow
                 Log.e("GeminiApi", "Error sending log to Firestore", e)
             }
     }
+
+    /**
+     * Creates a formatted, multi-line string for a detailed log entry.
+     *
+     * This is used to generate the content for the local log file.
+     *
+     * @return A formatted string containing all the provided log details.
+     */
     private fun createLogEntry(
         attempt: Int,
         modelName: String,
@@ -352,6 +355,12 @@ object GeminiApi {
             appendLine("=== END LOG ===")
         }
     }
+
+    /**
+     * Creates a map of data for logging to Firestore.
+     *
+     * @return A map containing key-value pairs summarizing the API call.
+     */
     private fun createLogDataMap(
         attempt: Int,
         modelName: String,

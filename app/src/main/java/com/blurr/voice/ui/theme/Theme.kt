@@ -1,3 +1,11 @@
+/**
+ * @file Theme.kt
+ * @brief Defines the Jetpack Compose theme for the application.
+ *
+ * This file contains the main theme composable, `BlurrTheme`, which sets up the
+ * color schemes and typography for the entire application. It supports dark and light
+ * themes, as well as dynamic coloring on Android 12+.
+ */
 package com.blurr.voice.ui.theme
 
 import android.os.Build
@@ -10,12 +18,18 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/**
+ * The color scheme for the dark theme of the application.
+ */
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
     tertiary = Pink80
 )
 
+/**
+ * The color scheme for the light theme of the application.
+ */
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
@@ -32,10 +46,21 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+/**
+ * The main theme composable for the Blurr application.
+ *
+ * This function applies the appropriate color scheme and typography to its content.
+ * It automatically detects the system's theme (dark or light) and supports Material You
+ * dynamic coloring on compatible devices (Android 12+).
+ *
+ * @param darkTheme Whether the theme should be dark. Defaults to the system setting.
+ * @param dynamicColor Whether to use dynamic (wallpaper-based) coloring on Android 12+.
+ *                     Defaults to true.
+ * @param content The composable content to which the theme will be applied.
+ */
 @Composable
 fun BlurrTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {

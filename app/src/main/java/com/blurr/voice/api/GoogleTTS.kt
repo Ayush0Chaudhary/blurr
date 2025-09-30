@@ -1,3 +1,11 @@
+/**
+ * @file GoogleTTS.kt
+ * @brief Provides an interface for Google's Text-to-Speech (TTS) API.
+ *
+ * This file contains the necessary components to interact with the Google Cloud TTS service.
+ * It defines the available voices in the [TTSVoice] enum and provides the [GoogleTts] object
+ * for making API requests to synthesize speech from text.
+ */
 package com.blurr.voice.api
 
 import android.util.Base64
@@ -15,7 +23,14 @@ import com.blurr.voice.utilities.NetworkConnectivityManager
 import com.blurr.voice.utilities.NetworkNotifier
 
 /**
- * Available voice options for Google TTS, using all provided Chirp3-HD voices.
+ * Enumerates the available high-definition voice options for Google's Text-to-Speech service.
+ *
+ * Each enum entry represents a specific "Chirp3-HD" voice, providing its display name,
+ * the official voice name used in API requests, and a brief description.
+ *
+ * @property displayName A user-friendly name for the voice.
+ * @property voiceName The identifier for the voice required by the Google Cloud TTS API.
+ * @property description A short description of the voice's characteristics.
  */
 enum class TTSVoice(val displayName: String, val voiceName: String, val description: String) {
     CHIRP_ACHERNAR("Achernar", "en-US-Chirp3-HD-Achernar", "High-definition female voice."),
@@ -49,27 +64,44 @@ enum class TTSVoice(val displayName: String, val voiceName: String, val descript
     CHIRP_ZEPHYR("Zephyr", "en-US-Chirp3-HD-Zephyr", "High-definition female voice."),
     CHIRP_ZUBENELGENUBI("Zubenelgenubi", "en-US-Chirp3-HD-Zubenelgenubi", "High-definition male voice.")
 }
+
 /**
- * Handles communication with the Google Cloud Text-to-Speech API.
+ * A singleton object that handles communication with the Google Cloud Text-to-Speech API.
+ *
+ * This client is responsible for constructing and sending synthesis requests and processing
+ * the audio response.
  */
 object GoogleTts {
+    /** The API key for the Google Cloud Text-to-Speech service. */
     const val apiKey = BuildConfig.GOOGLE_TTS_API_KEY
+    /** The OkHttpClient instance used for all TTS API requests. */
     private val client = OkHttpClient()
+    /** The endpoint URL for the text synthesis API. */
     private const val API_URL = "https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=$apiKey"
 
     /**
-     * Synthesizes speech from text using the Google Cloud TTS API with default voice.
-     * @param text The text to synthesize.
-     * @return A ByteArray containing the raw audio data (LINEAR16 PCM).
-     * @throws Exception if the API call fails or the response is invalid.
+     * Synthesizes speech from text using a default voice.
+     *
+     * This is an overload of [synthesize] that uses [TTSVoice.CHIRP_LAOMEDEIA] as the default voice.
+     *
+     * @param text The text to be synthesized into speech.
+     * @return A [ByteArray] containing the raw audio data in LINEAR16 PCM format.
+     * @throws Exception if the API key is not configured, there is no network connection,
+     *                   or the API call fails.
      */
     suspend fun synthesize(text: String): ByteArray = synthesize(text, TTSVoice.CHIRP_LAOMEDEIA)
+
     /**
-     * Synthesizes speech from text using the Google Cloud TTS API.
-     * @param text The text to synthesize.
-     * @param voice The voice to use for synthesis.
-     * @return A ByteArray containing the raw audio data (LINEAR16 PCM).
-     * @throws Exception if the API call fails or the response is invalid.
+     * Synthesizes speech from text using a specified voice.
+     *
+     * This function sends a request to the Google Cloud TTS API and returns the resulting
+     * audio data. It performs a network check before making the API call.
+     *
+     * @param text The text to be synthesized.
+     * @param voice The [TTSVoice] to use for the synthesis.
+     * @return A [ByteArray] containing the raw audio data in LINEAR16 PCM format.
+     * @throws Exception if the API key is not configured, there is no network connection,
+     *                   or the API call fails.
      */
     suspend fun synthesize(text: String, voice: TTSVoice): ByteArray = withContext(Dispatchers.IO) {
         if (apiKey.isEmpty()) {
@@ -78,15 +110,15 @@ object GoogleTts {
         println(voice.displayName)
 
         // Network check
-        val isOnline = try {
-            true
+        try {
+            val isOnline = NetworkConnectivityManager(MyApplication.appContext).isNetworkAvailable()
+            if (!isOnline) {
+                NetworkNotifier.notifyOffline()
+                throw Exception("No internet connection for TTS request.")
+            }
         } catch (e: Exception) {
-            Log.e("GoogleTts", "Network check failed, assuming offline. ${'$'}{e.message}")
-            false
-        }
-        if (!isOnline) {
-            NetworkNotifier.notifyOffline()
-            throw Exception("No internet connection for TTS request.")
+            Log.e("GoogleTts", "Network check failed, assuming offline. ${e.message}")
+            throw Exception("Network check failed: ${e.message}")
         }
 
         // 1. Construct the JSON payload
@@ -133,8 +165,9 @@ object GoogleTts {
     }
 
     /**
-     * Get all available voice options
-     * @return List of all available TTS voices
+     * Retrieves a list of all available TTS voices.
+     *
+     * @return A list of all entries from the [TTSVoice] enum.
      */
     fun getAvailableVoices(): List<TTSVoice> = TTSVoice.values().toList()
 }

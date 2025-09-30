@@ -1,33 +1,41 @@
+/**
+ * @file PromptBuilder.kt
+ * @brief Constructs system and user prompts for the LLM.
+ *
+ * This file contains the logic for dynamically building the structured prompts that are sent
+ * to the Large Language Model. It separates the construction of the static system prompt from
+ * the dynamic user prompt, which changes with every step of the agent's execution.
+ */
 package com.blurr.voice.v2
 
 import android.content.Context
 import android.util.Log
+import com.blurr.voice.intents.IntentRegistry
 import com.blurr.voice.v2.actions.Action
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.llm.GeminiMessage
 import com.blurr.voice.v2.llm.MessageRole
 import com.blurr.voice.v2.llm.TextPart
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import com.blurr.voice.intents.IntentRegistry
 
 private const val DEFAULT_PROMPT_TEMPLATE = "prompts/system_prompt.md"
 
 /**
- * Loads and prepares the system prompt from the default template
- * stored in the app's assets.
+ * Loads and prepares the system prompt from a template file.
+ *
+ * This class is responsible for loading the base system prompt from the app's assets and
+ * injecting dynamic information, such as the catalog of available actions and intents,
+ * to create the final system message for the LLM.
  *
  * @param context The Android application context, needed to access the AssetManager.
  */
 class SystemPromptLoader(private val context: Context) {
 
     /**
-     * Constructs the final system message.
+     * Constructs the final system message by populating the template with dynamic content.
      *
-     * @param settings The agent's configuration.
-     * @return A GeminiMessage containing the fully formatted system prompt.
+     * @param settings The agent's configuration, which may contain prompt overrides.
+     * @return A [GeminiMessage] containing the fully formatted system prompt.
      */
     fun getSystemMessage(settings: AgentSettings): GeminiMessage {
         val actionsDescription = generateActionsDescription()
@@ -37,7 +45,7 @@ class SystemPromptLoader(private val context: Context) {
             .replace("{max_actions}", settings.maxActionsPerStep.toString())
             .replace("{available_actions}", actionsDescription)
 
-        // Append intents catalog and a usage hint for the launch_intent action
+        // Append the intents catalog and a usage hint for the launch_intent action.
         if (intentsCatalog.isNotBlank()) {
             prompt += "\n\n<intents_catalog>\n$intentsCatalog\n</intents_catalog>\n\n" +
                 "Usage: To launch any of the above intents, add an action like {\"launch_intent\": {\"intent_name\": \"Dial\", \"parameters\": {\"phone_number\": \"+123456789\"}}}."
@@ -49,9 +57,11 @@ class SystemPromptLoader(private val context: Context) {
         Log.d("SYSTEM_PROMPT_BUILDER", prompt)
         return GeminiMessage(role = MessageRole.MODEL, parts = listOf(TextPart(prompt)))
     }
+
     /**
-     * NEW: This function generates a structured, LLM-friendly description
-     * of all available actions using the single source of truth in Action.kt.
+     * Generates a structured, LLM-friendly description of all available actions.
+     * This description is built from the specifications defined in [Action].
+     * @return A string containing the formatted actions catalog.
      */
     private fun generateActionsDescription(): String {
         val allActionSpecs = Action.getAllSpecs()
@@ -76,7 +86,10 @@ class SystemPromptLoader(private val context: Context) {
         }.trim()
     }
 
-    // New: Describe all registered AppIntents for the model
+    /**
+     * Generates a structured, LLM-friendly description of all registered [AppIntent]s.
+     * @return A string containing the formatted intents catalog.
+     */
     private fun generateIntentsCatalog(): String {
         val intents = IntentRegistry.listIntents(context)
         if (intents.isEmpty()) return ""
@@ -103,6 +116,11 @@ class SystemPromptLoader(private val context: Context) {
         }.trim()
     }
 
+    /**
+     * Loads the default system prompt template from the assets folder.
+     * @return The raw content of the prompt template file.
+     * @throws RuntimeException if the template file cannot be loaded.
+     */
     private fun loadDefaultTemplate(): String {
         return try {
             context.assets.open(DEFAULT_PROMPT_TEMPLATE).bufferedReader().use { it.readText() }
@@ -114,12 +132,22 @@ class SystemPromptLoader(private val context: Context) {
 
 /**
  * A builder responsible for constructing the detailed user message for each step of the agent's loop.
- * It aggregates all state information into a single, structured prompt.
+ * It aggregates all current state information into a single, structured prompt for the LLM.
  */
 object UserMessageBuilder {
 
     /**
-     * A data class to hold the numerous arguments required to build the user message.
+     * A data class holding all the dynamic information required to build the user message for a single step.
+     *
+     * @property task The original high-level task from the user.
+     * @property screenState The current state of the device screen.
+     * @property fileSystem A reference to the agent's file system.
+     * @property agentHistoryDescription A summary of past actions and results.
+     * @property readStateDescription The content of any file the agent has recently read.
+     * @property stepInfo Information about the current step number and limits.
+     * @property sensitiveDataDescription Description of any sensitive data visible.
+     * @property availableFilePaths A list of all file paths available in the agent's file system.
+     * @property maxUiRepresentationLength The maximum character length for the UI representation to avoid overly long prompts.
      */
     data class Args(
         val task: String,
@@ -134,10 +162,10 @@ object UserMessageBuilder {
     )
 
     /**
-     * The main entry point to build the user message.
+     * Builds the user message by assembling various blocks of state information.
      *
-     * @param args All the necessary data for constructing the prompt.
-     * @return A GeminiMessage ready to be sent to the LLM.
+     * @param args An [Args] object containing all necessary data for construction.
+     * @return A [GeminiMessage] ready to be sent to the LLM.
      */
     fun build(args: Args): GeminiMessage {
         val messageContent = buildString {
@@ -163,6 +191,10 @@ object UserMessageBuilder {
         return GeminiMessage(text = messageContent.trim())
     }
 
+    /**
+     * Constructs the XML block describing the current state of the Android UI.
+     * This includes the current activity and a potentially truncated representation of the UI hierarchy.
+     */
     private fun buildAndroidStateBlock(screenState: ScreenState, maxUiRepresentationLength: Int): String {
         val originalUiString = screenState.uiRepresentation
         val truncationMessage: String
@@ -183,6 +215,10 @@ object UserMessageBuilder {
         }.trim()
     }
 
+    /**
+     * Constructs the XML block describing the agent's internal state.
+     * This includes the user's request, file system contents, todo list, and step information.
+     */
     private fun buildAgentStateBlock(args: Args): String {
         val todoContents = args.fileSystem.getTodoContents().let {
             it.ifBlank { "[Current todo.md is empty, fill it with your plan when applicable]" }

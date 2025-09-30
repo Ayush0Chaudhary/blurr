@@ -1,3 +1,11 @@
+/**
+ * @file PermissionManager.kt
+ * @brief Provides a centralized utility for handling Android runtime permissions.
+ *
+ * This file contains the `PermissionManager` class, which simplifies the process of
+ * checking for and requesting various permissions required by the application, such as
+ * Microphone, Notifications, Accessibility Service, and Draw Over Other Apps.
+ */
 package com.blurr.voice.utilities
 
 import android.Manifest
@@ -15,15 +23,24 @@ import androidx.core.content.ContextCompat
 import com.blurr.voice.ScreenInteractionService
 
 /**
- * Utility class to handle all permission-related functionality
+ * A utility class to handle all permission-related functionality for a given [AppCompatActivity].
+ *
+ * This manager provides a unified interface for checking and requesting the various permissions
+ * needed for the app to function correctly. It must be initialized with an activity instance.
+ *
+ * @param activity The [AppCompatActivity] from which permissions will be requested.
  */
 class PermissionManager(private val activity: AppCompatActivity) {
 
+        /** The launcher for handling permission request results. */
         private var permissionLauncher: ActivityResultLauncher<String>? = null
+        /** A callback to be invoked when a permission request result is received. */
         private var onPermissionResult: ((String, Boolean) -> Unit)? = null
 
     /**
-     * NEW: Checks if all essential permissions are granted.
+     * Checks if all essential permissions (Accessibility, Microphone, Overlay, Notifications)
+     * have been granted.
+     * @return `true` if all necessary permissions are granted, `false` otherwise.
      */
     fun areAllPermissionsGranted(): Boolean {
         return isAccessibilityServiceEnabled() &&
@@ -33,15 +50,14 @@ class PermissionManager(private val activity: AppCompatActivity) {
     }
 
         /**
-         * Initialize the permission launcher
+         * Initializes the permission launcher. This must be called, typically in the `onCreate`
+         * method of the activity, before any permission requests are made.
          */
         fun initializePermissionLauncher() {
                 permissionLauncher = activity.registerForActivityResult(
                     androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
                 ) { isGranted: Boolean ->
-                        val permission = onPermissionResult?.let { callback ->
-                            callback("", isGranted)
-                        }
+                        onPermissionResult?.invoke("", isGranted)
                         
                         if (isGranted) {
                             Log.i("PermissionManager", "Permission GRANTED.")
@@ -54,7 +70,7 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Request notification permission (Android 13+)
+         * Requests the `POST_NOTIFICATIONS` permission, required on Android 13 (API 33) and higher.
          */
         fun requestNotificationPermission() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -76,7 +92,7 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Request microphone permission for voice input
+         * Requests the `RECORD_AUDIO` permission, required for voice input.
          */
         fun requestMicrophonePermission() {
                 when {
@@ -96,7 +112,7 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Request all necessary permissions for the app
+         * A convenience method to request all standard runtime permissions at once.
          */
         fun requestAllPermissions() {
                 requestNotificationPermission()
@@ -104,7 +120,8 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Check if microphone permission is granted
+         * Checks if the `RECORD_AUDIO` permission has been granted.
+         * @return `true` if the permission is granted, `false` otherwise.
          */
         fun isMicrophonePermissionGranted(): Boolean {
                 return ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) ==
@@ -112,19 +129,23 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Check if notification permission is granted
+         * Checks if the `POST_NOTIFICATIONS` permission has been granted.
+         * Always returns true for versions below Android 13.
+         * @return `true` if the permission is granted or not required, `false` otherwise.
          */
         fun isNotificationPermissionGranted(): Boolean {
                 return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) ==
                                 PackageManager.PERMISSION_GRANTED
                     } else {
-                        true // Notification permission not required before Android 13
+                        true
                     }
             }
 
         /**
-         * Check if accessibility service is enabled
+         * Checks if the application's [ScreenInteractionService] is enabled in the system's
+         * accessibility settings.
+         * @return `true` if the service is enabled, `false` otherwise.
          */
         fun isAccessibilityServiceEnabled(): Boolean {
                 val service = activity.packageName + "/" + ScreenInteractionService::class.java.canonicalName
@@ -153,7 +174,7 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Open accessibility settings
+         * Opens the system's accessibility settings screen for the user.
          */
         fun openAccessibilitySettings() {
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -161,7 +182,8 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Check and request overlay permission
+         * Checks for the "Draw over other apps" permission and, if not granted, opens the
+         * corresponding system settings screen for the user.
          */
         fun checkAndRequestOverlayPermission() {
                 if (!Settings.canDrawOverlays(activity)) {
@@ -174,21 +196,25 @@ class PermissionManager(private val activity: AppCompatActivity) {
             }
 
         /**
-         * Check if overlay permission is granted
+         * Checks if the "Draw over other apps" permission has been granted.
+         * @return `true` if the permission is granted, `false` otherwise.
          */
         fun isOverlayPermissionGranted(): Boolean {
                 return Settings.canDrawOverlays(activity)
             }
 
         /**
-         * Set callback for permission results
+         * Sets a callback to be invoked with the result of a permission request.
+         * @param callback A lambda function that takes the permission name (String) and a
+         *                 boolean indicating if it was granted.
          */
         fun setPermissionResultCallback(callback: (String, Boolean) -> Unit) {
                 onPermissionResult = callback
             }
 
         /**
-         * Get permission status summary
+         * Generates a summary string of the current status of all major permissions.
+         * @return A comma-separated string indicating the status of each permission (e.g., "Microphone: ✓, ...").
          */
         fun getPermissionStatusSummary(): String {
                 val status = mutableListOf<String>()

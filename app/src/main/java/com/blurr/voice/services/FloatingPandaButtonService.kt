@@ -1,3 +1,12 @@
+/**
+ * @file FloatingPandaButtonService.kt
+ * @brief A service to display a persistent floating button for activating the agent.
+ *
+ * This service is responsible for creating and managing a floating button overlay that appears
+ * on top of other applications. This button provides a manual way to trigger the
+ * [ConversationalAgentService] and serves as a fallback when wake word detection is
+ * unavailable or has failed.
+ */
 package com.blurr.voice.services
 
 import android.app.Service
@@ -17,22 +26,46 @@ import androidx.core.content.ContextCompat
 import com.blurr.voice.ConversationalAgentService
 import com.blurr.voice.R
 
+/**
+ * A [Service] that displays a floating button over other apps.
+ *
+ * This service requires the "Draw over other apps" permission. When started, it adds a
+ * custom-styled button to the screen using the [WindowManager]. Tapping this button
+ * starts the [ConversationalAgentService].
+ */
 class FloatingPandaButtonService : Service() {
 
+    /** The WindowManager service used to add and remove the floating view. */
     private var windowManager: WindowManager? = null
+    /** The floating button view instance. */
     private var floatingButton: View? = null
 
+    /**
+     * Companion object for constants and static properties.
+     */
     companion object {
         private const val TAG = "FloatingPandaButton"
+        /** A static flag to indicate if the service is currently running. */
         var isRunning = false
     }
 
+    /**
+     * Called when the service is first created.
+     */
     override fun onCreate() {
         super.onCreate()
         isRunning = true
         Log.d(TAG, "Floating Panda Button Service created")
     }
 
+    /**
+     * Called every time the service is started.
+     *
+     * This method checks for the necessary overlay permission and then calls
+     * [showFloatingButton] to display the button.
+     *
+     * @return [START_STICKY] to indicate that the service should be restarted if it's killed.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Floating Panda Button Service starting...")
 
@@ -58,6 +91,12 @@ class FloatingPandaButtonService : Service() {
         return START_STICKY
     }
 
+    /**
+     * Creates and displays the floating button on the screen.
+     *
+     * This method initializes the [WindowManager], creates the button view using
+     * [createFloatingView], sets up its layout parameters, and adds it to the window.
+     */
     private fun showFloatingButton() {
         if (floatingButton != null) {
             Log.d(TAG, "Floating button already showing")
@@ -67,18 +106,16 @@ class FloatingPandaButtonService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         try {
-            // Create the button programmatically
             floatingButton = createFloatingView()
             val button = floatingButton as Button
 
-            // Set up the button click listener
             button.setOnClickListener {
                 Log.d(TAG, "Floating Panda button clicked!")
                 triggerPandaActivation()
             }
 
             val displayMetrics = resources.displayMetrics
-            val margin = (16 * displayMetrics.density).toInt() // 16dp margin
+            val margin = (16 * displayMetrics.density).toInt()
 
             val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -107,25 +144,29 @@ class FloatingPandaButtonService : Service() {
         }
     }
 
+    /**
+     * Creates and styles the floating button view.
+     *
+     * @return A styled [Button] instance.
+     */
     private fun createFloatingView(): Button {
         return Button(this).apply {
             text = "Hey Panda"
-            // Prevent text from being all caps for a softer look
             isAllCaps = false
             setTextColor(Color.WHITE)
-            // Use the new pill-shaped background
             background = ContextCompat.getDrawable(context, R.drawable.floating_panda_text_background)
 
-            // Add elevation for a floating shadow effect
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 elevation = 8f * resources.displayMetrics.density
-                // Remove the default button press animation for a cleaner look
                 stateListAnimator = null
             }
         }
     }
 
 
+    /**
+     * Triggers the activation of the main conversational agent service.
+     */
     private fun triggerPandaActivation() {
         try {
             if (!ConversationalAgentService.isRunning) {
@@ -140,6 +181,9 @@ class FloatingPandaButtonService : Service() {
         }
     }
 
+    /**
+     * Removes the floating button from the screen.
+     */
     private fun hideFloatingButton() {
         floatingButton?.let { button ->
             try {
@@ -153,6 +197,10 @@ class FloatingPandaButtonService : Service() {
         floatingButton = null
     }
 
+    /**
+     * Called when the service is being destroyed.
+     * Ensures the floating button is removed.
+     */
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Floating Panda Button Service destroying...")
@@ -160,6 +208,9 @@ class FloatingPandaButtonService : Service() {
         isRunning = false
     }
 
+    /**
+     * This service does not support binding, so this method returns null.
+     */
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }

@@ -1,3 +1,10 @@
+/**
+ * @file Type.kt
+ * @brief Defines the typography styles for the Jetpack Compose theme.
+ *
+ * This file contains the `Typography` object, which configures the set of text styles
+ * used throughout the application, following Material Design guidelines.
+ */
 package com.blurr.voice.ui.theme
 
 import androidx.compose.material3.Typography
@@ -6,7 +13,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Set of Material typography styles to start with
+/**
+ * A set of Material 3 typography styles to be used as the default for the application theme.
+ *
+ * This object defines styles like `bodyLarge`, `titleLarge`, etc., which can be customized
+ * to create a consistent look and feel for all text in the app.
+ */
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,

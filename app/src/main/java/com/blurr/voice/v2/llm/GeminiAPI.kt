@@ -1,3 +1,11 @@
+/**
+ * @file GeminiAPI.kt
+ * @brief A robust client for interacting with the Google Gemini Large Language Model.
+ *
+ * This file contains the `GeminiApi` class, which handles all communication with the Gemini
+ * LLM. It includes features like API key management, automatic retries with exponential backoff,
+ * a secure proxy dispatcher for enhanced security, and structured JSON output parsing.
+ */
 package com.blurr.voice.v2.llm
 
 import android.util.Log
@@ -22,14 +30,14 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * A modern, robust Gemini API client using the official Google AI SDK.
+ * A modern, robust Gemini API client using the official Google AI SDK and a secure proxy.
  *
  * This client features:
- * - Conversion of internal message formats to the SDK's `Content` format.
+ * - A dispatcher to automatically choose between a secure proxy and a direct SDK call.
  * - API key management and rotation via an injectable [ApiKeyManager].
  * - An idiomatic, exponential backoff retry mechanism for API calls.
- * - Efficient caching of `GenerativeModel` instances to reduce overhead.
- * - Structured JSON output enforcement using `response_schema`.
+ * - Efficient caching of [GenerativeModel] instances to reduce overhead.
+ * - Structured JSON output enforcement to ensure type-safe responses.
  *
  * @property modelName The name of the Gemini model to use (e.g., "gemini-1.5-flash").
  * @property apiKeyManager An instance of [ApiKeyManager] to handle API key retrieval.
@@ -37,7 +45,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 class GeminiApi(
     private val modelName: String,
-    private val apiKeyManager: ApiKeyManager, // Injected dependency
+    private val apiKeyManager: ApiKeyManager,
     private val maxRetry: Int = 3
 ) {
 
@@ -60,21 +68,19 @@ class GeminiApi(
     // Cache for GenerativeModel instances to avoid repeated initializations.
     private val modelCache = ConcurrentHashMap<String, GenerativeModel>()
 
-
-
     private val jsonGenerationConfig = GenerationConfig.builder().apply {
         responseMimeType = "application/json"
-//        responseSchema = agentOutputSchema
     }.build()
 
     private val requestOptions = RequestOptions(timeout = 60.seconds)
 
-
     /**
-     * Generates a structured response from the Gemini model and parses it into an [AgentOutput] object.
-     * This is the primary public method for this class.
+     * Generates a structured response from the Gemini model and parses it into an [AgentOutput].
      *
-     * @param messages The list of [GeminiMessage] objects for the prompt.
+     * This is the primary public method for this class. It orchestrates the API call using a
+     * retry mechanism and then parses the resulting JSON string into a type-safe [AgentOutput] object.
+     *
+     * @param messages The list of [GeminiMessage] objects representing the conversation history and prompt.
      * @return An [AgentOutput] object on success, or null if the API call or parsing fails after all retries.
      */
     suspend fun generateAgentOutput(messages: List<GeminiMessage>): AgentOutput? {
@@ -93,8 +99,10 @@ class GeminiApi(
     }
 
     /**
-     * AUTOMATIC DISPATCHER: Checks internal config and decides whether to use
+     * An automatic dispatcher that checks the configuration and decides whether to use
      * the secure proxy or a direct API call.
+     * @param messages The list of messages to send.
+     * @return The raw JSON string response from the API.
      */
     private suspend fun performApiCall(messages: List<GeminiMessage>): String {
         return if (!proxyUrl.isNullOrBlank() && !proxyKey.isNullOrBlank()) {
@@ -107,7 +115,11 @@ class GeminiApi(
     }
 
     /**
-     * PROXY MODE: Performs the API call through the secure Google Cloud Function.
+     * Performs the API call through the secure Google Cloud Function proxy.
+     * This is the preferred method for enhanced security and key management.
+     * @param messages The list of messages to send.
+     * @return The raw JSON string response from the proxy.
+     * @throws IOException if the API call fails.
      */
     private suspend fun performProxyApiCall(messages: List<GeminiMessage>): String {
         val proxyMessages = messages.map {
@@ -139,7 +151,11 @@ class GeminiApi(
     }
 
     /**
-     * DIRECT MODE: Performs the API call using the embedded Google AI SDK.
+     * Performs the API call using the embedded Google AI SDK directly.
+     * This serves as a fallback if the secure proxy is not configured.
+     * @param messages The list of messages to send.
+     * @return The raw JSON string response from the model.
+     * @throws ContentBlockedException if the API blocks the response.
      */
     private suspend fun performDirectApiCall(messages: List<GeminiMessage>): String {
         val apiKey = apiKeyManager.getNextKey()
@@ -164,6 +180,8 @@ class GeminiApi(
 
     /**
      * Converts the internal `List<GeminiMessage>` to the `List<Content>` required by the Google AI SDK.
+     * @param messages The list of internal message objects.
+     * @return A list of [Content] objects ready for the SDK.
      */
     private fun convertToSdkHistory(messages: List<GeminiMessage>): List<Content> {
         return messages.map { message ->
@@ -181,27 +199,28 @@ class GeminiApi(
                             Log.d("GEMINIAPITEMP_INPUT", part.text)
                         }
                     }
-                    // Handle other part types like images here if needed in the future.
+                    // TODO: Handle other part types like images here if needed in the future.
                 }
             }
         }
     }
 
     /**
-     * WORKAROUND: Generates content using a direct REST API call to enable Google Search grounding.
-     * This should be used for queries requiring real-time information until the Kotlin SDK
-     * officially supports the search tool.
+     * Generates content using a direct REST API call to enable Google Search grounding.
+     *
+     * This method serves as a workaround for queries requiring real-time information, as the
+     * official Kotlin SDK may not fully support this feature yet.
      *
      * @param prompt The user's text prompt.
      * @return The generated text content as a String, or null on failure.
      */
     suspend fun generateGroundedContent(prompt: String): String? {
-        val apiKey = apiKeyManager.getNextKey() // Reuse your existing key manager
+        val apiKey = apiKeyManager.getNextKey()
 
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent"
 
-        // 1. Manually construct the JSON body to include the "google_search" tool
+        // Manually construct the JSON body to include the "google_search" tool.
         val jsonBody = """
         {
           "contents": [
@@ -236,7 +255,7 @@ class GeminiApi(
                 return null
             }
 
-            // 2. Parse the JSON response to extract the model's text output
+            // Parse the JSON response to extract the model's text output.
             val text = JSONObject(responseBody)
                 .getJSONArray("candidates")
                 .getJSONObject(0)
@@ -253,31 +272,36 @@ class GeminiApi(
             null
         }
     }
-
 }
 
+/** Data class for serializing a text part for the proxy request. */
 @Serializable
 private data class ProxyRequestPart(val text: String)
 
+/** Data class for serializing a message for the proxy request. */
 @Serializable
 private data class ProxyRequestMessage(val role: String, val parts: List<ProxyRequestPart>)
 
+/** Data class for serializing the entire request body for the proxy. */
 @Serializable
 private data class ProxyRequestBody(val modelName: String, val messages: List<ProxyRequestMessage>)
 
-
 /**
- * Custom exception to indicate that the response content was blocked by the API.
+ * Custom exception to indicate that the response from the Gemini API was blocked, likely due to safety filters.
  */
 class ContentBlockedException(message: String) : Exception(message)
 
 /**
  * A higher-order function that provides a generic retry mechanism with exponential backoff.
  *
+ * This utility can wrap any suspend function, retrying it a specified number of times if it throws
+ * an exception. The delay between retries increases exponentially to avoid overwhelming a service.
+ *
+ * @param T The return type of the block to be executed.
  * @param times The maximum number of retry attempts.
  * @param initialDelay The initial delay in milliseconds before the first retry.
- * @param maxDelay The maximum delay in milliseconds.
- * @param factor The multiplier for the delay on each subsequent retry.
+ * @param maxDelay The maximum delay in milliseconds to cap the backoff period.
+ * @param factor The multiplier for the delay on each subsequent retry (e.g., 2.0 for doubling).
  * @param block The suspend block of code to execute and retry on failure.
  * @return The result of the block if successful, or null if all retries fail.
  */
@@ -296,11 +320,11 @@ private suspend fun <T> retryWithBackoff(
             Log.e("RetryUtil", "Attempt ${attempt + 1}/$times failed: ${e.message}", e)
             if (attempt == times - 1) {
                 Log.e("RetryUtil", "All $times retry attempts failed.")
-                return null // All retries failed
+                return null // All retries failed.
             }
             delay(currentDelay)
             currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
         }
     }
-    return null // Should not be reached
+    return null // Should not be reached.
 }

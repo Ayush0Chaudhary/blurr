@@ -1,3 +1,11 @@
+/**
+ * @file CreateTriggerActivity.kt
+ * @brief Defines the activity for creating and editing triggers.
+ *
+ * This file contains the implementation for `CreateTriggerActivity`, which provides the user
+ * interface for configuring all types of triggers. It handles both the creation of new triggers
+ * and the editing of existing ones.
+ */
 package com.blurr.voice.triggers.ui
 
 import android.content.pm.PackageManager
@@ -26,25 +34,51 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * An [AppCompatActivity] for creating or editing a [Trigger].
+ *
+ * This activity displays a dynamic UI based on the [TriggerType] passed to it. It allows
+ * the user to set the trigger's instruction and configure its specific parameters, such as
+ * time, application, or charging state. It handles both "create" and "edit" modes.
+ */
 class CreateTriggerActivity : AppCompatActivity() {
 
+    /** Manages all trigger data and scheduling. */
     private lateinit var triggerManager: TriggerManager
+    /** Input field for the trigger's instruction. */
     private lateinit var instructionEditText: EditText
+    /** Input field for searching the app list. */
     private lateinit var searchEditText: EditText
+    /** Layout container for time-based trigger options. */
     private lateinit var scheduledTimeOptions: LinearLayout
+    /** Layout container for notification-based trigger options. */
     private lateinit var notificationOptions: LinearLayout
+    /** Layout container for charging-state-based trigger options. */
     private lateinit var chargingStateOptions: LinearLayout
+    /** The UI widget for selecting a time. */
     private lateinit var timePicker: TimePicker
+    /** The RecyclerView for displaying the list of installed applications. */
     private lateinit var appsRecyclerView: RecyclerView
+    /** The ChipGroup for selecting days of the week. */
     private lateinit var dayOfWeekChipGroup: com.google.android.material.chip.ChipGroup
+    /** The adapter for the apps RecyclerView. */
     private lateinit var appAdapter: AppAdapter
-    private lateinit var scrollView: ScrollView
+    /** The CheckBox for selecting all applications for a notification trigger. */
     private lateinit var selectAllAppsCheckbox: CheckBox
 
+    /** The type of trigger being created or edited. */
     private var selectedTriggerType = TriggerType.SCHEDULED_TIME
+    /** The list of apps selected for a notification trigger. */
     private var selectedApps = listOf<AppInfo>()
+    /** The trigger being edited, or null if creating a new one. */
     private var existingTrigger: Trigger? = null
 
+    /**
+     * Called when the activity is first created.
+     *
+     * Initializes the UI, determines if the activity is in "create" or "edit" mode,
+     * sets up the appropriate views, and wires up event listeners.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_create_trigger)
@@ -62,22 +96,12 @@ class CreateTriggerActivity : AppCompatActivity() {
         timePicker = findViewById(R.id.timePicker)
         appsRecyclerView = findViewById(R.id.appsRecyclerView)
         dayOfWeekChipGroup = findViewById(R.id.dayOfWeekChipGroup)
-//        scrollView = findViewById(R.id.scrollView)
-
-//        instructionEditText.setOnFocusChangeListener { view, hasFocus ->
-//            if (hasFocus) {
-//                // Delay scrolling until the keyboard is likely to be visible
-//                view.postDelayed({
-//                    scrollView.smoothScrollTo(0, view.bottom)
-//                }, 200)
-//            }
-//        }
 
         val saveButton = findViewById<Button>(R.id.saveTriggerButton)
 
         val triggerId = intent.getStringExtra("EXTRA_TRIGGER_ID")
         if (triggerId != null) {
-            // Edit mode
+            // Edit mode: Load the existing trigger data.
             lifecycleScope.launch {
                 existingTrigger = withContext(Dispatchers.IO) {
                     triggerManager.getTriggers().find { it.id == triggerId }
@@ -87,23 +111,19 @@ class CreateTriggerActivity : AppCompatActivity() {
                     populateUiWithTriggerData(existingTrigger!!)
                     saveButton.text = "Update Trigger"
                 } else {
-                    // Trigger not found, something is wrong.
                     Toast.makeText(this@CreateTriggerActivity, "Trigger not found.", Toast.LENGTH_SHORT).show()
                     finish()
                 }
             }
         } else {
-            // Create mode
+            // Create mode: Get the type from the intent.
             selectedTriggerType = intent.getSerializableExtra("EXTRA_TRIGGER_TYPE") as TriggerType
-            // Set default checked state for all day chips
             for (i in 0 until dayOfWeekChipGroup.childCount) {
                 (dayOfWeekChipGroup.getChildAt(i) as com.google.android.material.chip.Chip).isChecked = true
             }
         }
 
-
         setupInitialView()
-
         setupRecyclerView()
         loadApps()
 
@@ -135,6 +155,9 @@ class CreateTriggerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Executes the current instruction immediately for testing purposes.
+     */
     private fun testTrigger() {
         val instruction = instructionEditText.text.toString()
         if (instruction.isBlank()) {
@@ -146,11 +169,19 @@ class CreateTriggerActivity : AppCompatActivity() {
         Toast.makeText(this, "Test trigger fired!", Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * Handles the "Up" button navigation in the toolbar.
+     * @return `true` to indicate the event was handled.
+     */
     override fun onSupportNavigateUp(): Boolean {
         onBackPressed()
         return true
     }
 
+    /**
+     * Fills the UI fields with the data from an existing trigger when in edit mode.
+     * @param trigger The [Trigger] to populate the UI with.
+     */
     private fun populateUiWithTriggerData(trigger: Trigger) {
         instructionEditText.setText(trigger.instruction)
 
@@ -158,11 +189,9 @@ class CreateTriggerActivity : AppCompatActivity() {
             TriggerType.SCHEDULED_TIME -> {
                 timePicker.hour = trigger.hour ?: 0
                 timePicker.minute = trigger.minute ?: 0
-                // Clear all chips first
                 for (i in 0 until dayOfWeekChipGroup.childCount) {
                     (dayOfWeekChipGroup.getChildAt(i) as com.google.android.material.chip.Chip).isChecked = false
                 }
-                // Then check the ones from the trigger
                 trigger.daysOfWeek.forEach { day ->
                     (dayOfWeekChipGroup.getChildAt(day - 1) as com.google.android.material.chip.Chip).isChecked = true
                 }
@@ -170,8 +199,6 @@ class CreateTriggerActivity : AppCompatActivity() {
             TriggerType.NOTIFICATION -> {
                 if (trigger.packageName == "*") {
                     selectAllAppsCheckbox.isChecked = true
-                } else {
-                    // This will be handled in loadApps now
                 }
             }
             TriggerType.CHARGING_STATE -> {
@@ -185,6 +212,9 @@ class CreateTriggerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Shows or hides the specific option layouts based on the selected trigger type.
+     */
     private fun setupInitialView() {
         when (selectedTriggerType) {
             TriggerType.SCHEDULED_TIME -> {
@@ -205,6 +235,9 @@ class CreateTriggerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Sets up the RecyclerView and its adapter for the app list.
+     */
     private fun setupRecyclerView() {
         appsRecyclerView.layoutManager = LinearLayoutManager(this)
         appAdapter = AppAdapter(emptyList()) { apps ->
@@ -213,6 +246,9 @@ class CreateTriggerActivity : AppCompatActivity() {
         appsRecyclerView.adapter = appAdapter
     }
 
+    /**
+     * Asynchronously loads the list of installed applications and populates the adapter.
+     */
     private fun loadApps() {
         lifecycleScope.launch(Dispatchers.IO) {
             val pm = packageManager
@@ -239,6 +275,9 @@ class CreateTriggerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Gathers data from the UI, creates a [Trigger] object, and saves or updates it.
+     */
     private fun saveTrigger() {
         val instruction = instructionEditText.text.toString()
         if (instruction.isBlank()) {
@@ -319,30 +358,34 @@ class CreateTriggerActivity : AppCompatActivity() {
         finish()
     }
 
+    /**
+     * Gets the set of selected days from the day-of-the-week ChipGroup.
+     * @return A set of integers representing the selected days (1 for Sunday, etc.).
+     */
     private fun getSelectedDays(): Set<Int> {
         val selectedDays = mutableSetOf<Int>()
         for (i in 0 until dayOfWeekChipGroup.childCount) {
             val chip = dayOfWeekChipGroup.getChildAt(i) as com.google.android.material.chip.Chip
             if (chip.isChecked) {
-                // Mapping index to Calendar.DAY_OF_WEEK constants (Sunday=1, Monday=2, etc.)
                 selectedDays.add(i + 1)
             }
         }
         return selectedDays
     }
 
+    /**
+     * Shows a dialog to inform the user that the "Alarms & Reminders" permission is required.
+     */
     private fun showExactAlarmPermissionDialog() {
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+        androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Permission Required")
             .setMessage("To schedule tasks at a precise time, Panda needs the 'Alarms & Reminders' permission. Please grant this in the next screen.")
             .setPositiveButton("Grant Permission") { _, _ ->
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
-
-        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setTextColor(getColor(R.color.white))
     }
 }

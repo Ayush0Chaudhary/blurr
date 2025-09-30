@@ -1,3 +1,11 @@
+/**
+ * @file ClarificationAgent.kt
+ * @brief Defines the ClarificationAgent responsible for analyzing user instructions for clarity.
+ *
+ * This file contains the implementation of the ClarificationAgent, which uses the Gemini API
+ * to determine if a user's command is actionable or requires further questions. It includes
+ * the data class for the analysis result and the agent class itself.
+ */
 package com.blurr.voice.agents
 
 import android.content.Context
@@ -12,6 +20,9 @@ import org.json.JSONException
 /**
  * A data class to hold the parsed result from the clarification check for type safety.
  *
+ * This class encapsulates the result of the clarification analysis, providing a structured
+ * way to handle the outcome.
+ *
  * @property status The status of the instruction, either "CLEAR" or "NEEDS_CLARIFICATION".
  * @property questions A list of clarifying questions if the status is "NEEDS_CLARIFICATION".
  */
@@ -23,18 +34,23 @@ data class ClarificationResult(
 /**
  * An agent responsible for analyzing a user's task instruction to determine if it's
  * clear enough for execution or if it requires more information.
- * It communicates with the Gemini API using a structured JSON format for both requests and responses.
+ *
+ * This agent communicates with the Gemini API using a structured JSON format for both
+ * requests and responses to ensure reliable parsing and handling of the LLM's output.
+ * Its primary goal is to prevent the execution of ambiguous commands by proactively
+ * seeking clarification from the user.
  */
 class ClarificationAgent {
 
     /**
      * Analyzes the user's instruction and returns a result indicating if clarification is needed.
-     * This is the main entry point for the agent.
+     * This is the main public method for the agent and serves as the entry point for analysis.
      *
      * @param instruction The user's raw task instruction (e.g., "send a message to mom").
-     * @param conversationHistory The recent history of the conversation for context.
-     * @param context The Android context, required for the Gemini API call.
-     * @return A [ClarificationResult] containing the status and any necessary questions.
+     * @param conversationHistory The recent history of the conversation, used to provide context.
+     * @param context The Android application context, required for the Gemini API call.
+     * @return A [ClarificationResult] containing the status ("CLEAR" or "NEEDS_CLARIFICATION")
+     *         and a list of any necessary clarifying questions.
      */
     suspend fun analyze(instruction: String, conversationHistory: List<Pair<String, List<Any>>>, context: Context): ClarificationResult {
         try {
@@ -68,10 +84,13 @@ class ClarificationAgent {
 
     /**
      * Parses the JSON response string from the Gemini API into a [ClarificationResult].
-     * It's designed to be robust against common formatting issues like markdown code blocks.
      *
-     * @param jsonResponse The raw JSON string from the API.
-     * @return A [ClarificationResult] object. Returns a default "CLEAR" result on parsing failure.
+     * This function is designed to be robust against common formatting issues, such as the
+     * API wrapping the JSON response in markdown code blocks.
+     *
+     * @param jsonResponse The raw JSON string received from the API.
+     * @return A [ClarificationResult] object. Returns a default "CLEAR" result on parsing failure
+     *         to ensure the system can proceed.
      */
     private fun parseResponse(jsonResponse: String?): ClarificationResult {
         if (jsonResponse.isNullOrBlank()) {
@@ -101,12 +120,15 @@ class ClarificationAgent {
     }
 
     /**
-     * Creates the prompt for the Gemini API, instructing it to analyze the user's
-     * instruction and respond with a specific JSON format.
+     * Creates the structured prompt for the Gemini API.
      *
-     * @param instruction The user's task instruction to analyze.
-     * @param conversationHistory The recent conversation history for context.
-     * @return A formatted prompt string.
+     * This prompt instructs the API to analyze the user's instruction within the context of the
+     * conversation and respond with a specific JSON format, indicating whether the instruction
+     * is clear or requires clarification.
+     *
+     * @param instruction The user's task instruction to be analyzed.
+     * @param conversationHistory The recent conversation history to provide context for the analysis.
+     * @return A formatted prompt string to be sent to the Gemini API.
      */
     private fun createPrompt(instruction: String, conversationHistory: List<Pair<String, List<Any>>>): String {
         // Build a concise version of the conversation history for context.
@@ -135,7 +157,7 @@ class ClarificationAgent {
             ### Your Task ###
             Based on the instruction and the conversation history, decide if the instruction is clear enough to be executed or if it needs clarification.
             - An instruction is CLEAR if it can be performed without any more information (e.g., "Open WhatsApp", "Take a screenshot").
-            - An instruction NEEDS CLARIFICATION if it's missing key details (e.g., "Send a message" (to whom? what message?), "Set an alarm" (for what time?), "Book a ride" (to where?)).
+            - An instruction is NEEDS CLARIFICATION if it's missing key details (e.g., "Send a message" (to whom? what message?), "Set an alarm" (for what time?), "Book a ride" (to where?)).
 
             ### Response Format ###
             You MUST respond with a single, valid JSON object only. Do not add any text before or after the JSON.

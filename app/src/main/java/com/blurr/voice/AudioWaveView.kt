@@ -1,3 +1,11 @@
+/**
+ * @file AudioWaveView.kt
+ * @brief A custom Android View for rendering a stylized, animated audio waveform.
+ *
+ * This file defines the `AudioWaveView`, a sophisticated visual component that displays a
+ * multi-layered, dynamic wave animation. It is designed to provide real-time visual feedback
+ * for audio input or output, such as during speech recognition or text-to-speech playback.
+ */
 package com.blurr.voice
 
 import android.animation.ValueAnimator
@@ -12,21 +20,33 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
+/**
+ * A custom `View` that renders a multi-layered, animated waveform.
+ *
+ * This view creates a "gooey" or "lava lamp" effect by drawing multiple, overlapping,
+ * semi-transparent sine waves with a blur filter. The waves are in constant motion, and their
+ * amplitude can be updated in real-time to reflect audio levels.
+ *
+ * Key features include:
+ * - A continuous, looping animation for an idle state.
+ * - Real-time amplitude updates driven by audio input (e.g., from Android's `Visualizer`).
+ * - Smooth transitions to target amplitude levels for non-realtime effects.
+ * - Customizable wave count, colors, and behavior.
+ */
 class AudioWaveView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs) {
 
-    // --- Configuration Constants ---
-    companion object {
-        // Added for converting raw audio dB to a normalized value
+    private companion object {
+        /** The minimum decibel value expected from an audio source, used for normalization. */
         private const val MIN_DB_VALUE = -60f
+        /** The maximum decibel value expected, used for normalization. */
         private const val MAX_DB_VALUE = -5f
     }
 
     private val waveCount = 7
     private val minIdleAmplitude = 0.15f
     private val maxWaveHeightScale = 0.25f
-    // Corrected and swapped durations for more logical behavior
     private val targetAmplitudeTransitionDuration = 500L
     private val realtimeAmplitudeTransitionDuration = 100L
     private val maxSpeedIncrease = 4.0f
@@ -49,6 +69,7 @@ class AudioWaveView @JvmOverloads constructor(
     private var audioAmplitude = minIdleAmplitude
 
     init {
+        // Enable hardware acceleration for better performance with blur filters.
         setLayerType(LAYER_TYPE_HARDWARE, null)
 
         waveFrequencies = FloatArray(waveCount)
@@ -58,6 +79,7 @@ class AudioWaveView @JvmOverloads constructor(
 
         val blurFilter = BlurMaskFilter(15f, BlurMaskFilter.Blur.NORMAL)
 
+        // Initialize properties for each individual wave.
         for (i in 0 until waveCount) {
             waveFrequencies[i] = Random.nextFloat() * 0.6f + 0.8f
             wavePhaseShifts[i] = Random.nextFloat() * (Math.PI * 2).toFloat()
@@ -73,6 +95,7 @@ class AudioWaveView @JvmOverloads constructor(
             wavePaths.add(Path())
         }
 
+        // A persistent animator to keep the waves in constant, gentle motion.
         ValueAnimator.ofFloat(0f, 1f).apply {
             interpolator = LinearInterpolator()
             duration = 5000
@@ -82,36 +105,35 @@ class AudioWaveView @JvmOverloads constructor(
                 for (i in 0 until waveCount) {
                     wavePhaseShifts[i] += (waveSpeeds[i] * speedFactor)
                 }
-                invalidate()
+                invalidate() // Redraw the view on each frame.
             }
             start()
         }
     }
 
     /**
-     * NEW: Call this from your audio processing code with the raw dB value.
-     * It normalizes the value and updates the wave animation in real-time.
-     * @param rmsdB The Root Mean Square decibel level of the current audio buffer.
+     * Updates the wave amplitude based on a raw RMS decibel value from an audio source.
+     * This is the primary method for driving the animation from real-time audio.
+     *
+     * @param rmsdB The Root Mean Square decibel level of the current audio buffer (e.g., from `Visualizer.getMeasurementPeakRms`).
      */
     fun updateAmplitude(rmsdB: Float) {
-        // Normalize the decibel level to a 0.0 to 1.0 range
+        // Normalize the decibel level to a 0.0 to 1.0 range.
         val normalizedAmplitude = ((rmsdB - MIN_DB_VALUE) / (MAX_DB_VALUE - MIN_DB_VALUE)).coerceIn(0f, 2.0f)
-
-        // Call the existing method to update the wave's appearance
         setRealtimeAmplitude(normalizedAmplitude)
     }
 
 
     /**
-     * Instantly sets the amplitude for real-time visualization.
-     * @param amplitude The raw amplitude from the visualizer (0.0 to 1.0).
+     * Instantly sets the amplitude for real-time visualization with a very short animation.
+     * @param amplitude The normalized amplitude (0.0 to 1.0).
      */
     fun setRealtimeAmplitude(amplitude: Float) {
         val scaledAmplitude = amplitude.pow(1.5f).coerceIn(0.0f, 1.0f)
         val targetAmplitude = minIdleAmplitude + (scaledAmplitude * maxWaveHeightScale)
         amplitudeAnimator?.cancel()
         amplitudeAnimator = ValueAnimator.ofFloat(audioAmplitude, targetAmplitude).apply {
-            duration = realtimeAmplitudeTransitionDuration // Use short duration for responsiveness
+            duration = realtimeAmplitudeTransitionDuration // Short duration for responsiveness.
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { animation ->
                 audioAmplitude = animation.animatedValue as Float
@@ -121,15 +143,15 @@ class AudioWaveView @JvmOverloads constructor(
     }
 
     /**
-     * Smoothly animates the wave's amplitude to a new target level.
-     * Used for non-realtime effects like a "power up" sequence.
+     * Smoothly animates the wave's amplitude to a new target level over a longer duration.
+     * This is used for non-realtime effects, like a "powering up" or "listening" state change.
      * @param target The target amplitude level (0.0f for idle, 1.0f for full).
      */
     fun setTargetAmplitude(target: Float) {
         val targetAmplitude = minIdleAmplitude + (target * maxWaveHeightScale)
         amplitudeAnimator?.cancel()
         amplitudeAnimator = ValueAnimator.ofFloat(audioAmplitude, targetAmplitude).apply {
-            duration = targetAmplitudeTransitionDuration // Use longer duration for smooth transitions
+            duration = targetAmplitudeTransitionDuration // Longer duration for smooth transitions.
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { animation ->
                 audioAmplitude = animation.animatedValue as Float
@@ -138,6 +160,10 @@ class AudioWaveView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Called when the view's size changes. This is where the gradient shader for the waves is
+     * created, as it depends on the view's height.
+     */
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         for(i in 0 until waveCount) {
@@ -150,6 +176,11 @@ class AudioWaveView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * The core rendering method. This is called on every `invalidate()` call.
+     * It calculates the path for each of the sine waves based on their frequency, phase,
+     * and the current overall amplitude, and then draws them to the canvas.
+     */
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 

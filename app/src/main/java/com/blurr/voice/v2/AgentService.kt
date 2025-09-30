@@ -1,3 +1,13 @@
+/**
+ * @file AgentService.kt
+ * @brief A foreground service to host and manage the V2 Agent's lifecycle.
+ *
+ * This file defines `AgentService`, a crucial component for running the AI agent reliably
+ * in the background. It handles task queuing, agent initialization, lifecycle management,
+ * and foreground service notifications to ensure the agent can complete long-running tasks
+ * without being terminated by the Android OS. It also integrates with Firebase to track
+ * task history for logged-in users.
+ */
 package com.blurr.voice.v2
 
 import android.app.Notification
@@ -13,9 +23,9 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.blurr.voice.R
-import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.api.Eyes
 import com.blurr.voice.api.Finger
+import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.utilities.VisualFeedbackManager
 import com.blurr.voice.v2.actions.ActionExecutor
 import com.blurr.voice.v2.fs.FileSystem
@@ -38,22 +48,26 @@ import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * A Foreground Service responsible for hosting and running the AI Agent.
+ * A foreground service responsible for hosting and running the AI Agent.
  *
- * This service manages the entire lifecycle of the agent, from initializing its components
- * to running its main loop in a background coroutine. It starts as a foreground service
- * to ensure the OS does not kill it while it's performing a long-running task.
+ * This service manages the entire lifecycle of the agent. It operates on a task queue,
+ * processing one task at a time. Key responsibilities include:
+ * - Initializing all agent components (Perception, Memory, LLM, etc.).
+ * - Running the agent's main loop in a background coroutine.
+ * - Managing a foreground notification to prevent the OS from terminating the process.
+ * - Handling service start/stop commands and ensuring clean resource disposal.
+ * - Tracking task start and completion in Firebase.
  */
 class AgentService : Service() {
 
     private val TAG = "AgentService"
 
     // A dedicated coroutine scope tied to the service's lifecycle.
-    // Using a SupervisorJob ensures that if one child coroutine fails, it doesn't cancel the whole scope.
+    // A SupervisorJob ensures that if one child coroutine fails, it doesn't cancel the whole scope.
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance(this) }
 
-    // Declare agent and its dependencies. They will be initialized in onCreate.
+    // Agent and its dependencies are initialized in onCreate.
     private val taskQueue: Queue<String> = ConcurrentLinkedQueue()
     private lateinit var agent: Agent
     private lateinit var settings: AgentSettings
@@ -63,47 +77,32 @@ class AgentService : Service() {
     private lateinit var llmApi: GeminiApi
     private lateinit var actionExecutor: ActionExecutor
     
-    // Firebase instances for task tracking
+    // Firebase instances for task tracking.
     private val db = Firebase.firestore
     private val auth = Firebase.auth
 
-//    companion object {
-//        private const val NOTIFICATION_CHANNEL_ID = "AgentServiceChannel"
-//        private const val NOTIFICATION_ID = 1
-//        private const val EXTRA_TASK = "com.blurr.voice.v2.EXTRA_TASK"
-//
-//        /**
-//         * A helper function to easily start the service from anywhere in the app (e.g., an Activity or ViewModel).
-//         *
-//         * @param context The application context.
-//         * @param task The user's high-level task for the agent to perform.
-//         */
-//        fun start(context: Context, task: String) {
-//            Log.d("AgentService", "Starting service with task: $task")
-//            val intent = Intent(context, AgentService::class.java).apply {
-//                putExtra(EXTRA_TASK, task)
-//            }
-//            context.startService(intent)
-//        }
-//    }
-//
-//
+    /**
+     * Companion object to provide easy-to-use static methods for controlling the service.
+     */
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "AgentServiceChannelV2"
         private const val NOTIFICATION_ID = 14
         private const val EXTRA_TASK = "com.blurr.voice.v2.EXTRA_TASK"
         private const val ACTION_STOP_SERVICE = "com.blurr.voice.v2.ACTION_STOP_SERVICE"
 
+        /** Indicates if the service is currently processing a task. */
         @Volatile
         var isRunning: Boolean = false
-            private set // Allow external read, but only internal write
+            private set
 
+        /** The description of the task currently being processed. */
         @Volatile
         var currentTask: String? = null
-            private set // Allow external read, but only internal write
+            private set
 
         /**
-         * A public method to request the service to stop from outside.
+         * Sends an intent to stop the service gracefully.
+         * @param context The application context.
          */
         fun stop(context: Context) {
             Log.d("AgentService", "External stop request received.")
@@ -113,6 +112,11 @@ class AgentService : Service() {
             context.startService(intent)
         }
 
+        /**
+         * Starts the service and adds a new task to the queue.
+         * @param context The application context.
+         * @param task The high-level task for the agent to perform.
+         */
         fun start(context: Context, task: String) {
             Log.d("AgentService", "Starting service with task: $task")
             val intent = Intent(context, AgentService::class.java).apply {
@@ -121,31 +125,32 @@ class AgentService : Service() {
             context.startService(intent)
         }
     }
+
+    /**
+     * Called when the service is first created.
+     * This is where we initialize all the agent's core components.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate: Service is being created.")
         visualFeedbackManager.showTtsWave()
 
-        // Create the notification channel required for foreground services on Android 8.0+
         createNotificationChannel()
 
-        // --- Initialize all the agent's components here ---
-        // This is the logic from your example, now placed within the service's lifecycle.
-        settings = AgentSettings() // Use default settings for now
+        // Initialize all the agent's components.
+        settings = AgentSettings()
         fileSystem = FileSystem(this)
-        // Pass an empty initial task; it will be updated in onStartCommand
         memoryManager = MemoryManager(this, "", fileSystem, settings)
-        // Assuming Eyes, Finger, and SemanticParser can be instantiated directly
         perception = Perception(Eyes(this), SemanticParser())
         llmApi = GeminiApi(
             "gemini-2.5-flash",
             apiKeyManager = ApiKeyManager,
             maxRetry = 10
-        ) // Or your preferred model
+        )
         actionExecutor = ActionExecutor(Finger(this))
 
-        // Finally, create the Agent instance with all its dependencies
+        // Create the Agent instance with all its dependencies.
         agent = Agent(
             settings,
             memoryManager,
@@ -157,18 +162,20 @@ class AgentService : Service() {
         )
     }
 
+    /**
+     * Called every time the service is started with `startService()`.
+     * This method handles incoming intents, such as adding a new task or stopping the service.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand received.")
 
-        // Handle stop action
         if (intent?.action == ACTION_STOP_SERVICE) {
             Log.i(TAG, "Received stop action. Stopping service.")
-            stopSelf() // onDestroy will handle cleanup
+            stopSelf()
             return START_NOT_STICKY
         }
 
-        // Add new task to the queue
         intent?.getStringExtra(EXTRA_TASK)?.let {
             if (it.isNotBlank()) {
                 Log.d(TAG, "Adding task to queue: $it")
@@ -176,7 +183,7 @@ class AgentService : Service() {
             }
         }
 
-        // If the agent is not already processing tasks, start the loop.
+        // If the agent is not already processing tasks, start the processing loop.
         if (!isRunning && taskQueue.isNotEmpty()) {
             Log.i(TAG, "Agent not running, starting processing loop.")
             serviceScope.launch {
@@ -187,11 +194,15 @@ class AgentService : Service() {
             else Log.d(TAG, "Service started with no task, waiting for tasks.")
         }
 
-        // Use START_STICKY to ensure the service stays running in the background
-        // until we explicitly stop it. This is crucial for a queue-based system.
+        // START_STICKY ensures the service stays running until explicitly stopped.
         return START_STICKY
     }
 
+    /**
+     * The core loop that processes tasks from the queue one by one.
+     * It promotes the service to the foreground and runs the agent for each task.
+     * The service stops itself once the queue is empty.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun processTaskQueue() {
         if (isRunning) {
@@ -205,10 +216,9 @@ class AgentService : Service() {
         startForeground(NOTIFICATION_ID, createNotification("Agent is starting..."))
 
         while (taskQueue.isNotEmpty()) {
-            val task = taskQueue.poll() ?: continue // Dequeue task, continue if null
+            val task = taskQueue.poll() ?: continue
             currentTask = task
 
-            // Update notification for the new task
             notificationManager.notify(NOTIFICATION_ID, createNotification("Agent is running task: $task"))
 
             try {
@@ -220,38 +230,38 @@ class AgentService : Service() {
             } catch (e: Exception) {
                 Log.e(TAG, "Task failed with an exception: $task", e)
                 trackTaskCompletion(task, false, e.message)
-                // Optionally update notification to show error state
             }
         }
 
         Log.i(TAG, "Task queue is empty. Stopping service.")
-        stopSelf() // Stop the service only when the queue is empty
+        stopSelf()
     }
 
+    /**
+     * Called when the service is being destroyed.
+     * This is where we clean up all resources, cancel coroutines, and reset state.
+     */
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy: Service is being destroyed.")
-        // RESET STATUS
+        // Reset status.
         isRunning = false
         currentTask = null
-        taskQueue.clear() // Clear any pending tasks
+        taskQueue.clear()
 
-        // Cancel the coroutine scope to clean up the agent's running job and prevent leaks.
+        // Cancel the coroutine scope to clean up any running jobs and prevent leaks.
         serviceScope.cancel()
         visualFeedbackManager.hideTtsWave()
         Log.i(TAG, "Service destroyed and all resources cleaned up.")
     }
 
-    /**
-     * This service does not provide binding, so we return null.
-     */
+    /** This service does not provide binding, so it returns null. */
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
 
     /**
-     * Creates the NotificationChannel for the foreground service.
-     * This is required for Android 8.0 (API level 26) and higher.
+     * Creates the NotificationChannel required for the foreground service on Android 8.0+.
      */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -266,10 +276,12 @@ class AgentService : Service() {
     }
 
     /**
-     * Creates the persistent notification for the foreground service.
+     * Creates the persistent notification displayed while the service is in the foreground.
+     * Includes a "Stop" action to allow the user to terminate the agent.
+     * @param contentText The text to display in the notification body.
+     * @return A configured [Notification] object.
      */
     private fun createNotification(contentText: String): Notification {
-        // Create PendingIntent for the stop action
         val stopIntent = Intent(this, AgentService::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
@@ -284,18 +296,18 @@ class AgentService : Service() {
             .setContentTitle("Panda Doing Task (Expand to stop Panda)")
             .setContentText(contentText)
             .addAction(
-                android.R.drawable.ic_media_pause, // Using built-in pause icon as stop button
+                android.R.drawable.ic_media_pause,
                 "Stop Panda",
                 stopPendingIntent
             )
-            .setOngoing(true) // Makes notification persistent and harder to dismiss
+            .setOngoing(true)
              .setSmallIcon(R.drawable.ic_launcher_foreground)
             .build()
     }
 
     /**
-     * Tracks the task start in Firebase by appending it to the user's task history array.
-     * This method is inspired by FreemiumManager's Firebase operations.
+     * Tracks the start of a task in Firebase by appending it to the user's task history.
+     * @param task The description of the task being started.
      */
     private suspend fun trackTaskInFirebase(task: String) {
         val currentUser = auth.currentUser
@@ -314,7 +326,6 @@ class AgentService : Service() {
                 "errorMessage" to null
             )
 
-            // Append the task to the user's taskHistory array
             db.collection("users").document(currentUser.uid)
                 .update("taskHistory", FieldValue.arrayUnion(taskEntry))
                 .await()
@@ -322,14 +333,14 @@ class AgentService : Service() {
             Log.d(TAG, "Successfully tracked task start in Firebase for user ${currentUser.uid}: $task")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to track task in Firebase", e)
-            // Don't fail the task execution if Firebase tracking fails
         }
     }
 
     /**
-     * Updates the task completion status in Firebase.
-     * Since Firestore doesn't support updating array elements directly,
-     * we'll add a new completion entry to track the result.
+     * Updates the task completion status in Firebase by appending a new result entry.
+     * @param task The description of the task that was completed.
+     * @param success Whether the task succeeded or failed.
+     * @param errorMessage An optional error message if the task failed.
      */
     private suspend fun trackTaskCompletion(task: String, success: Boolean, errorMessage: String? = null) {
         val currentUser = auth.currentUser
@@ -342,13 +353,11 @@ class AgentService : Service() {
             val completionEntry = hashMapOf(
                 "task" to task,
                 "status" to if (success) "completed" else "failed",
-//                "startedAt" to null, // This is a completion entry, not a start entry
                 "completedAt" to Timestamp.now(),
                 "success" to success,
                 "errorMessage" to errorMessage
             )
 
-            // Append the completion status to the user's taskHistory array
             db.collection("users").document(currentUser.uid)
                 .update("taskHistory", FieldValue.arrayUnion(completionEntry))
                 .await()

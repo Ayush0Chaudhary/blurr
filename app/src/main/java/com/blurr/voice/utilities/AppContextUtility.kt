@@ -1,3 +1,14 @@
+/**
+ * @file AppContextUtility.kt
+ * @brief Provides utility functions for retrieving information about installed applications.
+ *
+ * This file contains the `AppContextUtility` class, which can be used to get lists of
+ * all installed applications or just user-installed applications. It also includes a data class
+ * `AppInfo` to structure the application data.
+ *
+ * TODO: This file is not currently used anywhere in the project but is kept for its potential
+ * future use in multi-app tasks.
+ */
 package com.blurr.voice.utilities
 
 import android.annotation.SuppressLint
@@ -7,8 +18,16 @@ import android.content.pm.PackageManager
 import android.util.Log
 
 
-// TODO This fiel is not used anywhere but we still keep it because
-//  this implement a agent that adds apps in the context of the agent which can be used for multiple app tasks
+/**
+ * A data class to hold key information about an installed application.
+ *
+ * @property appName The user-facing name of the application.
+ * @property packageName The unique package name of the application.
+ * @property isSystemApp A flag indicating if the application is a system app.
+ * @property isEnabled A flag indicating if the application is currently enabled.
+ * @property versionName The user-facing version name of the application.
+ * @property versionCode The internal version code of the application.
+ */
 data class AppInfo(
     val appName: String,
     val packageName: String,
@@ -18,6 +37,10 @@ data class AppInfo(
     val versionCode: Long = 0
 )
 
+/**
+ * A utility class for querying information about applications installed on the device.
+ * @param context The application context.
+ */
 class AppContextUtility(private val context: Context) {
 
     companion object {
@@ -25,7 +48,10 @@ class AppContextUtility(private val context: Context) {
     }
 
     /**
-     * Get all installed applications with basic information
+     * Retrieves a list of all installed applications, including system apps.
+     *
+     * @return A list of [AppInfo] objects for every installed application. Returns an
+     *         empty list if an error occurs.
      */
     @SuppressLint("QueryPermissionsNeeded")
     fun getAllApps(): List<AppInfo> {
@@ -48,7 +74,10 @@ class AppContextUtility(private val context: Context) {
     }
 
     /**
-     * Get only user-installed applications (non-system apps)
+     * Retrieves a list of user-installed applications only (non-system apps).
+     *
+     * @return A list of [AppInfo] objects for every non-system application. Returns an
+     *         empty list if an error occurs.
      */
     @SuppressLint("QueryPermissionsNeeded")
     fun getUserApps(): List<AppInfo> {
@@ -73,13 +102,20 @@ class AppContextUtility(private val context: Context) {
     }
 
     /**
-     * MAIN FUNCTION: Uses Gemini API to intelligently filter and format app data based on user instruction
-     * This avoids using large context windows by letting AI determine what's relevant
+     * **(Disabled)** Uses an LLM to intelligently filter the app list based on a user's instruction.
+     *
+     * This function is intended to reduce the context size sent to the main agent by having a
+     * specialized LLM call first determine which apps are relevant to the user's command.
+     *
+     * **Note:** This function is currently commented out and is not used in the application.
+     *
+     * @param userInstruction The user's command.
+     * @param includeSystemApps Whether to include system apps in the list sent to the LLM.
+     * @return A string containing the filtered list of apps, or an error message.
      */
 //    suspend fun getAppsForInstruction(userInstruction: String, includeSystemApps: Boolean = false): String {
 //        return withContext(Dispatchers.IO) {
 //            try {
-//                // Get all apps data
 //                val allApps = if (includeSystemApps) getAllApps() else getUserApps()
 //                println("All apps:")
 //                for(i in allApps){
@@ -89,12 +125,10 @@ class AppContextUtility(private val context: Context) {
 //                    return@withContext "No apps found on this device."
 //                }
 //
-//                // Create the apps data string
 //                val appsData = allApps.joinToString("\n") { app ->
 //                    "Application Name: \"${app.appName}\", Package Name: \"${app.packageName}\""
 //                }
 //
-//                // Create the prompt for Gemini API
 //                val prompt = """
 //                    Based on the user's instruction, analyze the following list of applications.
 //                    If the user is asking to open or interact with a specific app, return only the line for that single application.
@@ -109,7 +143,6 @@ class AppContextUtility(private val context: Context) {
 //
 //                Log.d(TAG, "Sending request to Gemini API for instruction: $userInstruction")
 //
-//                // Call Gemini API
 ////                val response = GeminiApi.generateContent(
 ////                    prompt = prompt,
 ////                    context = context
@@ -122,7 +155,6 @@ class AppContextUtility(private val context: Context) {
 ////
 ////                Log.d(TAG, "Gemini API response received: ${response.length} characters")
 ////
-////                // Clean up the response - remove any markdown formatting or extra text
 ////                val cleanedResponse = response.trim()
 ////                    .removePrefix("```")
 ////                    .removeSuffix("```")

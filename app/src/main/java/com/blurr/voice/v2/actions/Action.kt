@@ -1,3 +1,13 @@
+/**
+ * @file Action.kt
+ * @brief Defines all possible actions the agent can execute, their specifications, and the logic for serialization.
+ *
+ * This file is the single source of truth for the agent's capabilities. It uses a sealed class `Action`
+ * to represent all possible commands in a type-safe manner. A custom `ActionSerializer` handles
+ * the deserialization from the LLM's JSON output. The `companion object` contains a registry
+ * (`allSpecs`) that defines the name, description, parameters, and construction logic for each action,
+ * ensuring consistency between the prompt and the code.
+ */
 package com.blurr.voice.v2.actions
 
 import kotlinx.serialization.KSerializer
@@ -6,43 +16,76 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlin.reflect.KClass
 
-// Data class to hold parameter metadata without reflection
+/**
+ * Represents the specification for a single parameter of an action.
+ * @property name The name of the parameter (used in JSON).
+ * @property type The Kotlin type of the parameter.
+ * @property description A natural language description of the parameter for the LLM.
+ */
 data class ParamSpec(val name: String, val type: KClass<*>, val description: String)
 
-/** 
+/**
  * A sealed class representing all possible type-safe commands the agent can execute.
- * It is annotated to use the custom, data-driven ActionSerializer.
+ *
+ * Each subclass represents a distinct action the agent can perform, such as tapping an element,
+ * typing text, or indicating that a task is complete. It uses a custom [ActionSerializer]
+ * to deserialize the JSON output from the LLM into the correct, type-safe action object.
  */
 @Serializable(with = Action.ActionSerializer::class)
 sealed class Action {
-    // Each action is a data class (if it has args) or an object (if it doesn't).
-    // Note: Property names here follow Kotlin's camelCase convention.
+    /** Press and hold a UI element, identified by its numeric ID. */
     data class LongPressElement(val elementId: Int) : Action()
+    /** Tap a UI element, identified by its numeric ID. */
     data class TapElement(val elementId: Int) : Action()
+    /** Open the Android app switcher. */
     data object SwitchApp : Action()
+    /** Navigate to the previous screen. */
     data object Back : Action()
+    /** Navigate to the device's home screen. */
     data object Home : Action()
+    /** Pause execution for a short period, allowing UI to load. */
     data object Wait : Action()
+    /** Speak a message to the user via Text-to-Speech. */
     data class Speak(val message: String) : Action()
+    /** Ask the user a question and wait for a spoken response. */
     data class Ask(val question: String) : Action()
+    /** Open an application by its name. */
     data class OpenApp(val appName: String) : Action()
+    /** Scroll down the screen by a specified amount in pixels. */
     data class ScrollDown(val amount: Int) : Action()
+    /** Scroll up the screen by a specified amount in pixels. */
     data class ScrollUp(val amount: Int) : Action()
+    /** Perform a search on Google. */
     data class SearchGoogle(val query: String) : Action()
+    /** A composite action to tap an element, input text, and press enter. */
     data class TapElementInputTextPressEnter(val index: Int, val text: String) : Action()
+    /** Type text into the currently focused input field. */
     data class InputText(val text: String) : Action()
+    /** Write content to a file in the agent's virtual file system, overwriting existing content. */
     data class WriteFile(val fileName: String, val content: String) : Action()
+    /** Append content to the end of a file in the agent's virtual file system. */
     data class AppendFile(val fileName: String, val content: String) : Action()
+    /** Read the entire content of a file from the agent's virtual file system. */
     data class ReadFile(val fileName: String) : Action()
+    /** Signal that the task is complete. */
     data class Done(val success: Boolean, val text: String, val filesToDisplay: List<String>? = null) : Action()
-    // New: Launch an Android AppIntent by name with parameters
+    /** Launch a system-level Android AppIntent by name with parameters. */
     data class LaunchIntent(val intentName: String, val parameters: Map<String, String>) : Action()
 
-    // --- The Custom Serializer ---
-    // This serializer is now data-driven, using the `allSpecs` map as its source of truth.
+    /**
+     * A custom serializer for the [Action] sealed class.
+     *
+     * This serializer is data-driven, using the `allSpecs` map as its single source of truth.
+     * It inspects the incoming JSON to find the action name (e.g., "tap_element"), looks up its
+     * specification in `allSpecs`, parses the parameters, and then uses the `build` function
+     * from the spec to construct the correct, type-safe [Action] subclass instance.
+     */
     object ActionSerializer : KSerializer<Action> {
         override val descriptor: SerialDescriptor = buildClassSerialDescriptor("Action")
 
@@ -55,18 +98,18 @@ sealed class Action {
             val actionName = jsonInput.keys.first()
             val paramsJson = jsonInput[actionName]?.jsonObject
 
-            // Look up the action's specification from our single source of truth.
+            // Look up the action's specification from the single source of truth.
             val spec = allSpecs[actionName]
                 ?: throw IllegalArgumentException("Unknown action received from LLM: $actionName")
 
             val args = mutableMapOf<String, Any?>()
 
-            // If the action has parameters, parse them according to the spec.
+            // If the action has parameters, parse them according to its spec.
             paramsJson?.let {
                 for (paramSpec in spec.params) {
                     val paramName = paramSpec.name
                     val jsonValue = it[paramName]
-                        ?: continue // Allow optional parameters
+                        ?: continue // Allow optional parameters.
 
                     // Convert JSON element to the correct Kotlin type.
                     val value = when (paramSpec.type) {
@@ -75,7 +118,7 @@ sealed class Action {
                         Boolean::class -> jsonValue.jsonPrimitive.boolean
                         List::class -> jsonValue.jsonArray.map { el -> el.jsonPrimitive.content }
                         Map::class -> jsonValue.jsonObject.mapValues { entry ->
-                            // We coerce all values to string for intent parameter passing
+                            // Coerce all map values to string for intent parameter passing.
                             entry.value.jsonPrimitive.content
                         }
                         else -> throw IllegalStateException("Unsupported parameter type in Spec: ${paramSpec.type}")
@@ -83,13 +126,25 @@ sealed class Action {
                     args[paramName] = value
                 }
             }
-            // Use the 'build' lambda from the spec to construct the final, type-safe Action object.
+            // Use the 'build' lambda from the spec to construct the final Action object.
             return spec.build(args)
         }
     }
 
-    // --- Companion Object: The Registry and Single Source of Truth ---
+    /**
+     * The companion object serves as a central registry for all action definitions.
+     * This "single source of truth" approach ensures that the action's name, description,
+     * parameters, and construction logic are all defined in one place.
+     */
     companion object {
+        /**
+         * Defines the complete specification for a single agent action.
+         *
+         * @property name The snake_case name of the action, as expected from the LLM.
+         * @property description A natural language description of what the action does.
+         * @property params A list of [ParamSpec] defining the action's parameters.
+         * @property build A lambda function that constructs an instance of the action from a map of parsed arguments.
+         */
         data class Spec(
             val name: String,
             val description: String,
@@ -97,8 +152,11 @@ sealed class Action {
             val build: (args: Map<String, Any?>) -> Action
         )
 
-        // The single source of truth for all actions.
-        // Keys and names are now consistently in snake_case for the LLM.
+        /**
+         * The definitive map of all actions available to the agent.
+         * The key is the snake_case action name that the LLM will use.
+         * The value is the complete [Spec] for that action.
+         */
         private val allSpecs: Map<String, Spec> = mapOf(
             "tap_element" to Spec(
                 name = "tap_element",
@@ -208,7 +266,6 @@ sealed class Action {
                 params = listOf(ParamSpec("text", String::class, "The text to type.")),
                 build = { args -> InputText(args["text"] as String) }
             ),
-            // New action spec: launch_intent
             "launch_intent" to Spec(
                 name = "launch_intent",
                 description = "Launch an Android AppIntent by name with parameters. Use this for OS-level actions like Dial, Share, etc.",
@@ -226,21 +283,10 @@ sealed class Action {
             ),
         )
 
-//        /**
-//         * Returns the specifications for all actions, respecting the agent's configuration.
-//         */
-//        fun getAvailableSpecs(config: AgentConfig, infoPool: InfoPool): List<Spec> {
-//            return allSpecs.values.filter { spec ->
-//                when (spec.name) {
-//                    "open_app" -> config.enableDirectAppOpening
-//                    "type" -> infoPool.keyboardPre
-//                    else -> true
-//                }
-//            }
-//        }
-
-        // Add this function inside the companion object in v2/actions/Action.kt
-
+        /**
+         * Returns a collection of all action specifications.
+         * This is used to generate the list of available actions for the system prompt.
+         */
         fun getAllSpecs(): Collection<Spec> {
             return allSpecs.values
         }

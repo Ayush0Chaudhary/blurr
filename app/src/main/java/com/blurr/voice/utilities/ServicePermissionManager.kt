@@ -1,3 +1,12 @@
+/**
+ * @file ServicePermissionManager.kt
+ * @brief Provides a utility for checking permissions from a Service context.
+ *
+ * This file contains the `ServicePermissionManager` class, which is a variation of
+ * `PermissionManager` designed to be used from background services where UI interactions
+ * like permission dialogs are not possible. It only provides methods to check the current
+ * state of permissions.
+ */
 package com.blurr.voice.utilities
 
 import android.Manifest
@@ -10,12 +19,19 @@ import androidx.core.content.ContextCompat
 import com.blurr.voice.ScreenInteractionService
 
 /**
- * Utility class to handle all permission-related functionality from a Service context.
+ * A utility class to handle permission checking from a non-Activity context (e.g., a Service).
+ *
+ * This class provides methods to check the status of essential permissions but does not include
+ * methods to request them, as that requires an Activity context.
+ *
+ * @param context The application or service context.
  */
 class ServicePermissionManager(private val context: Context) {
 
     /**
-     * Checks if all essential permissions are granted.
+     * Checks if all essential permissions required by the services are granted.
+     *
+     * @return `true` if all necessary permissions are granted, `false` otherwise.
      */
     fun areAllPermissionsGranted(): Boolean {
         return isAccessibilityServiceEnabled() &&
@@ -25,7 +41,9 @@ class ServicePermissionManager(private val context: Context) {
     }
 
     /**
-     * Check if microphone permission is granted
+     * Checks if the `RECORD_AUDIO` permission has been granted.
+     *
+     * @return `true` if the permission is granted, `false` otherwise.
      */
     fun isMicrophonePermissionGranted(): Boolean {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
@@ -33,7 +51,11 @@ class ServicePermissionManager(private val context: Context) {
     }
 
     /**
-     * Check if notification permission is granted
+     * Checks if the `POST_NOTIFICATIONS` permission has been granted.
+     *
+     * This is only relevant for Android 13 (API 33) and above.
+     *
+     * @return `true` if the permission is granted or not required for the current Android version, `false` otherwise.
      */
     fun isNotificationPermissionGranted(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -45,7 +67,10 @@ class ServicePermissionManager(private val context: Context) {
     }
 
     /**
-     * Check if accessibility service is enabled
+     * Checks if the application's [ScreenInteractionService] is enabled in the system's
+     * accessibility settings.
+     *
+     * @return `true` if the service is enabled, `false` otherwise.
      */
     fun isAccessibilityServiceEnabled(): Boolean {
         val service = context.packageName + "/" + ScreenInteractionService::class.java.canonicalName
@@ -74,7 +99,9 @@ class ServicePermissionManager(private val context: Context) {
     }
 
     /**
-     * Check if overlay permission is granted
+     * Checks if the "Draw over other apps" permission has been granted.
+     *
+     * @return `true` if the permission is granted, `false` otherwise.
      */
     fun isOverlayPermissionGranted(): Boolean {
         return Settings.canDrawOverlays(context)

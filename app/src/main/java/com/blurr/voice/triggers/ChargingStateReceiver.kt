@@ -1,3 +1,10 @@
+/**
+ * @file ChargingStateReceiver.kt
+ * @brief Defines a BroadcastReceiver that responds to changes in the device's charging state.
+ *
+ * This file contains the `ChargingStateReceiver`, which listens for `ACTION_POWER_CONNECTED`
+ * and `ACTION_POWER_DISCONNECTED` system broadcasts to execute charging-related triggers.
+ */
 package com.blurr.voice.triggers
 
 import android.content.BroadcastReceiver
@@ -9,10 +16,26 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+/**
+ * A [BroadcastReceiver] that listens for changes in the device's power connection status.
+ *
+ * When the device is plugged in or unplugged, this receiver is triggered. It then checks
+ * for any enabled triggers of type `CHARGING_STATE` that match the new status
+ * ("Connected" or "Disconnected") and sends an intent to the [TriggerReceiver] to
+ * execute their associated tasks.
+ */
 class ChargingStateReceiver : BroadcastReceiver() {
 
     private val TAG = "ChargingStateReceiver"
 
+    /**
+     * This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+     *
+     * It checks for power connected/disconnected actions and executes any matching triggers.
+     *
+     * @param context The Context in which the receiver is running.
+     * @param intent The Intent being received, which contains the action.
+     */
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         Log.d(TAG, "Received broadcast: $action")

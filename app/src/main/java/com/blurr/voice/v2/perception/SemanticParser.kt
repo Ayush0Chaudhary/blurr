@@ -1,3 +1,11 @@
+/**
+ * @file SemanticParser.kt
+ * @brief Parses and simplifies the raw Android View Hierarchy XML for the agent.
+ *
+ * This file contains the `SemanticParser` and `XmlNode` classes, which are responsible for
+ * taking the verbose XML dump from the accessibility service and transforming it into a
+ * structured, simplified, and LLM-friendly representation of the UI.
+ */
 package com.blurr.voice.v2.perception
 
 import android.util.Log
@@ -7,14 +15,15 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 
 /**
- * Represents a node in the XML view hierarchy.
+ * Represents a single node in the parsed XML view hierarchy tree.
  *
- * This data class holds the attributes of the XML node, its children, and a reference to its parent.
- * It also includes several helper properties and functions for convenience.
+ * This data class holds the attributes of an XML node, its children, and a reference to its parent.
+ * It also includes several helper properties and functions for convenience, such as checking
+ * if a node is interactive or semantically important.
  *
- * @property attributes A map of the node's XML attributes (e.g., "text", "resource-id").
- * @property children A list of child [XmlNode]s.
- * @property parent A nullable reference to the parent [XmlNode].
+ * @property attributes A map of the node's XML attributes (e.g., "text", "resource-id", "class").
+ * @property children A mutable list of child [XmlNode]s.
+ * @property parent A nullable reference to the parent [XmlNode] in the tree.
  */
 @Serializable
 data class XmlNode(
@@ -31,7 +40,7 @@ data class XmlNode(
 
     /**
      * A descriptive string of the node's boolean properties that are true.
-     * Example: "This element is enabled, clickable, focused."
+     * For example: "This element is enabled, clickable, focused."
      */
     val extraInfo: String
         get() {
@@ -43,7 +52,7 @@ data class XmlNode(
 
             propertiesToCheck.forEach { prop ->
                 if (attributes[prop] == "true") {
-                    // e.g., "long-clickable" becomes "long clickable"
+                    // e.g., "long-clickable" becomes "long clickable".
                     infoParts.add(prop.replace("-", " "))
                 }
             }
@@ -57,7 +66,8 @@ data class XmlNode(
 
     /**
      * Determines if a node is semantically important based on its attributes.
-     * An element is important if it has a non-empty `resource-id`, `text`, or `content-desc`.
+     * An element is considered important if it has a non-empty `resource-id`, `text`, or `content-desc`.
+     * @return `true` if the node is semantically important, `false` otherwise.
      */
     fun isSemanticallyImportant(): Boolean {
         return attributes["resource-id"]?.isNotBlank() == true ||
@@ -66,28 +76,26 @@ data class XmlNode(
     }
 
     /**
-     * Determines if a node is interactive (clickable or long-clickable).
+     * Determines if a node is interactive (e.g., clickable, scrollable, or an EditText).
+     * @return `true` if the node is interactive, `false` otherwise.
      */
     fun isInteractive(): Boolean {
         if (attributes["enabled"] == "false") {
             return false
         }
-        if (attributes["clickable"] == "true" ||
-            attributes["long-clickable"] == "true" ||
-            attributes["checkable"] == "true" ||
-            attributes["scrollable"] == "true" ||
-            attributes["class"] == "android.widget.EditText" ||
-            attributes["password"] == "true" ||
-            attributes["focusable"] == "true") {
-            return true
-        }
-
-        return false
+        return attributes["clickable"] == "true" ||
+                attributes["long-clickable"] == "true" ||
+                attributes["checkable"] == "true" ||
+                attributes["scrollable"] == "true" ||
+                attributes["class"] == "android.widget.EditText" ||
+                attributes["password"] == "true" ||
+                attributes["focusable"] == "true"
     }
 
     /**
-     * Returns the visible text of the node, preferring `text` over `content-desc`.
-     * Returns an empty string if neither is present.
+     * Returns the most relevant visible text of the node, preferring the `text` attribute
+     * over `content-desc`.
+     * @return The visible text, or an empty string if neither attribute is present.
      */
     fun getVisibleText(): String {
         return attributes["text"]?.takeIf { it.isNotBlank() }
@@ -98,6 +106,9 @@ data class XmlNode(
     /**
      * Checks if the node's bounds are physically within the screen dimensions.
      * An element is considered visible if it has at least one pixel on the screen.
+     * @param screenWidth The width of the device screen.
+     * @param screenHeight The height of the device screen.
+     * @return `true` if the node is at least partially visible, `false` otherwise.
      */
     fun isVisibleOnScreen(screenWidth: Int, screenHeight: Int): Boolean {
         val boundsStr = attributes["bounds"] ?: return false
@@ -108,12 +119,11 @@ data class XmlNode(
         return try {
             val (left, top, right, bottom) = matchResult.destructured.toList().map { it.toInt() }
 
-            // Element is invisible if it's entirely off-screen
+            // Element is invisible if it's entirely off-screen.
             if (right <= 0 || left >= screenWidth || bottom <= 0 || top >= screenHeight) {
                 return false
             }
-
-            // If it's not entirely off-screen, it's visible
+            // Otherwise, it's considered visible.
             true
         } catch (e: NumberFormatException) {
             false
@@ -122,34 +132,34 @@ data class XmlNode(
 }
 
 /**
- * Parses an Android View Hierarchy XML dump.
+ * Parses an Android View Hierarchy XML dump, filters it for relevance, and converts it
+ * into a structured, LLM-friendly string format.
  *
- * This class can filter the XML to keep only semantically important nodes and can also
- * generate a custom string representation of the hierarchy that focuses on interactive elements.
- * It allows for retrieving the coordinates of these interactive elements by their generated index.
+ * This class is the core of the semantic parsing process. It builds a tree from the raw XML,
+ * prunes nodes that are not visible or important, and then generates a custom string representation
+ * that assigns numeric IDs to interactive elements.
  */
 class SemanticParser {
 
-    // Stores a map of Integer index -> XmlNode for interactive elements from the last parse.
     private val interactiveNodeMap = mutableMapOf<Int, XmlNode>()
     private var interactiveElementCounter = 0
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
-    // --- New Public API ---
 
     /**
-     * Parses the XML tree into a custom string format highlighting interactive elements.
+     * Parses the XML tree into a custom string format, highlighting interactive elements.
      *
-     * Rules:
+     * This is the primary public method. It implements the following rules:
      * - Only interactive elements get a numeric index like `[1]`.
      * - Child elements are indented with tabs (`\t`).
      * - Elements marked with `*` are new compared to the `previousNodes` set.
-     * - Non-interactive elements with text are shown as plain text.
+     * - Non-interactive elements are only shown if they contain text.
      *
      * @param xmlString The raw XML dump of the screen hierarchy.
-     * @param previousNodes A set of unique identifiers for nodes from a previous screen state,
-     * used to detect new elements. A good identifier is "text|resource-id|class".
-     * @return A formatted string representing the UI hierarchy.
+     * @param previousNodes A set of unique identifiers for nodes from a previous screen state, used to detect new elements. A good identifier is "text|resource-id|class".
+     * @param screenWidth The width of the device screen.
+     * @param screenHeight The height of the device screen.
+     * @return A [Pair] containing the formatted UI string and a map of numeric IDs to their corresponding [XmlNode]s.
      */
     fun toHierarchicalString(xmlString: String, previousNodes: Set<String>? = null, screenWidth: Int, screenHeight: Int): Pair<String,  Map<Int, XmlNode>> {
         val rootNode = buildTreeFromXml(xmlString) ?: return Pair("", emptyMap())
@@ -175,18 +185,16 @@ class SemanticParser {
     }
 
     /**
-     * Returns the center coordinates of an interactive element given its index.
-     * This function should be called after `toHierarchicalString` has been run.
+     * Returns the center coordinates of an interactive element given its numeric index.
+     * This function should only be called after `toHierarchicalString` has been run.
      *
      * @param index The numeric index of the element (e.g., `1` from `[1] ...`).
-     * @return A `Pair(x, y)` representing the center coordinates, or `null` if the index
-     * is invalid or the element has no bounds.
+     * @return A `Pair(x, y)` representing the center coordinates, or `null` if the index is invalid or the element has no bounds.
      */
     fun getCenterOfElement(index: Int): Pair<Int, Int>? {
         val node = interactiveNodeMap[index] ?: return null
-        val bounds = node.attributes["bounds"] ?: return null // e.g., "[981,1304][1036,1359]"
+        val bounds = node.attributes["bounds"] ?: return null
 
-        // Regex to extract the four coordinate numbers.
         val regex = """\[(\d+),(\d+)\]\[(\d+),(\d+)\]""".toRegex()
         val matchResult = regex.find(bounds) ?: return null
 
@@ -200,11 +208,8 @@ class SemanticParser {
         }
     }
 
-
-    // --- Original Public API (Maintained) ---
-
     /**
-     * The main public method to parse and filter the XML string, returning a filtered XML.
+     * A legacy method to parse and filter the XML string, returning a filtered XML string.
      *
      * @param xmlString The raw XML dump of the screen hierarchy.
      * @return A filtered XML string containing only the essential nodes.
@@ -219,10 +224,8 @@ class SemanticParser {
         return toXmlString(rootNode)
     }
 
-    // --- Private Helper Functions ---
-
     /**
-     * Recursively builds the hierarchical string for the new format.
+     * Recursively builds the hierarchical string representation.
      */
     private fun buildHierarchicalStringRecursive(
         node: XmlNode,
@@ -246,7 +249,6 @@ class SemanticParser {
             val extraInfo = node.extraInfo
             val className = (node.attributes["class"] ?: "").removePrefix("android.")
 
-            // Format: [1] text:"<text>" <resource-id> <ExtraInfo> <class_name>
             builder.append("$indent$newMarker[$interactiveElementCounter] ")
                 .append("text:\"$text\" ")
                 .append("<$resourceId> ")
@@ -262,45 +264,47 @@ class SemanticParser {
             }
         }
 
-        // Recurse for children
+        // Recurse for children.
         node.children.forEach { child ->
             buildHierarchicalStringRecursive(child, indentLevel + 1, builder, previousNodes)
         }
     }
 
     /**
-     * Recursively prunes the tree. It removes nodes that are not semantically important
-     * and promotes their children to maintain the hierarchy.
+     * Recursively prunes the UI tree to remove noise.
+     *
+     * It removes nodes that are not visible or semantically important, and it promotes their
+     * children to maintain the hierarchy. This simplifies the tree for the LLM.
      *
      * @param node The current node to process.
      * @return A list of nodes to be kept. If the current node is kept, it's a single-element
-     * list. If it's removed, it's the list of its promoted children.
+     * list. If it's removed, the list contains its children that are to be promoted.
      */
     private fun prune(node: XmlNode): List<XmlNode> {
-        // 1. Recursively process children and collect the promoted results.
         val newChildren = node.children.flatMap { prune(it) }
         node.children.clear()
         node.children.addAll(newChildren)
         newChildren.forEach { it.parent = node }
+
         if (!node.isVisibleOnScreen(screenWidth, screenHeight)) {
             return node.children
         }
-        // 2. Decide what to do with the current node.
+
         return if (node.isSemanticallyImportant() || node.isInteractive() || node.children.isNotEmpty()) {
-            // Keep this node. Its (potentially promoted) children are already attached.
+            // Keep this node.
             listOf(node)
         } else {
-            // This node is not important and has no important descendants.
-            // Discard it and promote its children up to its parent.
+            // This node is not important. Discard it and promote its children.
             node.children
         }
     }
 
     /**
-     * Traverses the raw XML string and builds a tree of [XmlNode] objects.
+     * Traverses the raw XML string using [XmlPullParser] and builds a tree of [XmlNode] objects.
+     * @param xmlString The raw XML from the accessibility service.
+     * @return The root [XmlNode] of the parsed tree, or null on failure.
      */
     private fun buildTreeFromXml(xmlString: String): XmlNode? {
-        // Replace non-breaking spaces with regular spaces to prevent parsing issues.
         val cleanedXml = xmlString.replace('\u00A0', ' ')
 
         val factory = XmlPullParserFactory.newInstance()
@@ -314,7 +318,6 @@ class SemanticParser {
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
                 XmlPullParser.START_TAG -> {
-                    // We only care about tags named "node"
                     if (parser.name == "node") {
                         val newNode = XmlNode()
                         for (i in 0 until parser.attributeCount) {
@@ -343,18 +346,17 @@ class SemanticParser {
     }
 
     /**
-     * Converts the final tree back to a formatted XML string.
+     * Converts a pruned tree of [XmlNode]s back to a formatted XML string.
+     * Used by the legacy `parseAndFilter` method.
      */
     private fun toXmlString(root: XmlNode): String {
         val stringBuilder = StringBuilder()
-        // The root itself is usually <hierarchy>, let's start with its attributes
         stringBuilder.append("<hierarchy")
         root.attributes.forEach { (key, value) ->
             stringBuilder.append(" ").append(key).append("=\"").append(escapeXml(value)).append("\"")
         }
         stringBuilder.appendLine(">")
 
-        // Recursively build string for all children of the root.
         root.children.forEach { child ->
             buildXmlStringRecursive(child, stringBuilder, 1)
         }
@@ -363,11 +365,13 @@ class SemanticParser {
         return stringBuilder.toString()
     }
 
+    /**
+     * Recursively builds the XML string for a node and its children.
+     */
     private fun buildXmlStringRecursive(node: XmlNode, builder: StringBuilder, indentLevel: Int) {
         val indent = "  ".repeat(indentLevel)
         builder.append(indent).append("<node")
 
-        // Append attributes
         node.attributes.forEach { (key, value) ->
             builder.append(" ").append(key).append("=\"").append(escapeXml(value)).append("\"")
         }
@@ -383,6 +387,9 @@ class SemanticParser {
         }
     }
 
+    /**
+     * Escapes special characters in a string for safe inclusion in XML.
+     */
     private fun escapeXml(text: String): String {
         return text
             .replace("&", "&amp;")

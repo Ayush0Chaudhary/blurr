@@ -1,43 +1,53 @@
+/**
+ * @file ConversationalAgentService.kt
+ * @brief Defines the main background service for the V1 voice-first conversational agent.
+ *
+ * This file contains the `ConversationalAgentService`, a complex, long-running service that
+ * orchestrates the entire voice-first user experience. It manages the conversation loop,
+ * handles STT/TTS, displays various UI overlays (like the wave visualizer and transcription),
+ * checks if tasks need clarification, and delegates autonomous task execution to the V2 `AgentService`.
+ * It also integrates with Firebase for analytics and conversation history tracking.
+ */
 package com.blurr.voice
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
-import android.animation.ValueAnimator
-import android.app.PendingIntent
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.blurr.voice.api.Eyes
-//import com.blurr.voice.services.AgentTaskService
-import com.blurr.voice.utilities.SpeechCoordinator
-import android.os.Handler
-import android.os.Looper
-import android.view.Gravity
-import android.widget.TextView
-import androidx.annotation.RequiresApi
 import androidx.core.graphics.toColorInt
 import com.blurr.voice.agents.ClarificationAgent
-import com.blurr.voice.utilities.TTSManager
-import com.blurr.voice.utilities.addResponse
-import com.blurr.voice.utilities.getReasoningModelApiResponse
+import com.blurr.voice.api.Eyes
 import com.blurr.voice.data.MemoryManager
 import com.blurr.voice.utilities.FreemiumManager
+import com.blurr.voice.utilities.ServicePermissionManager
+import com.blurr.voice.utilities.SpeechCoordinator
+import com.blurr.voice.utilities.TTSManager
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
+import com.blurr.voice.utilities.addResponse
+import com.blurr.voice.utilities.getReasoningModelApiResponse
 import com.blurr.voice.v2.AgentService
 import com.google.ai.client.generativeai.type.TextPart
 import com.google.firebase.Firebase
@@ -46,7 +56,6 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.analytics
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
-import com.blurr.voice.utilities.ServicePermissionManager
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +65,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
-
+/**
+ * Represents the structured decision parsed from the LLM's JSON response.
+ * This dictates the agent's next action, whether it's replying, starting a task, or ending the conversation.
+ *
+ * @property type The type of action to take. Must be one of "Reply", "Task", or "KillTask".
+ * @property reply The text to speak to the user.
+ * @property instruction For "Task" types, the specific instruction for the V2 agent.
+ * @property shouldEnd `true` if the conversation should terminate after this action.
+ */
 data class ModelDecision(
     val type: String = "Reply",
     val reply: String,
@@ -64,8 +81,21 @@ data class ModelDecision(
     val shouldEnd: Boolean = false
 )
 
+/**
+ * The primary background service for the V1 conversational agent.
+ *
+ * This service is the orchestrator for the voice-first experience. It runs as a foreground service
+ * to ensure it is not killed by the OS. Its responsibilities include:
+ * - Managing the main conversation loop (listen -> process -> speak -> listen).
+ * - Handling both voice and text input.
+ * - Using `SpeechCoordinator` for STT/TTS operations.
+ * - Displaying and managing UI overlays (`VisualFeedbackManager`) for visual feedback.
+ * - Parsing LLM responses into structured `ModelDecision` objects.
+ * - Running a clarification flow to resolve ambiguous tasks.
+ * - Delegating autonomous tasks to the `AgentService` (V2 agent).
+ * - Tracking analytics and conversation history with Firebase.
+ */
 class ConversationalAgentService : Service() {
-
 
     private val speechCoordinator by lazy { SpeechCoordinator.getInstance(this) }
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -87,16 +117,14 @@ class ConversationalAgentService : Service() {
     private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     private val memoryManager by lazy { MemoryManager.getInstance(this) }
-    private val usedMemories = mutableSetOf<String>() // Track memories already used in this conversation
-    private var hasHeardFirstUtterance = false // Track if we've received the first user utterance
+    private val usedMemories = mutableSetOf<String>()
+    private var hasHeardFirstUtterance = false
     private lateinit var firebaseAnalytics: FirebaseAnalytics
     private val eyes by lazy { Eyes(this) }
     
-    // Firebase instances for conversation tracking
     private val db = Firebase.firestore
     private val auth = Firebase.auth
-    private var conversationId: String? = null // Track current conversation session
-
+    private var conversationId: String? = null
 
     companion object {
         const val NOTIFICATION_ID = 3
@@ -106,41 +134,42 @@ class ConversationalAgentService : Service() {
         const val MEMORY_ENABLED = false
     }
 
+    /**
+     * Called when the service is first created.
+     * Initializes all components, resets state, and sets up the initial UI.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate() {
         super.onCreate()
         Log.d("ConvAgent", "Service onCreate")
         
-        // Initialize Firebase Analytics
         firebaseAnalytics = Firebase.analytics
-        
-        // Track service creation
         firebaseAnalytics.logEvent("conversational_agent_started", null)
         
         isRunning = true
         createNotificationChannel()
         initializeConversation()
         ttsManager.setCaptionsEnabled(true)
-        clarificationAttempts = 0 // Reset clarification attempts counter
-        sttErrorAttempts = 0 // Reset STT error attempts counter
-        usedMemories.clear() // Clear used memories for new conversation
-        hasHeardFirstUtterance = false // Reset first utterance flag
+        clarificationAttempts = 0
+        sttErrorAttempts = 0
+        usedMemories.clear()
+        hasHeardFirstUtterance = false
         visualFeedbackManager.showTtsWave()
         showInputBoxIfNeeded()
-        visualFeedbackManager.showSpeakingOverlay() // <-- ADD THIS LINE
-
-
+        visualFeedbackManager.showSpeakingOverlay()
     }
 
+    /**
+     * Displays the text input box overlay.
+     * Wires up callbacks for when the user activates text mode, submits text, or taps outside.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     private fun showInputBoxIfNeeded() {
         visualFeedbackManager.showInputBox(
             onActivated = {
-                // This is called when the user taps the EditText
                 enterTextMode()
             },
             onSubmit = { submittedText ->
-                // This is the existing callback for when text is submitted
                 processUserInput(submittedText)
             },
             onOutsideTap = {
@@ -152,24 +181,26 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Call this when the user starts interacting with the text input.
-     * It stops any ongoing voice interaction.
+     * Activates text input mode.
+     * This stops any ongoing voice interaction (STT/TTS) and hides voice-related UI.
      */
     private fun enterTextMode() {
         if (isTextModeActive) return
         Log.d("ConvAgent", "Entering Text Mode. Stopping STT/TTS.")
         
-        // Track text mode activation
         firebaseAnalytics.logEvent("text_mode_activated", null)
         
         isTextModeActive = true
         speechCoordinator.stopListening()
         speechCoordinator.stopSpeaking()
-        // Optionally hide the transcription view since user is typing
         visualFeedbackManager.hideTranscription()
     }
 
-
+    /**
+     * Called every time the service is started.
+     * Handles incoming intents, checks for required permissions, starts the foreground notification,
+     * and initiates the conversation loop.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("ConvAgent", "Service onStartCommand")
@@ -180,7 +211,6 @@ class ConversationalAgentService : Service() {
             return START_NOT_STICKY
         }
         
-        // Check if we have the required RECORD_AUDIO permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             Log.e("ConvAgent", "RECORD_AUDIO permission not granted. Cannot start foreground service.")
             Toast.makeText(this, "Microphone permission required for voice assistant", Toast.LENGTH_LONG).show()
@@ -193,7 +223,7 @@ class ConversationalAgentService : Service() {
         } catch (e: SecurityException) {
             serviceScope.launch {
                 speechCoordinator.speakText("Hello, please give microphone permission or some other type of permission you have not given me! My code is open source, so you can check that out if you have any doubts.")
-                delay(2000) // Wait for TTS to complete before closing service
+                delay(2000)
                 stopSelf()
             }
             Log.e("ConvAgent", "Failed to start foreground service: ${e.message}")
@@ -211,11 +241,9 @@ class ConversationalAgentService : Service() {
             return START_NOT_STICKY
         }
 
-        // Track conversation initiation
         firebaseAnalytics.logEvent("conversation_initiated", null)
         trackConversationStart()
 
-        // Skip greeting and start listening immediately
         serviceScope.launch {
             Log.d("ConvAgent", "Starting immediate listening (no greeting)")
             startImmediateListening()
@@ -224,8 +252,8 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Gets a personalized greeting using the user's name from memories if available
-     * NOTE: This method is kept for potential future use but no longer called on startup
+     * Gets a personalized greeting using the user's name from memories.
+     * NOTE: This method is kept for potential future use but is not currently called on startup.
      */
     private fun getPersonalizedGreeting(): String {
         try {
@@ -239,32 +267,30 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Starts listening immediately without speaking any greeting or performing memory extraction
-     * Memory extraction will be deferred until after the first user utterance
+     * Starts the STT listener immediately without speaking a greeting.
+     * Memory extraction is deferred until after the first user utterance is received.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun startImmediateListening() {
         Log.d("ConvAgent", "Starting immediate listening without greeting")
         
-        // Check if we are in text mode before starting to listen
         if (isTextModeActive) {
             Log.d("ConvAgent", "In text mode, ensuring input box is visible and skipping voice listening.")
             mainHandler.post {
-                showInputBoxIfNeeded() // Re-show the input box for the next turn.
+                showInputBoxIfNeeded()
             }
-            return // Skip starting the voice listener entirely.
+            return
         }
         
         speechCoordinator.startListening(
             onResult = { recognizedText ->
-                if (isTextModeActive) return@startListening // Ignore results in text mode
+                if (isTextModeActive) return@startListening
                 Log.d("ConvAgent", "Final user transcription: $recognizedText")
                 visualFeedbackManager.updateTranscription(recognizedText)
                 mainHandler.postDelayed({
                     visualFeedbackManager.hideTranscription()
                 }, 500)
                 
-                // Mark that we've heard the first utterance and trigger memory extraction
                 if (!hasHeardFirstUtterance) {
                     hasHeardFirstUtterance = true
                     Log.d("ConvAgent", "First utterance received, triggering memory extraction")
@@ -273,7 +299,6 @@ class ConversationalAgentService : Service() {
                             updateSystemPromptWithMemories()
                         } catch (e: Exception) {
                             Log.e("ConvAgent", "Error during first utterance memory extraction", e)
-                            // Continue execution even if memory extraction fails
                         }
                     }
                 }
@@ -282,9 +307,8 @@ class ConversationalAgentService : Service() {
             },
             onError = { error ->
                 Log.e("ConvAgent", "STT Error: $error")
-                if (isTextModeActive) return@startListening // Ignore errors in text mode
+                if (isTextModeActive) return@startListening
                 
-                // Track STT errors
                 val sttErrorBundle = android.os.Bundle().apply {
                     putString("error_message", error.take(100))
                     putInt("error_attempt", sttErrorAttempts + 1)
@@ -307,23 +331,27 @@ class ConversationalAgentService : Service() {
                 }
             },
             onPartialResult = { partialText ->
-                if (isTextModeActive) return@startListening // Ignore partial results in text mode
+                if (isTextModeActive) return@startListening
                 visualFeedbackManager.updateTranscription(partialText)
             },
             onListeningStateChange = { listening ->
                 Log.d("ConvAgent", "Listening state: $listening")
                 if (listening) {
-                    if (isTextModeActive) return@startListening // Ignore state changes in text mode
+                    if (isTextModeActive) return@startListening
                     visualFeedbackManager.showTranscription()
                 }
             }
         )
     }
 
-
+    /**
+     * A core function of the conversation loop. Speaks a given text and then immediately
+     * starts listening for the user's response.
+     * @param text The text for the assistant to speak.
+     * @param draw A flag to enable or disable on-screen captions for the spoken text.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun speakAndThenListen(text: String, draw: Boolean = true) {
-        // Only update system prompt with memories if we've heard the first utterance
         if (hasHeardFirstUtterance) {
             updateSystemPromptWithMemories()
         }
@@ -331,25 +359,22 @@ class ConversationalAgentService : Service() {
 
         speechCoordinator.speakText(text)
         Log.d("ConvAgent", "Panda said: $text")
-        // --- CHANGE 4: Check if we are in text mode before starting to listen ---
         if (isTextModeActive) {
             Log.d("ConvAgent", "In text mode, ensuring input box is visible and skipping voice listening.")
-            // Post to main handler to ensure UI operations are on the main thread.
             mainHandler.post {
-                showInputBoxIfNeeded() // Re-show the input box for the next turn.
+                showInputBoxIfNeeded()
             }
-            return // IMPORTANT: Skip starting the voice listener entirely.
+            return
         }
         speechCoordinator.startListening(
             onResult = { recognizedText ->
-                if (isTextModeActive) return@startListening // Ignore errors in text mode
+                if (isTextModeActive) return@startListening
                 Log.d("ConvAgent", "Final user transcription: $recognizedText")
                 visualFeedbackManager.updateTranscription(recognizedText)
                 mainHandler.postDelayed({
                     visualFeedbackManager.hideTranscription()
                 }, 500)
                 
-                // Mark that we've heard the first utterance and trigger memory extraction if not already done
                 if (!hasHeardFirstUtterance) {
                     hasHeardFirstUtterance = true
                     Log.d("ConvAgent", "First utterance received, triggering memory extraction")
@@ -358,7 +383,6 @@ class ConversationalAgentService : Service() {
                             updateSystemPromptWithMemories()
                         } catch (e: Exception) {
                             Log.e("ConvAgent", "Error during first utterance memory extraction", e)
-                            // Continue execution even if memory extraction fails
                         }
                     }
                 }
@@ -368,9 +392,8 @@ class ConversationalAgentService : Service() {
             },
             onError = { error ->
                 Log.e("ConvAgent", "STT Error: $error")
-                if (isTextModeActive) return@startListening // Ignore errors in text mode
+                if (isTextModeActive) return@startListening
                 
-                // Track STT errors
                 val sttErrorBundle = android.os.Bundle().apply {
                     putString("error_message", error.take(100))
                     putInt("error_attempt", sttErrorAttempts + 1)
@@ -392,13 +415,13 @@ class ConversationalAgentService : Service() {
                 }
             },
             onPartialResult = { partialText ->
-                if (isTextModeActive) return@startListening // Ignore errors in text mode
+                if (isTextModeActive) return@startListening
                 visualFeedbackManager.updateTranscription(partialText)
             },
             onListeningStateChange = { listening ->
                 Log.d("ConvAgent", "Listening state: $listening")
                 if (listening) {
-                    if (isTextModeActive) return@startListening // Ignore errors in text mode
+                    if (isTextModeActive) return@startListening
                     visualFeedbackManager.showTranscription()
                 }
             }
@@ -406,9 +429,11 @@ class ConversationalAgentService : Service() {
         ttsManager.setCaptionsEnabled(true)
     }
 
-    // START: ADD THESE NEW METHODS AT THE END OF THE CLASS, before onDestroy()
+    /**
+     * Displays the transcription text view overlay. (Legacy, now handled by VisualFeedbackManager).
+     */
     private fun showTranscriptionView() {
-        if (transcriptionView != null) return // Already showing
+        if (transcriptionView != null) return
 
         mainHandler.post {
             transcriptionView = TextView(this).apply {
@@ -435,7 +460,7 @@ class ConversationalAgentService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = 250 // Position it 250px above the bottom edge
+                y = 250
             }
 
             try {
@@ -447,10 +472,16 @@ class ConversationalAgentService : Service() {
         }
     }
 
+    /**
+     * Updates the text of the transcription view. (Legacy).
+     */
     private fun updateTranscriptionView(text: String) {
         transcriptionView?.text = text
     }
 
+    /**
+     * Hides the transcription text view overlay. (Legacy).
+     */
     private fun hideTranscriptionView() {
         mainHandler.post {
             transcriptionView?.let {
@@ -466,15 +497,21 @@ class ConversationalAgentService : Service() {
         }
     }
 
-
-    // --- CHANGED: Rewritten to process the new custom text format ---
+    /**
+     * The central logic hub for processing user input.
+     *
+     * This function takes the user's transcribed text, adds it to the conversation history,
+     * queries the reasoning model (LLM), parses the response, and then dispatches the
+     * appropriate action (e.g., reply, start task, kill task, clarify).
+     *
+     * @param userInput The text transcribed from the user's speech or entered via keyboard.
+     */
     @RequiresApi(Build.VERSION_CODES.R)
     private fun processUserInput(userInput: String) {
         serviceScope.launch {
             removeClarificationQuestions()
             updateSystemPromptWithAgentStatus()
             
-            // Mark that we've heard the first utterance and trigger memory extraction if not already done
             if (!hasHeardFirstUtterance) {
                 hasHeardFirstUtterance = true
                 Log.d("ConvAgent", "First utterance received via processUserInput, triggering memory extraction")
@@ -482,16 +519,13 @@ class ConversationalAgentService : Service() {
                     updateSystemPromptWithMemories()
                 } catch (e: Exception) {
                     Log.e("ConvAgent", "Error during first utterance memory extraction", e)
-                    // Continue execution even if memory extraction fails
                 }
             }
 
             conversationHistory = addResponse("user", userInput, conversationHistory)
             
-            // Track user message in Firebase
             trackMessage("user", userInput, "input")
 
-            // Track user input
             val inputBundle = android.os.Bundle().apply {
                 putString("input_type", if (isTextModeActive) "text" else "voice")
                 putInt("input_length", userInput.length)
@@ -512,9 +546,8 @@ class ConversationalAgentService : Service() {
                 Log.d("TTS_DEBUG", "Reply received from GeminiApi: -->${rawModelResponse}<--")
                 when (decision.type) {
                     "Task" -> {
-                        // Track task request
                         val taskBundle = android.os.Bundle().apply {
-                            putString("task_instruction", decision.instruction.take(100)) // Limit length for analytics
+                            putString("task_instruction", decision.instruction.take(100))
                             putBoolean("agent_already_running", AgentService.isRunning)
                         }
                         firebaseAnalytics.logEvent("task_requested", taskBundle)
@@ -534,7 +567,6 @@ class ConversationalAgentService : Service() {
                         }
 
                         Log.d("ConvAgent", "Model identified a task. Checking for clarification...")
-                        // --- NEW: Check if the task instruction needs clarification ---
                         removeClarificationQuestions()
                         if(freemiumManager.canPerformTask()){
                             Log.d("ConvAgent", "Allowance check passed. Proceeding with task.")
@@ -548,7 +580,6 @@ class ConversationalAgentService : Service() {
                                 Log.d("ConcAgent", questions.toString())
 
                                 if (needsClarification) {
-                                    // Track clarification needed
                                     val clarificationBundle = android.os.Bundle().apply {
                                         putInt("clarification_attempt", clarificationAttempts + 1)
                                         putInt("questions_count", questions.size)
@@ -576,7 +607,6 @@ class ConversationalAgentService : Service() {
                                         "Task is clear. Executing: ${decision.instruction}"
                                     )
                                     
-                                    // Track task execution
                                     firebaseAnalytics.logEvent("task_executed", taskBundle)
                                     
                                     val originalInstruction = decision.instruction
@@ -590,7 +620,6 @@ class ConversationalAgentService : Service() {
                                     "Max clarification attempts reached ($maxClarificationAttempts). Proceeding with task execution."
                                 )
                                 
-                                // Track max clarification attempts reached
                                 firebaseAnalytics.logEvent("task_executed_max_clarification", taskBundle)
                                 
                                 AgentService.start(applicationContext, decision.instruction)
@@ -600,7 +629,6 @@ class ConversationalAgentService : Service() {
                         }else{
                             Log.w("ConvAgent", "User has no tasks remaining. Denying request.")
                             
-                            // Track freemium limit reached
                             firebaseAnalytics.logEvent("task_rejected_freemium_limit", null)
                             
                             val upgradeMessage = "Hey! You've used all your free tasks for the month. Please upgrade in the app to unlock more. We can still talk in voice mode."
@@ -612,7 +640,6 @@ class ConversationalAgentService : Service() {
                     "KillTask" -> {
                         Log.d("ConvAgent", "Model requested to kill the running agent service.")
                         
-                        // Track kill task request
                         val killTaskBundle = android.os.Bundle().apply {
                             putBoolean("task_was_running", AgentService.isRunning)
                         }
@@ -629,7 +656,6 @@ class ConversationalAgentService : Service() {
                         }
                     }
                     else -> { // Default to "Reply"
-                        // Track conversational reply
                         val replyBundle = android.os.Bundle().apply {
                             putBoolean("conversation_ended", decision.shouldEnd)
                             putInt("reply_length", decision.reply.length)
@@ -652,7 +678,6 @@ class ConversationalAgentService : Service() {
             } catch (e: Exception) {
                 Log.e("ConvAgent", "Error processing user input: ${e.message}", e)
                 
-                // Track processing errors
                 val errorBundle = android.os.Bundle().apply {
                     putString("error_message", e.message?.take(100) ?: "Unknown error")
                     putString("error_type", e.javaClass.simpleName)
@@ -663,41 +688,22 @@ class ConversationalAgentService : Service() {
             }
         }
     }
-//    private suspend fun getGroundedStepsForTask(taskInstruction: String): String {
-//        Log.d("ConvAgent", "Performing grounded search for task: '$taskInstruction'")
-//
-//        // We create a specific prompt for the search.
-//        val searchPrompt = """
-//        Search the web and provide a concise, step-by-step guide for a human assistant to perform the following task on an Android phone: '$taskInstruction'.
-//        Focus on the exact taps and settings involved.
-//    """.trimIndent()
-//
-//        // Here we use the direct REST API call with search that we created previously.
-//        // We need an instance of GeminiApi to call it.
-//        // NOTE: You might need to adjust how you get your GeminiApi instance.
-//        // For now, we'll assume we can create one or access it.
-//        val geminiApi = GeminiApi("gemini-2.5-flash", ApiKeyManager, 2)
-//
-//        val searchResult = geminiApi.generateGroundedContent(searchPrompt)
-//        Log.d("CONVO_SEARCH", searchResult.toString())
-//        return if (!searchResult.isNullOrBlank()) {
-//            searchResult
-//        } else {
-//            ""
-//        }
-//    }
+    /**
+     * Uses the [ClarificationAgent] to determine if a task instruction is ambiguous and requires
+     * follow-up questions.
+     * @param instruction The task instruction from the user.
+     * @return A Pair where the first element is `true` if clarification is needed, and the second
+     * is a list of questions to ask the user.
+     */
     private suspend fun checkIfClarificationNeeded(instruction: String): Pair<Boolean, List<String>> {
         Log.d("ConvAgent", "Checking for clarification on instruction: '$instruction'")
 
-        // Use the clarificationAgent instance to analyze the instruction.
-        // The agent encapsulates all the logic for API calls and parsing.
         val result = clarificationAgent.analyze(
             instruction = instruction,
             conversationHistory = conversationHistory,
-            context = this@ConversationalAgentService // Pass the service context
+            context = this@ConversationalAgentService
         )
 
-        // Determine the final result based on the agent's analysis.
         val needsClarification = result.status == "NEEDS_CLARIFICATION" && result.questions.isNotEmpty()
 
         if (needsClarification) {
@@ -708,6 +714,12 @@ class ConversationalAgentService : Service() {
 
         return Pair(needsClarification, result.questions)
     }
+
+    /**
+     * Constructs the initial system prompt from a template.
+     * It sets up the agent's persona, guidelines, and placeholders for dynamic context
+     * like screen content and memories.
+     */
     private fun initializeConversation() {
         val memoryContextSection = if (MEMORY_ENABLED) {
             """
@@ -768,6 +780,10 @@ class ConversationalAgentService : Service() {
         conversationHistory = addResponse("user", systemPrompt, emptyList())
     }
 
+    /**
+     * Dynamically updates the system prompt to include the current status of the V2 `AgentService`.
+     * This lets the LLM know if a task is already in progress.
+     */
     private fun updateSystemPromptWithAgentStatus() {
         val currentPromptText = conversationHistory.firstOrNull()?.second
             ?.filterIsInstance<TextPart>()?.firstOrNull()?.text ?: return
@@ -784,7 +800,6 @@ class ConversationalAgentService : Service() {
 
         val updatedPromptText = currentPromptText.replace("{agent_status_context}", agentStatusContext)
 
-        // Replace the first system message with the updated prompt
         conversationHistory = conversationHistory.toMutableList().apply {
             set(0, "user" to listOf(TextPart(updatedPromptText)))
         }
@@ -792,7 +807,8 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Gets current screen context using the Eyes class
+     * Gets the current screen context using the [Eyes] class, including the current app,
+     * keyboard status, and a simplified XML representation of the view hierarchy.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun getScreenContext(): String {
@@ -801,9 +817,8 @@ class ConversationalAgentService : Service() {
             val screenXml = eyes.openXMLEyes()
             val keyboardStatus = eyes.getKeyBoardStatus()
             
-            // Track screen context usage
             val screenContextBundle = android.os.Bundle().apply {
-                putString("current_app", currentApp.take(50)) // Limit length for analytics
+                putString("current_app", currentApp.take(50))
                 putBoolean("keyboard_visible", keyboardStatus)
                 putInt("screen_xml_length", screenXml.length)
             }
@@ -818,7 +833,6 @@ class ConversationalAgentService : Service() {
         } catch (e: Exception) {
             Log.e("ConvAgent", "Error getting screen context", e)
             
-            // Track screen context errors
             val errorBundle = android.os.Bundle().apply {
                 putString("error_message", e.message?.take(100) ?: "Unknown error")
                 putString("error_type", e.javaClass.simpleName)
@@ -830,30 +844,26 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Updates the system prompt with relevant memories and current screen context
+     * Enriches the system prompt with relevant memories and the current screen context.
+     * It searches for memories related to the user's last utterance and injects them into
+     * the `{memory_context}` placeholder.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun updateSystemPromptWithMemories() {
         try {
-            // Get current screen context
             val screenContext = getScreenContext()
             Log.d("ConvAgent", "Retrieved screen context: ${screenContext.take(200)}...")
             
-            // Get current prompt
             val currentPrompt = conversationHistory.first().second
                 .filterIsInstance<TextPart>()
                 .firstOrNull()?.text ?: ""
 
-            // Update screen context first
             var updatedPrompt = currentPrompt.replace("{screen_context}", screenContext)
 
-            // Check if memory is enabled before processing memories
             if (!MEMORY_ENABLED) {
                 Log.d("ConvAgent", "Memory is disabled, skipping memory operations")
-                // Replace memory context with disabled message
                 updatedPrompt = updatedPrompt.replace("{memory_context}", "Memory system is temporarily disabled")
             } else {
-                // Get the last user message to search for relevant memories
                 val lastUserMessage = conversationHistory.lastOrNull { it.first == "user" }
                     ?.second?.filterIsInstance<TextPart>()
                     ?.joinToString(" ") { it.text } ?: ""
@@ -861,51 +871,44 @@ class ConversationalAgentService : Service() {
                 if (lastUserMessage.isNotEmpty()) {
                     Log.d("ConvAgent", "Searching for memories relevant to: ${lastUserMessage.take(100)}...")
 
-                    var relevantMemories = memoryManager.searchMemories(lastUserMessage, topK = 5).toMutableList() // Get more memories to filter from
+                    var relevantMemories = memoryManager.searchMemories(lastUserMessage, topK = 5).toMutableList()
                     val nameMemories = memoryManager.searchMemories("name", topK = 2)
                     relevantMemories.addAll(nameMemories)
                     if (relevantMemories.isNotEmpty()) {
                         Log.d("ConvAgent", "Found ${relevantMemories.size} relevant memories")
 
-                        // Filter out memories that have already been used in this conversation
                         val newMemories = relevantMemories.filter { memory ->
                             !usedMemories.contains(memory)
-                        }.take(20) // Limit to top 20 new memories
+                        }.take(20)
 
                         if (newMemories.isNotEmpty()) {
                             Log.d("ConvAgent", "Adding ${newMemories.size} new memories to context")
 
-                            // Add new memories to the used set
                             newMemories.forEach { usedMemories.add(it) }
 
                             val currentMemoryContext = extractCurrentMemoryContext(updatedPrompt)
                             val allMemories = (currentMemoryContext + newMemories).distinct()
 
-                            // Update the system prompt with all memories
                             val memoryContext = allMemories.joinToString("\n") { "- $it" }
                             updatedPrompt = updatedPrompt.replace("{memory_context}", memoryContext)
 
                             Log.d("ConvAgent", "Updated system prompt with ${allMemories.size} total memories (${newMemories.size} new)")
                         } else {
                             Log.d("ConvAgent", "No new memories to add (all relevant memories already used)")
-                            // Still need to replace the placeholder if no new memories
                             val currentMemoryContext = extractCurrentMemoryContext(updatedPrompt)
                             val memoryContext = currentMemoryContext.joinToString("\n") { "- $it" }
                             updatedPrompt = updatedPrompt.replace("{memory_context}", memoryContext)
                         }
                     } else {
                         Log.d("ConvAgent", "No relevant memories found")
-                        // Replace with empty context if no memories found
                         updatedPrompt = updatedPrompt.replace("{memory_context}", "No relevant memories found")
                     }
                 } else {
-                    // Replace with empty context if no user message
                     updatedPrompt = updatedPrompt.replace("{memory_context}", "")
                 }
             }
 
             if (updatedPrompt.isNotEmpty()) {
-                // Replace the first system message with updated prompt
                 conversationHistory = conversationHistory.toMutableList().apply {
                     set(0, "user" to listOf(TextPart(updatedPrompt)))
                 }
@@ -917,7 +920,7 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Extracts current memory context from the system prompt
+     * Extracts the current memory context from the system prompt string.
      */
     private fun extractCurrentMemoryContext(prompt: String): List<String> {
         return try {
@@ -928,7 +931,7 @@ class ConversationalAgentService : Service() {
             if (memorySection.isNotEmpty() && !memorySection.contains("{memory_context}")) {
                 memorySection.lines()
                     .filter { it.trim().startsWith("- ") }
-                    .map { it.trim().substring(2) } // Remove "- " prefix
+                    .map { it.trim().substring(2) }
                     .filter { it.isNotEmpty() }
             } else {
                 emptyList()
@@ -938,18 +941,23 @@ class ConversationalAgentService : Service() {
             emptyList()
         }
     }
+
+    /**
+     * Safely parses the JSON string from the LLM into a [ModelDecision] object.
+     * Includes fallback logic to handle malformed JSON or other parsing errors.
+     * @param response The raw JSON string from the model.
+     * @return A [ModelDecision] object.
+     */
     private fun parseModelResponse(response: String): ModelDecision {
         try {
             val json = JSONObject(response)
             Log.d("justchecking", json.toString())
-            // Use optString for safety, providing a default value if the key doesn't exist.
             val type = json.optString("Type", "Reply")
             val reply = json.optString("Reply", "")
             val instruction = json.optString("Instruction", "")
             val shouldEndStr = json.optString("Should End", "Continue")
             val shouldEnd = shouldEndStr.equals("Finished", ignoreCase = true)
 
-            // Add a fallback reply if the model provides an empty one for a conversational turn.
             val finalReply = if (reply.isEmpty() && type.equals("Reply", ignoreCase = true)) {
                 "I'm not sure how to respond to that."
             } else {
@@ -959,13 +967,16 @@ class ConversationalAgentService : Service() {
             return ModelDecision(type, finalReply, instruction, shouldEnd)
         } catch (e: org.json.JSONException) {
             Log.e("ConvAgent", "Error parsing JSON response, falling back. Response: $response", e)
-            // Fallback for malformed JSON
             return ModelDecision(reply = "I seem to have gotten my thoughts tangled. Could you repeat that?")
         } catch (e: Exception) {
             Log.e("ConvAgent", "Generic error parsing model response, falling back. Response: $response", e)
             return ModelDecision(reply = "I had a minor issue processing that. Could you try again?")
         }
     }
+
+    /**
+     * Creates the foreground service notification.
+     */
     private fun createNotification(): Notification {
         val stopIntent = Intent(this, ConversationalAgentService::class.java).apply {
             action = ACTION_STOP_SERVICE
@@ -983,13 +994,16 @@ class ConversationalAgentService : Service() {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .addAction(
-                android.R.drawable.ic_media_pause, // Using built-in pause icon as stop button
+                android.R.drawable.ic_media_pause,
                 "Stop",
                 stopPendingIntent
             )
             .build()
     }
 
+    /**
+     * Creates the notification channel required for foreground services on Android 8.0+.
+     */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -1003,24 +1017,20 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Displays a list of futuristic-styled clarification questions at the top of the screen.
-     * Each question animates in from the top with a fade-in effect.
-     *
-     * @param questions The list of question strings to display.
-     */
+      * Displays a list of futuristic-styled clarification questions at the top of the screen.
+      * Each question animates in from the top with a fade-in effect.
+      *
+      * @param questions The list of question strings to display.
+      */
     private fun displayClarificationQuestions(questions: List<String>) {
         mainHandler.post {
-            // First, remove any questions that might already be on screen
-
-            val topMargin = 100 // Base margin from the very top of the screen
-            val verticalSpacing = 20 // Space between question boxes
-            var accumulatedHeight = 0 // Tracks the vertical space used by previous questions
+            val topMargin = 100
+            val verticalSpacing = 20
+            var accumulatedHeight = 0
 
             questions.forEachIndexed { index, questionText ->
-                // 1. Create and style the TextView
                 val textView = TextView(this).apply {
                     text = questionText
-                    // --- (Your existing styling code is perfect, no changes needed here) ---
                     val glowEffect = GradientDrawable(
                         GradientDrawable.Orientation.BL_TR,
                         intArrayOf("#BE63F3".toColorInt(), "#5880F7".toColorInt())
@@ -1050,41 +1060,32 @@ class ConversationalAgentService : Service() {
                 )
                 val viewHeight = textView.measuredHeight
 
-                // B. Pre-calculate the final Y position using the current accumulated height.
                 val finalYPosition = topMargin + accumulatedHeight
 
-                // C. Update accumulatedHeight for the *next* view in the loop.
                 accumulatedHeight += viewHeight + verticalSpacing
-                // **--- END OF FIX ---**
 
-
-                // 2. Prepare layout params
                 val params = WindowManager.LayoutParams(
-                    (windowManager.defaultDisplay.width * 0.9).toInt(), // 90% of screen width
+                    (windowManager.defaultDisplay.width * 0.9).toInt(),
                     WindowManager.LayoutParams.WRAP_CONTENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                     PixelFormat.TRANSLUCENT
                 ).apply {
                     gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                    // Initial animation state: off-screen at the top and fully transparent
-                    y = -viewHeight // Start above the screen
+                    y = -viewHeight
                     alpha = 0f
                 }
 
-                // 3. Add the view and start the animation
                 try {
                     windowManager.addView(textView, params)
                     clarificationQuestionViews.add(textView)
 
-                    // Animate the view from its starting position to the calculated finalYPosition
                     val animator = ValueAnimator.ofFloat(0f, 1f).apply {
                         duration = 500L
-                        startDelay = (index * 150).toLong() // Stagger animation
+                        startDelay = (index * 150).toLong()
 
                         addUpdateListener { animation ->
                             val progress = animation.animatedValue as Float
-                            // Animate Y position from its off-screen start to its final place
                             params.y = (finalYPosition * progress - viewHeight * (1 - progress)).toInt()
                             params.alpha = progress
                             windowManager.updateViewLayout(textView, params)
@@ -1117,8 +1118,14 @@ class ConversationalAgentService : Service() {
         }
     }
 
+    /**
+     * Shuts down the service gracefully.
+     * It speaks an optional exit message, extracts memories from the conversation,
+     * and then stops the service.
+     * @param exitMessage The final message to speak before shutting down.
+     * @param endReason A string indicating why the conversation ended, for analytics.
+     */
     private suspend fun gracefulShutdown(exitMessage: String? = null, endReason: String = "graceful") {
-        // Track graceful shutdown
         val shutdownBundle = android.os.Bundle().apply {
             putBoolean("had_exit_message", exitMessage != null)
             putInt("conversation_length", conversationHistory.size)
@@ -1128,8 +1135,6 @@ class ConversationalAgentService : Service() {
         }
         firebaseAnalytics.logEvent("conversation_ended_gracefully", shutdownBundle)
         
-        // Track conversation end in Firebase
-
         trackConversationEnd(endReason)
         
         visualFeedbackManager.hideTtsWave()
@@ -1139,26 +1144,22 @@ class ConversationalAgentService : Service() {
 
         if (exitMessage != null) {
                 speechCoordinator.speakText(exitMessage)
-                delay(2000) // Give TTS time to finish
+                delay(2000)
             }
-            // 1. Extract memories from the conversation before ending
             if (conversationHistory.size > 1 && MEMORY_ENABLED) {
                 Log.d("ConvAgent", "Extracting memories before shutdown.")
-//                MemoryExtractor.extractAndStoreMemories(conversationHistory, memoryManager, usedMemories)
             } else if (!MEMORY_ENABLED) {
                 Log.d("ConvAgent", "Memory disabled, skipping memory extraction.")
             }
-            // 3. Stop the service
             stopSelf()
 
     }
 
     /**
      * Immediately stops all TTS, STT, and background tasks, hides all UI, and stops the service.
-     * This is used for forceful termination, like an outside tap.
+     * This is used for forceful termination, such as when the user taps outside the UI.
      */
     private suspend fun instantShutdown() {
-        // Track instant shutdown
         val instantShutdownBundle = android.os.Bundle().apply {
             putInt("conversation_length", conversationHistory.size)
             putBoolean("text_mode_used", isTextModeActive)
@@ -1167,7 +1168,6 @@ class ConversationalAgentService : Service() {
         }
         firebaseAnalytics.logEvent("conversation_ended_instantly", instantShutdownBundle)
         
-        // Track conversation end in Firebase
         trackConversationEnd("instant")
         
         Log.d("ConvAgent", "Instant shutdown triggered by user.")
@@ -1179,10 +1179,8 @@ class ConversationalAgentService : Service() {
         visualFeedbackManager.hideInputBox()
 
         removeClarificationQuestions()
-        // Make a thread-safe copy of the conversation history.
         if (conversationHistory.size > 1 && MEMORY_ENABLED) {
             Log.d("ConvAgent", "Extracting memories before shutdown.")
-//            MemoryExtractor.extractAndStoreMemories(conversationHistory, memoryManager, usedMemories)
         } else if (!MEMORY_ENABLED) {
             Log.d("ConvAgent", "Memory disabled, skipping memory extraction.")
         }
@@ -1192,8 +1190,7 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Tracks the conversation start in Firebase by creating a new conversation entry.
-     * This method is inspired by AgentService's Firebase operations.
+     * Tracks the start of a conversation in Firebase by creating a new conversation entry.
      */
     private fun trackConversationStart() {
         val currentUser = auth.currentUser
@@ -1202,7 +1199,6 @@ class ConversationalAgentService : Service() {
             return
         }
 
-        // Generate a unique conversation ID
         conversationId = "${System.currentTimeMillis()}_${currentUser.uid.take(8)}"
 
         serviceScope.launch {
@@ -1215,12 +1211,11 @@ class ConversationalAgentService : Service() {
                     "textModeUsed" to false,
                     "clarificationAttempts" to 0,
                     "sttErrorAttempts" to 0,
-                    "endReason" to null, // "graceful", "instant", "command", "model", "stt_errors"
+                    "endReason" to null,
                     "tasksRequested" to 0,
                     "tasksExecuted" to 0
                 )
 
-                // Append the conversation to the user's conversationHistory array
                 db.collection("users").document(currentUser.uid)
                     .update("conversationHistory", FieldValue.arrayUnion(conversationEntry))
                     .await()
@@ -1228,14 +1223,16 @@ class ConversationalAgentService : Service() {
                 Log.d("ConvAgent", "Successfully tracked conversation start in Firebase for user ${currentUser.uid}: $conversationId")
             } catch (e: Exception) {
                 Log.e("ConvAgent", "Failed to track conversation start in Firebase", e)
-                // Don't fail the conversation if Firebase tracking fails
             }
         }
     }
 
     /**
-     * Tracks individual messages in the conversation.
-     * Fire and forget operation.
+     * Tracks an individual message in the current conversation in Firebase.
+     * This is a fire-and-forget operation.
+     * @param role The role of the message author ("user" or "model").
+     * @param message The content of the message.
+     * @param messageType The type of message (e.g., "text", "task", "clarification").
      */
     private fun trackMessage(role: String, message: String, messageType: String = "text") {
         val currentUser = auth.currentUser
@@ -1247,14 +1244,13 @@ class ConversationalAgentService : Service() {
             try {
                 val messageEntry = hashMapOf(
                     "conversationId" to conversationId,
-                    "role" to role, // "user" or "model"
-                    "message" to message.take(500), // Limit message length for storage
-                    "messageType" to messageType, // "text", "task", "clarification"
+                    "role" to role,
+                    "message" to message.take(500),
+                    "messageType" to messageType,
                     "timestamp" to Timestamp.now(),
                     "inputMode" to if (isTextModeActive) "text" else "voice"
                 )
 
-                // Append the message to the user's messageHistory array
                 db.collection("users").document(currentUser.uid)
                     .update("messageHistory", FieldValue.arrayUnion(messageEntry))
                     .await()
@@ -1267,8 +1263,11 @@ class ConversationalAgentService : Service() {
     }
 
     /**
-     * Updates the conversation completion status in Firebase.
-     * Fire and forget operation.
+     * Updates the conversation record in Firebase with completion details.
+     * This is a fire-and-forget operation.
+     * @param endReason A string indicating why the conversation ended.
+     * @param tasksRequested The number of tasks requested during the conversation.
+     * @param tasksExecuted The number of tasks executed.
      */
     private fun trackConversationEnd(endReason: String, tasksRequested: Int = 0, tasksExecuted: Int = 0) {
         val currentUser = auth.currentUser
@@ -1291,7 +1290,6 @@ class ConversationalAgentService : Service() {
                     "status" to "completed"
                 )
 
-                // Append the completion status to the user's conversationHistory array
                 db.collection("users").document(currentUser.uid)
                     .update("conversationHistory", FieldValue.arrayUnion(completionEntry))
                     .await()
@@ -1303,14 +1301,16 @@ class ConversationalAgentService : Service() {
         }
     }
 
+    /**
+     * Called when the service is being destroyed.
+     * Ensures all resources are released, coroutines are cancelled, and UI overlays are removed.
+     */
     override fun onDestroy() {
         super.onDestroy()
         Log.d("ConvAgent", "Service onDestroy")
         
-        // Track service destruction
         firebaseAnalytics.logEvent("conversational_agent_destroyed", null)
         
-        // Track conversation end if not already tracked
         if (conversationId != null) {
             trackConversationEnd("service_destroyed")
         }
@@ -1319,8 +1319,7 @@ class ConversationalAgentService : Service() {
         serviceScope.cancel()
         ttsManager.setCaptionsEnabled(false)
         isRunning = false
-        visualFeedbackManager.hideSpeakingOverlay() // <-- ADD THIS LINE
-        // USE the new manager to hide the wave and transcription view
+        visualFeedbackManager.hideSpeakingOverlay()
         visualFeedbackManager.hideTtsWave()
         visualFeedbackManager.hideTranscription()
         visualFeedbackManager.hideInputBox()

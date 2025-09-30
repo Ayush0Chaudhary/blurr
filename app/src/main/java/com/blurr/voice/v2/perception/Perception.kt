@@ -1,3 +1,11 @@
+/**
+ * @file Perception.kt
+ * @brief The main coordinator for the agent's screen perception module.
+ *
+ * This file contains the `Perception` class, which serves as the entry point for the "SENSE"
+ * part of the agent's loop. It uses various components to observe and analyze the device
+ * screen to create a structured understanding of the current state.
+ */
 package com.blurr.voice.v2.perception
 
 import android.os.Build
@@ -5,15 +13,19 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import com.blurr.voice.RawScreenData
 import com.blurr.voice.api.Eyes
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
- * The Perception module is responsible for observing the device screen and
- * creating a structured analysis of the current state.
+ * The Perception module, responsible for observing the device screen and creating a
+ * structured analysis of its current state.
  *
- * @param eyes An instance of the Eyes class to see the screen (XML, screenshot).
- * @param semanticParser An instance of the SemanticParser to make sense of the XML.
+ * This class orchestrates the process of "seeing" the screen. It uses the [Eyes] component
+ * to capture raw data (like the accessibility node hierarchy) and the [SemanticParser] to
+ * transform that data into a structured, LLM-friendly format.
+ *
+ * @param eyes An instance of the [Eyes] class, which provides access to raw screen data.
+ * @param semanticParser An instance of the [SemanticParser] used to process the raw XML hierarchy.
  */
 @RequiresApi(Build.VERSION_CODES.R)
 class Perception(
@@ -22,62 +34,78 @@ class Perception(
 ) {
 
     /**
-     * Analyzes the current screen to produce a comprehensive ScreenAnalysis object.
-     * This is the main entry point for this module.
+     * Analyzes the current screen to produce a comprehensive [ScreenAnalysis] object.
      *
-     * It performs multiple observation actions concurrently for efficiency.
+     * This is the main entry point for the perception module. It concurrently fetches various
+     * pieces of screen data (XML, keyboard status, activity name) for efficiency and then
+     * synthesizes them into a single [ScreenAnalysis] object. This object contains a
+     * simplified UI representation for the LLM, a map of elements for interaction, and other
+     * relevant metadata.
      *
-     * @param previousState An optional set of node identifiers from the previous state,
-     * used to detect new UI elements.
-     * @return A ScreenAnalysis object containing the complete state of the screen.
+     * @param previousState An optional set of node identifiers from the previous state, which can be
+     * used by the [SemanticParser] to detect new or changed UI elements.
+     * @return A [ScreenAnalysis] object containing the complete state of the screen.
      */
     suspend fun analyze(previousState: Set<String>? = null): ScreenAnalysis {
         return coroutineScope {
-//        val screenshotDeferred = async { eyes.openEyes() }
-        val rawDataDeferred = async { eyes.getRawScreenData() }
-        val keyboardStatusDeferred = async { eyes.getKeyBoardStatus() }
-        val currentActivity = async { eyes.getCurrentActivityName() }
-//        val screenshot = screenshotDeferred.await()
-        val rawData = rawDataDeferred.await() ?: RawScreenData(
-            "<hierarchy error=\"service not available\"/>", 0, 0, 0,0
-        )
-        val isKeyboardOpen = keyboardStatusDeferred.await()
+            val rawDataDeferred = async { eyes.getRawScreenData() }
+            val keyboardStatusDeferred = async { eyes.getKeyBoardStatus() }
+            val currentActivity = async { eyes.getCurrentActivityName() }
 
-        // Assume you have a way to get this
-        val activityName = currentActivity.await()
+            val rawData = rawDataDeferred.await() ?: RawScreenData(
+                xml = "<hierarchy error=\"service not available\"/>",
+                pixelsAbove = 0,
+                pixelsBelow = 0,
+                screenWidth = 0,
+                screenHeight = 0
+            )
+            val isKeyboardOpen = keyboardStatusDeferred.await()
+            val activityName = currentActivity.await()
 
-        // Parse the XML from the raw data
-        Log.d("ScreenAnal", rawData.xml)
-        val parseResult = semanticParser.toHierarchicalString(rawData.xml, previousState, rawData.screenWidth, rawData.screenHeight)
-        var uiRepresentation = parseResult.first
-        val elementMap = parseResult.second
+            // Parse the XML from the raw data.
+            Log.d("ScreenAnal", rawData.xml)
+            val (uiRepresentation, elementMap) = semanticParser.toHierarchicalString(
+                rawData.xml,
+                previousState,
+                rawData.screenWidth,
+                rawData.screenHeight
+            )
 
+            val finalUiRepresentation = addScrollIndicators(uiRepresentation, rawData)
+
+            ScreenAnalysis(
+                uiRepresentation = finalUiRepresentation,
+                isKeyboardOpen = isKeyboardOpen,
+                activityName = activityName,
+                elementMap = elementMap,
+                scrollUp = rawData.pixelsAbove,
+                scrollDown = rawData.pixelsBelow
+            )
+        }
+    }
+
+    /**
+     * Adds "scroll up/down" indicators to the UI representation string.
+     */
+    private fun addScrollIndicators(uiString: String, rawData: RawScreenData): String {
+        var representation = uiString
         val hasContentAbove = rawData.pixelsAbove > 0
         val hasContentBelow = rawData.pixelsBelow > 0
 
-        if (uiRepresentation.isNotBlank()) {
-            if (hasContentAbove) {
-                uiRepresentation = "... ${rawData.pixelsAbove} pixels above - scroll up to see more ...\n$uiRepresentation"
+        if (representation.isNotBlank()) {
+            representation = if (hasContentAbove) {
+                "... ${rawData.pixelsAbove} pixels above - scroll up to see more ...\n$representation"
             } else {
-                uiRepresentation = "[Start of page]\n$uiRepresentation"
+                "[Start of page]\n$representation"
             }
-            if (hasContentBelow) {
-                uiRepresentation = "$uiRepresentation\n... ${rawData.pixelsBelow} pixels below - scroll down to see more ..."
+            representation = if (hasContentBelow) {
+                "$representation\n... ${rawData.pixelsBelow} pixels below - scroll down to see more ..."
             } else {
-                uiRepresentation = "$uiRepresentation\n[End of page]"
+                "$representation\n[End of page]"
             }
         } else {
-            uiRepresentation = "The screen is empty or contains no interactive elements."
+            representation = "The screen is empty or contains no interactive elements."
         }
-
-        ScreenAnalysis(
-            uiRepresentation = uiRepresentation, // The newly formatted string
-            isKeyboardOpen = isKeyboardOpen,
-            activityName = activityName,
-            elementMap = elementMap,
-            scrollUp = rawData.pixelsAbove, // Store the raw numbers
-            scrollDown = rawData.pixelsBelow  // Store the raw numbers
-        )
-    }
+        return representation
     }
 }

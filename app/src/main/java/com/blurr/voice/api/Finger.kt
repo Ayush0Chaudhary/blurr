@@ -1,3 +1,12 @@
+/**
+ * @file Finger.kt
+ * @brief Defines the Finger class, which provides an API for simulating user touch interactions and device navigation.
+ *
+ * This file contains the implementation of the Finger class, which acts as a high-level interface
+ * for performing actions like tapping, swiping, typing, and navigating the Android OS. It relies
+ * on the [ScreenInteractionService] (an Accessibility Service) to execute these actions without
+ * requiring root access.
+ */
 package com.blurr.voice.api
 
 import android.content.Context
@@ -8,14 +17,22 @@ import androidx.annotation.RequiresApi
 import com.blurr.voice.ScreenInteractionService
 
 /**
- * A rewritten Finger class that uses the AccessibilityService for all actions,
- * requiring no root access.
+ * Simulates user "finger" interactions with the device screen and system.
+ *
+ * This class provides a set of methods to programmatically control the device,
+ * abstracting the underlying calls to the [ScreenInteractionService]. It allows the agent
+ * to perform gestures, type text, and navigate the system UI.
+ *
+ * @param context The Android application context, used for operations like launching intents.
  */
 class Finger(private val context: Context) {
 
     private val TAG = "Finger (Accessibility)"
 
-    // A helper to safely get the service instance
+    /**
+     * A private computed property to safely get the singleton instance of the [ScreenInteractionService].
+     * Logs an error if the service is not available.
+     */
     private val service: ScreenInteractionService?
         get() {
             val instance = ScreenInteractionService.instance
@@ -26,14 +43,16 @@ class Finger(private val context: Context) {
         }
 
     /**
-     * Starts the ChatActivity within the app using a standard Android Intent.
+     * Starts the ChatActivity within the app, passing a custom message.
+     *
+     * @param message The message to be passed to the ChatActivity via an intent extra.
      */
     fun goToChatRoom(message: String) {
         Log.d(TAG, "Opening ChatActivity with message: $message")
         try {
             val intent = Intent().apply {
                 // Use the app's own context to find the activity class
-                setClassName(context, "com.blurr.app.ChatActivity")
+                setClassName(context, "com.blurr.voice.ChatActivity")
                 putExtra("custom_message", message)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -44,11 +63,13 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Opens an app directly using package manager (requires QUERY_ALL_PACKAGES permission).
-     * This method is intended for debugging purposes only and should be disabled in production.
-     * 
-     * @param packageName The package name of the app to open
-     * @return true if the app was successfully launched, false otherwise
+     * Opens an application using its package name.
+     *
+     * This method uses the package manager to find and launch the main intent for the given package.
+     * Note: This may require the `QUERY_ALL_PACKAGES` permission on newer Android versions.
+     *
+     * @param packageName The package name of the app to open (e.g., "com.android.chrome").
+     * @return `true` if the app was successfully launched, `false` otherwise.
      */
     fun openApp(packageName: String): Boolean {
         Log.d(TAG, "Attempting to open app with package: $packageName")
@@ -72,7 +93,12 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Launch an arbitrary intent safely.
+     * Launches an arbitrary [Intent] safely.
+     *
+     * Adds the `FLAG_ACTIVITY_NEW_TASK` flag before starting the activity.
+     *
+     * @param intent The intent to launch.
+     * @return `true` if the intent was launched successfully, `false` otherwise.
      */
     fun launchIntent(intent: Intent): Boolean {
         return try {
@@ -86,7 +112,10 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Taps a point on the screen.
+     * Taps a specific coordinate on the screen.
+     *
+     * @param x The x-coordinate of the tap location.
+     * @param y The y-coordinate of the tap location.
      */
     fun tap(x: Int, y: Int) {
         Log.d(TAG, "Tapping at ($x, $y)")
@@ -94,16 +123,24 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Performs a long press (press and hold) at a specific point on the screen.
+     * Performs a long press (press and hold) at a specific coordinate on the screen.
+     *
+     * @param x The x-coordinate of the long press location.
+     * @param y The y-coordinate of the long press location.
      */
     fun longPress(x: Int, y: Int) {
         Log.d(TAG, "Long pressing at ($x, $y)")
-        // This assumes your ScreenInteractionService has a method `longClickOnPoint`
         service?.longClickOnPoint(x.toFloat(), y.toFloat())
     }
 
     /**
-     * Swipes between two points on the screen.
+     * Swipes from a starting coordinate to an ending coordinate.
+     *
+     * @param x1 The starting x-coordinate.
+     * @param y1 The starting y-coordinate.
+     * @param x2 The ending x-coordinate.
+     * @param y2 The ending y-coordinate.
+     * @param duration The duration of the swipe gesture in milliseconds.
      */
     fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, duration: Int = 1000) {
         Log.d(TAG, "Swiping from ($x1, $y1) to ($x2, $y2)")
@@ -111,7 +148,12 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Types text i)nto the focused input field. This is now much more efficient.
+     * Types the given text into the currently focused input field.
+     *
+     * After typing, this method automatically triggers an 'Enter' action.
+     * Requires Android R (API level 30) or higher.
+     *
+     * @param text The text to be typed.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     fun type(text: String) {
@@ -121,7 +163,10 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Simulates pressing the 'Enter' key.
+     * Simulates pressing the 'Enter' key on the keyboard.
+     *
+     * This is useful for submitting forms or adding new lines in a text field.
+     * Requires Android R (API level 30) or higher.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     fun enter() {
@@ -130,7 +175,7 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Navigates back.
+     * Triggers the global 'Back' navigation action.
      */
     fun back() {
         Log.d(TAG, "Performing 'Back' action")
@@ -138,7 +183,7 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Goes to the home screen.
+     * Triggers the global 'Home' action, returning to the device's home screen.
      */
     fun home() {
         Log.d(TAG, "Performing 'Home' action")
@@ -146,18 +191,20 @@ class Finger(private val context: Context) {
     }
 
     /**
-     * Opens the app switcher (recents).
+     * Opens the recent apps switcher.
      */
     fun switchApp() {
         Log.d(TAG, "Performing 'App Switch' action")
         service?.performRecents()
     }
+
     /**
-     * Scrolls the screen down by a given number of pixels.
-     * This performs a swipe from bottom to top.
+     * Scrolls the content of the screen upwards by a specified amount, revealing content below.
      *
-     * @param pixels The number of pixels to scroll.
-     * @param duration The duration of the swipe in milliseconds.
+     * This is achieved by performing a swipe gesture from bottom to top.
+     *
+     * @param pixels The vertical distance in pixels to scroll.
+     * @param duration The duration of the scroll gesture in milliseconds.
      */
     fun scrollUp(pixels: Int, duration: Int = 500) {
         val displayMetrics = context.resources.displayMetrics
@@ -171,16 +218,17 @@ class Finger(private val context: Context) {
         // Calculate end point, ensuring it doesn't go below 0
         val y2 = (y1 - pixels).coerceAtLeast(0)
 
-        Log.d(TAG, "Scrolling down by $pixels pixels: swipe from ($x, $y1) to ($x, $y2)")
+        Log.d(TAG, "Scrolling content up by $pixels pixels: swipe from ($x, $y1) to ($x, $y2)")
         swipe(x, y1, x, y2, duration)
     }
 
     /**
-     * Scrolls the screen up by a given number of pixels.
-     * This performs a swipe from top to bottom.
+     * Scrolls the content of the screen downwards by a specified amount, revealing content above.
      *
-     * @param pixels The number of pixels to scroll.
-     * @param duration The duration of the swipe in milliseconds.
+     * This is achieved by performing a swipe gesture from top to bottom.
+     *
+     * @param pixels The vertical distance in pixels to scroll.
+     * @param duration The duration of the scroll gesture in milliseconds.
      */
     fun scrollDown(pixels: Int, duration: Int = 500) {
         val displayMetrics = context.resources.displayMetrics
@@ -194,7 +242,7 @@ class Finger(private val context: Context) {
         // Calculate end point, ensuring it doesn't go beyond screen height
         val y2 = (y1 + pixels).coerceAtMost(screenHeight)
 
-        Log.d(TAG, "Scrolling up by $pixels pixels: swipe from ($x, $y1) to ($x, $y2)")
+        Log.d(TAG, "Scrolling content down by $pixels pixels: swipe from ($x, $y1) to ($x, $y2)")
         swipe(x, y1, x, y2, duration)
     }
 }

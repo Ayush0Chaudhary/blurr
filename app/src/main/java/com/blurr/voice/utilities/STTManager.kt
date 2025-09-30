@@ -1,3 +1,12 @@
+/**
+ * @file STTManager.kt
+ * @brief Manages the Android Speech-to-Text (STT) service.
+ *
+ * This file contains the `STTManager` class, which encapsulates the logic for using
+ * Android's built-in `SpeechRecognizer`. It handles initialization, starting and stopping
+ * listening, and processing recognition results and errors. It also integrates with
+ * an `STTVisualizer` to show microphone input levels.
+ */
 package com.blurr.voice.utilities
 
 import android.content.Context
@@ -12,22 +21,40 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.*
 
+/**
+ * A manager class for handling all Speech-to-Text (STT) operations.
+ *
+ * This class provides a simplified interface for interacting with the Android `SpeechRecognizer`.
+ * It manages the lifecycle of the recognizer, handles callbacks for results, errors, and state
+ * changes, and integrates with a visualizer to provide user feedback.
+ *
+ * @param context The application context.
+ */
 class STTManager(private val context: Context) {
     
+    /** The underlying Android `SpeechRecognizer` instance. */
     private var speechRecognizer: SpeechRecognizer? = null
+    /** A flag indicating if the recognizer is currently listening. */
     private var isListening = false
+    /** Callback for when a final recognition result is available. */
     private var onResultCallback: ((String) -> Unit)? = null
+    /** Callback for when a recognition error occurs. */
     private var onErrorCallback: ((String) -> Unit)? = null
+    /** Callback for changes in the listening state (started/stopped). */
     private var onListeningStateChange: ((Boolean) -> Unit)? = null
+    /** Callback for when a partial (interim) recognition result is available. */
     private var onPartialResultCallback: ((String) -> Unit)? = null
+    /** A flag to ensure the recognizer is only initialized once. */
     private var isInitialized = false
+    /** The manager for the STT visualization overlay. */
     private val visualizerManager = STTVisualizer(context)
-    private val COMPLETE_SILENCE_MS = 2500  // time of silence to consider input complete
-    private val POSSIBLE_SILENCE_MS = 2000  // shorter silence hint window
-    private val MIN_UTTERANCE_MS     = 1500 // enforce a minimum listening duration
 
-    
-
+    /**
+     * Lazily initializes the [SpeechRecognizer] instance.
+     *
+     * This method checks if recognition is available on the device and creates a new
+     * `SpeechRecognizer` instance if one doesn't already exist.
+     */
     private fun initializeSpeechRecognizer() {
         if (isInitialized) return
         
@@ -45,8 +72,10 @@ class STTManager(private val context: Context) {
         }
     }
     
-
-    
+    /**
+     * Creates and configures the [RecognitionListener] to handle callbacks from the `SpeechRecognizer`.
+     * @return A configured [RecognitionListener] instance.
+     */
     private fun createRecognitionListener(): RecognitionListener {
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
@@ -63,8 +92,7 @@ class STTManager(private val context: Context) {
                 visualizerManager.onRmsChanged(rmsdB)
             }
             
-            override fun onBufferReceived(buffer: ByteArray?) {
-            }
+            override fun onBufferReceived(buffer: ByteArray?) {}
             
             override fun onEndOfSpeech() {
                 Log.d("STTManager", "End of speech")
@@ -121,11 +149,21 @@ class STTManager(private val context: Context) {
                 }
             }
             
-            override fun onEvent(eventType: Int, params: Bundle?) {
-            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
         }
     }
     
+    /**
+     * Starts listening for speech input.
+     *
+     * This function initializes the recognizer if needed, shows the visualizer, and starts
+     * the listening process with the provided callbacks.
+     *
+     * @param onResult Callback for the final recognized text.
+     * @param onError Callback for any recognition errors.
+     * @param onListeningStateChange Callback for changes in the listening state.
+     * @param onPartialResult Callback for partial (interim) recognition results.
+     */
     fun startListening(
         onResult: (String) -> Unit,
         onError: (String) -> Unit,
@@ -157,9 +195,6 @@ class STTManager(private val context: Context) {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-//                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, COMPLETE_SILENCE_MS)
-//                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, POSSIBLE_SILENCE_MS)
-//                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, MIN_UTTERANCE_MS)
             }
             
             try {
@@ -172,6 +207,9 @@ class STTManager(private val context: Context) {
         }
     }
     
+    /**
+     * Stops the speech recognizer from listening.
+     */
     fun stopListening() {
         if (isListening && speechRecognizer != null) {
             try {
@@ -183,8 +221,16 @@ class STTManager(private val context: Context) {
         }
     }
     
+    /**
+     * Checks if the STT manager is currently listening for speech.
+     * @return `true` if listening, `false` otherwise.
+     */
     fun isCurrentlyListening(): Boolean = isListening
     
+    /**
+     * Releases resources used by the `SpeechRecognizer`.
+     * This should be called when the STT functionality is no longer needed, e.g., in `onDestroy`.
+     */
     fun shutdown() {
         try {
             speechRecognizer?.destroy()

@@ -1,3 +1,12 @@
+/**
+ * @file TTSManager.kt
+ * @brief Manages Text-to-Speech (TTS) operations, including synthesis, playback, and caching.
+ *
+ * This file contains the `TTSManager` class, which is a singleton responsible for all TTS-related
+ * functionalities. It handles both Google's high-quality TTS API and the native Android TTS engine
+ * as a fallback. It features an intelligent caching system for short phrases, smart text chunking
+ * for long passages, and optional on-screen caption display.
+ */
 package com.blurr.voice.utilities
 
 import android.content.Context
@@ -31,12 +40,26 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingDeque
 
+/**
+ * Manages all Text-to-Speech operations for the application.
+ *
+ * This singleton class is the central point for synthesizing text into speech. It primarily uses
+ * the Google TTS API for high-quality voice synthesis and falls back to the native Android TTS
+ * if the API fails. Key features include:
+ * - **Smart Caching**: Caches short audio clips to reduce latency and API calls.
+ * - **Smart Text Chunking**: Breaks long text into smaller sentences for smoother playback.
+ * - **Direct Audio Playback**: Can play raw audio data directly.
+ * - **Caption Display**: Optionally shows on-screen captions of the text being spoken.
+ * - **Lifecycle Management**: Handles initialization and shutdown of TTS resources.
+ *
+ * @param context The application context.
+ */
 class TTSManager private constructor(private val context: Context) : TextToSpeech.OnInitListener {
 
     private var nativeTts: TextToSpeech? = null
     private var isNativeTtsInitialized = CompletableDeferred<Unit>()
 
-    // --- NEW: Properties for Caption Management ---
+    // Properties for Caption Management
     private val windowManager by lazy { context.getSystemService(Context.WINDOW_SERVICE) as WindowManager }
     private val mainHandler = Handler(Looper.getMainLooper())
     private var captionView: View? = null
@@ -45,6 +68,7 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     private var audioTrack: AudioTrack? = null
     private var googleTtsPlaybackDeferred: CompletableDeferred<Unit>? = null
 
+    /** A listener to be notified when the speaking state changes. */
     var utteranceListener: ((isSpeaking: Boolean) -> Unit)? = null
 
     private var isDebugMode: Boolean = try {
@@ -53,18 +77,27 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
         true
     }
 
-    // --- NEW: Caching System ---
+    // Caching System properties
     private val cacheDir by lazy { File(context.cacheDir, "tts_cache") }
     private val cache = ConcurrentHashMap<String, CachedAudio>()
     private val accessOrder = LinkedBlockingDeque<String>()
     private val cacheMutex = Any()
-    private val MAX_CACHE_SIZE = 100
-    private val MAX_WORDS_FOR_CACHING = 10
+    private val MAX_CACHE_SIZE = 100 // Max number of items in cache
+    private val MAX_WORDS_FOR_CACHING = 10 // Max number of words in a phrase to be eligible for caching
 
+    /**
+     * Companion object for managing the singleton instance of [TTSManager].
+     */
     companion object {
         @Volatile private var INSTANCE: TTSManager? = null
-        private const val SAMPLE_RATE = 24000
+        private const val SAMPLE_RATE = 24000 // Sample rate for Google TTS audio
 
+        /**
+         * Gets the singleton instance of the [TTSManager].
+         *
+         * @param context The application context.
+         * @return The singleton [TTSManager] instance.
+         */
         fun getInstance(context: Context): TTSManager {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: TTSManager(context.applicationContext).also { INSTANCE = it }
@@ -79,7 +112,8 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Data class for cached audio entries
+     * Data class representing a single cached audio entry.
+     * Includes the original text, audio data, voice name, and a timestamp.
      */
     private data class CachedAudio(
         val text: String,
@@ -91,6 +125,7 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
             other as CachedAudio
+            // Two cached items are considered equal if their text and voice are the same.
             return text == other.text && voiceName == other.voiceName
         }
 
@@ -102,7 +137,7 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Initialize the cache directory and load existing cached items
+     * Initializes the cache directory on disk and loads any previously cached audio files.
      */
     private fun initializeCache() {
         try {
@@ -116,7 +151,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Generate a hash for the text and voice combination
+     * Generates a unique SHA-256 hash key for a given text and voice combination.
+     * This key is used for storing and retrieving audio from the cache.
+     *
+     * @param text The text to be synthesized.
+     * @param voice The [TTSVoice] used for synthesis.
+     * @return A unique string key for the cache.
      */
     private fun generateCacheKey(text: String, voice: TTSVoice): String {
         val combined = "${text.trim().lowercase()}_${voice.name}"
@@ -126,7 +166,10 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Check if text should be cached (10 words or less)
+     * Determines if a given text string is eligible for caching based on its word count.
+     *
+     * @param text The input string.
+     * @return `true` if the text should be cached, `false` otherwise.
      */
     private fun shouldCache(text: String): Boolean {
         val wordCount = text.trim().split(Regex("\\s+")).size
@@ -134,7 +177,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Get cached audio data if available
+     * Retrieves cached audio data for a given text and voice, if it exists.
+     * Returns `null` on a cache miss.
+     *
+     * @param text The text to retrieve from the cache.
+     * @param voice The [TTSVoice] associated with the cached audio.
+     * @return The cached audio as a [ByteArray], or `null` if not found.
      */
     private fun getCachedAudio(text: String, voice: TTSVoice): ByteArray? {
         if (!shouldCache(text)) return null
@@ -154,7 +202,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Store audio data in cache
+     * Stores synthesized audio data in the cache if it meets the eligibility criteria.
+     * This involves saving to both an in-memory map and a file on disk.
+     *
+     * @param text The original text.
+     * @param audioData The synthesized audio data.
+     * @param voice The [TTSVoice] used for synthesis.
      */
     private fun cacheAudio(text: String, audioData: ByteArray, voice: TTSVoice) {
         if (!shouldCache(text)) return
@@ -184,7 +237,10 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Save cached audio to disk
+     * Saves a [CachedAudio] entry to a file on disk using its unique key.
+     *
+     * @param cacheKey The unique key for the cache entry.
+     * @param cachedAudio The [CachedAudio] object to save.
      */
     private fun saveCacheToDisk(cacheKey: String, cachedAudio: CachedAudio) {
         try {
@@ -196,7 +252,8 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Load cache from disk
+     * Loads existing audio files from the cache directory into memory upon initialization.
+     * This is a simplified implementation; it does not restore full metadata.
      */
     private fun loadCacheFromDisk() {
         try {
@@ -216,7 +273,9 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Delete cache file from disk
+     * Deletes a specific cache file from disk.
+     *
+     * @param cacheKey The key of the cache file to delete.
      */
     private fun deleteCacheFile(cacheKey: String) {
         try {
@@ -230,7 +289,7 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
 
     /**
-     * Clear all cached data
+     * Clears all cached TTS data from both memory and disk storage.
      */
     fun clearCache() {
         synchronized(cacheMutex) {
@@ -244,6 +303,10 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
         }
     }
 
+    /**
+     * Initializes and configures the [AudioTrack] instance used for playing synthesized audio.
+     * Sets up the audio attributes, format, buffer size, and a listener to detect playback completion.
+     */
     private fun setupAudioTrack() {
         val bufferSize = AudioTrack.getMinBufferSize(
             SAMPLE_RATE,
@@ -269,35 +332,51 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
 
         audioTrack?.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
             override fun onMarkerReached(track: AudioTrack?) {
+                // This callback is triggered when playback reaches the marker set by setNotificationMarkerPosition,
+                // indicating the end of the audio data. We use it to signal completion.
                 googleTtsPlaybackDeferred?.complete(Unit)
             }
             override fun onPeriodicNotification(track: AudioTrack?) {}
         }, Handler(Looper.getMainLooper()))
     }
 
+    /**
+     * Enables or disables the on-screen display of captions for spoken text.
+     *
+     * @param enabled `true` to show captions, `false` to hide them.
+     */
     fun setCaptionsEnabled(enabled: Boolean) {
         this.captionsEnabled = enabled
-        // If captions are disabled while one is showing, remove it immediately.
         if (!enabled) {
             mainHandler.post { removeCaption() }
         }
     }
 
+    /**
+     * Gets the current status of the caption display.
+     *
+     * @return `true` if captions are enabled, `false` otherwise.
+     */
     fun getCaptionStatus(): Boolean{
         return this.captionsEnabled
     }
 
+    /**
+     * Callback method invoked when the native [TextToSpeech] engine has been initialized.
+     *
+     * @param status The initialization status.
+     */
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             nativeTts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) { utteranceListener?.invoke(true) }
                 override fun onDone(utteranceId: String?) {
                     mainHandler.post { removeCaption() }
-                    utteranceListener?.invoke(false) 
+                    utteranceListener?.invoke(false)
                 }
                 override fun onError(utteranceId: String?) {
                     mainHandler.post { removeCaption() }
-                    utteranceListener?.invoke(false) 
+                    utteranceListener?.invoke(false)
                 }
             })
             isNativeTtsInitialized.complete(Unit)
@@ -306,44 +385,67 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
         }
     }
 
-    // --- NEW PUBLIC FUNCTION TO STOP PLAYBACK ---
+    /**
+     * Immediately stops any ongoing TTS playback from both Google TTS and the native engine.
+     * It also cancels any related background tasks.
+     */
     fun stop() {
-        // Stop the AudioTrack if it's currently playing
         if (audioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) {
             audioTrack?.stop()
-            audioTrack?.flush() // Clear any buffered data
+            audioTrack?.flush()
         }
-        // Immediately cancel any coroutine that is awaiting playback completion
         if (googleTtsPlaybackDeferred?.isActive == true) {
             googleTtsPlaybackDeferred?.completeExceptionally(CancellationException("Playback stopped by new request."))
         }
     }
 
+    /**
+     * Speaks the given text, typically for instructional or debug purposes.
+     * The speech is only produced if debug mode is enabled.
+     *
+     * @param text The text to speak.
+     */
     suspend fun speakText(text: String) {
         if (!isDebugMode) return
         speak(text)
     }
 
+    /**
+     * Synthesizes and speaks the given text to the user using the preferred voice.
+     * This is the primary method for user-facing speech.
+     *
+     * @param text The text to speak.
+     */
     suspend fun speakToUser(text: String) {
         speak(text)
     }
 
+    /**
+     * Retrieves the audio session ID from the underlying [AudioTrack].
+     * This is useful for integrating with audio visualizers.
+     *
+     * @return The audio session ID, or 0 if not available.
+     */
     fun getAudioSessionId(): Int {
         return audioTrack?.audioSessionId ?: 0
     }
 
+    /**
+     * The core speech synthesis and playback logic.
+     * It chunks the text, handles caching, and orchestrates playback. If Google TTS fails,
+     * it falls back to the native Android TTS engine.
+     *
+     * @param text The text to be spoken.
+     */
     private suspend fun speak(text: String) {
         try {
             val selectedVoice = VoicePreferenceManager.getSelectedVoice(context)
             
-            // Smart chunking: Break text into sentences of ~50 words each
             val textChunks = chunkTextIntoSentences(text, maxWordsPerChunk = 50)
             
             if (textChunks.size == 1) {
-                // Single chunk - process normally
                 speakChunk(textChunks[0].trim(), selectedVoice)
             } else {
-                // Multiple chunks - use smart queue-based playback
                 playWithSmartQueue(textChunks, selectedVoice)
             }
 
@@ -356,7 +458,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
     
     /**
-     * Smart queue-based playback that starts playing immediately while preloading in background
+     * Handles playback of long text by creating a smart queue.
+     * It starts playing the first chunk of synthesized audio immediately while concurrently
+     * synthesizing and preloading the subsequent chunks in the background.
+     *
+     * @param textChunks A list of text strings to be played in sequence.
+     * @param selectedVoice The [TTSVoice] to use for synthesis.
      */
     private suspend fun playWithSmartQueue(textChunks: List<String>, selectedVoice: TTSVoice) {
         val audioQueue = mutableListOf<Pair<String, ByteArray>>()
@@ -470,7 +577,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
     
     /**
-     * Breaks text into sentences of approximately maxWordsPerChunk words each
+     * Breaks a long string of text into smaller, more manageable chunks based on sentences.
+     * Aims to keep each chunk below a maximum word count.
+     *
+     * @param text The full text to be chunked.
+     * @param maxWordsPerChunk The desired maximum number of words per chunk.
+     * @return A list of text chunks.
      */
     private fun chunkTextIntoSentences(text: String, maxWordsPerChunk: Int): List<String> {
         if (text.length <= 500) {
@@ -517,7 +629,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
     
     /**
-     * Fallback method to break text by words when sentence-based chunking fails
+     * A fallback chunking method that splits text strictly by word count.
+     * This is used if sentence-based chunking is ineffective (e.g., a very long sentence).
+     *
+     * @param text The text to be chunked.
+     * @param maxWordsPerChunk The maximum number of words per chunk.
+     * @return A list of text chunks.
      */
     private fun chunkTextByWords(text: String, maxWordsPerChunk: Int): List<String> {
         val words = text.split(Regex("\\s+"))
@@ -534,7 +651,11 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     }
     
     /**
-     * Speaks a single chunk of text (used for single chunks or fallback)
+     * Synthesizes and plays a single, self-contained chunk of text.
+     * It checks the cache before synthesizing and handles the entire playback lifecycle for the chunk.
+     *
+     * @param chunk The text chunk to speak.
+     * @param selectedVoice The [TTSVoice] to use for synthesis.
      */
     private suspend fun speakChunk(chunk: String, selectedVoice: TTSVoice) {
         try {
@@ -583,6 +704,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
         }
     }
 
+    /**
+     * Plays raw audio data directly through the [AudioTrack], bypassing TTS synthesis.
+     * This is useful for playing pre-synthesized or cached audio.
+     *
+     * @param audioData The byte array of PCM 16-bit audio data to play.
+     */
     suspend fun playAudioData(audioData: ByteArray) {
         try {
             googleTtsPlaybackDeferred = CompletableDeferred()
@@ -616,17 +743,22 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
         }
     }
 
-    // --- NEW: Private method to display the caption view ---
+    /**
+     * Displays an on-screen caption as a system overlay.
+     * The caption appears at the bottom of the screen. This method handles the creation,
+     * styling, and addition of the view to the window manager.
+     *
+     * @param text The text to be displayed in the caption.
+     */
     private fun showCaption(text: String) {
         if (!captionsEnabled) return
 
-        removeCaption() // Remove any previous caption first
+        removeCaption()
 
-        // Create and style the new TextView.
         val textView = TextView(context).apply {
             this.text = text
             background = GradientDrawable().apply {
-                setColor(0xCC000000.toInt()) // 80% opaque black
+                setColor(0xCC000000.toInt()) // 80% opaque black background
                 cornerRadius = 24f
             }
             setTextColor(0xFFFFFFFF.toInt()) // White text
@@ -642,18 +774,20 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 250 // Pixels up from the bottom of the screen
+            y = 250 // Pixels up from the bottom
         }
 
         try {
             windowManager.addView(textView, params)
-            captionView = textView // Save a reference to the new view.
+            captionView = textView
         } catch (e: Exception) {
             Log.e("TTSManager", "Failed to display caption on screen.", e)
         }
     }
 
-    // --- NEW: Private method to remove the caption view ---
+    /**
+     * Removes the currently displayed caption view from the screen.
+     */
     private fun removeCaption() {
         captionView?.let {
             if (it.isAttachedToWindow) {
@@ -667,6 +801,10 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
         captionView = null
     }
 
+    /**
+     * Shuts down the TTS manager, releasing all associated resources.
+     * This includes the native TTS engine and the [AudioTrack].
+     */
     fun shutdown() {
         stop()
         nativeTts?.shutdown()

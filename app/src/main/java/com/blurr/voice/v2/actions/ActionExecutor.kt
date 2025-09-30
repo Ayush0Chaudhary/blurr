@@ -1,3 +1,11 @@
+/**
+ * @file ActionExecutor.kt
+ * @brief Executes agent actions on the Android device.
+ *
+ * This file contains the `ActionExecutor` class, which is responsible for translating the
+ * abstract, type-safe `Action` objects decided by the LLM into concrete interactions with
+ * the Android OS. It serves as the "hands" of the agent.
+ */
 package com.blurr.voice.v2.actions
 
 import android.content.Context
@@ -5,26 +13,38 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresApi
 import com.blurr.voice.api.Finger
+import com.blurr.voice.intents.IntentRegistry
 import com.blurr.voice.utilities.SpeechCoordinator
 import com.blurr.voice.utilities.UserInputManager
 import com.blurr.voice.v2.ActionResult
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.perception.ScreenAnalysis
-import com.blurr.voice.intents.IntentRegistry
-import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlin.text.removePrefix
 
 /**
- * Executes a pre-validated, type-safe Action command.
- * The 'when' block is exhaustive, ensuring every action is handled.
+ * Executes a pre-validated, type-safe [Action] command.
+ *
+ * This class is the bridge between the agent's decision-making and its interaction with the
+ * device. It takes an [Action] object and uses the provided [Finger] API to perform the
+ * corresponding UI interaction (tap, swipe, etc.), file system operation, or other system call.
+ * The `when` block in the [execute] method is exhaustive, ensuring every defined action is handled.
+ *
+ * @param finger An instance of the [Finger] class, which provides the low-level device control APIs.
  */
 class ActionExecutor(private val finger: Finger) {
 
-    // Add this function inside ActionExecutor.kt, outside the class, or as a private fun.
-
+    /**
+     * Finds the package name for an application given its user-facing name.
+     * It first attempts an exact, case-insensitive match, then falls back to a partial match.
+     *
+     * @param appName The user-facing name of the application (e.g., "Chrome").
+     * @param context The application context.
+     * @return The package name as a string (e.g., "com.android.chrome"), or null if not found.
+     */
     private fun findPackageNameFromAppName(appName: String, context: Context): String? {
         val pm = context.packageManager
         val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -34,7 +54,7 @@ class ActionExecutor(private val finger: Finger) {
             pm.getInstalledApplications(0)
         }
 
-        // First, try for an exact match (case-insensitive)
+        // First, try for an exact match (case-insensitive).
         for (appInfo in packages) {
             val label = pm.getApplicationLabel(appInfo).toString()
             if (label.equals(appName, ignoreCase = true)) {
@@ -42,7 +62,7 @@ class ActionExecutor(private val finger: Finger) {
             }
         }
 
-        // If no exact match, try for a partial match (contains)
+        // If no exact match, try for a partial match (contains).
         for (appInfo in packages) {
             val label = pm.getApplicationLabel(appInfo).toString()
             if (label.contains(appName, ignoreCase = true)) {
@@ -50,8 +70,15 @@ class ActionExecutor(private val finger: Finger) {
             }
         }
 
-        return null // Not found
+        return null // Not found.
     }
+
+    /**
+     * Calculates the center coordinates from a standard Android bounds string.
+     *
+     * @param bounds A string in the format `[left,top][right,bottom]`.
+     * @return A [Pair] of (x, y) coordinates representing the center of the bounds.
+     */
     private fun getCenterFromBounds(bounds: String): Pair<Int, Int> {
         val regex = """\[(\d+),(\d+)\]\[(\d+),(\d+)\]""".toRegex()
         val match = regex.find(bounds)
@@ -59,12 +86,21 @@ class ActionExecutor(private val finger: Finger) {
             val (l, t, r, b) = match.destructured.toList().map { it.toInt() }
             return Pair((l + r) / 2, (t + b) / 2)
         }
-        return Pair(0, 0) // Should not happen if bounds are valid
+        return Pair(0, 0) // Should not happen if bounds are valid.
     }
 
     /**
-     * Executes a single action and returns the result.
-     * @return An ActionResult detailing the outcome of the action.
+     * Executes a single [Action] and returns the result.
+     *
+     * This is the main entry point for the executor. It takes an action and all necessary context,
+     * performs the operation, and wraps the outcome in an [ActionResult] object, which may
+     * contain results, errors, or information to be committed to memory.
+     *
+     * @param action The specific [Action] to execute.
+     * @param screenAnalysis The current screen analysis, used to look up element details.
+     * @param context The application context, for system-level operations.
+     * @param fileSystem The agent's file system, for file-related actions.
+     * @return An [ActionResult] detailing the outcome of the action.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     suspend fun execute(
@@ -73,7 +109,6 @@ class ActionExecutor(private val finger: Finger) {
         context: Context,
         fileSystem: FileSystem
     ): ActionResult {
-        // This 'when' block now returns an ActionResult for every case.
         return when (action) {
             is Action.TapElement -> {
                 val elementNode = screenAnalysis.elementMap[action.elementId]
@@ -96,7 +131,6 @@ class ActionExecutor(private val finger: Finger) {
                 }
             }
             is Action.Speak -> {
-                // The message is taken directly from the type-safe action class.
                 val message = action.message
                 runBlocking {
                     SpeechCoordinator.getInstance(context).speakToUser(message)
@@ -105,15 +139,15 @@ class ActionExecutor(private val finger: Finger) {
             }
             is Action.Ask -> {
                 val question = action.question
-                val userResponse = withContext(Dispatchers.IO) { // User input is blocking
+                val userResponse = withContext(Dispatchers.IO) { // User input is blocking.
                     val userInputManager = UserInputManager(context)
-                    userInputManager.askQuestion(question) // This internally speaks and listens
+                    userInputManager.askQuestion(question) // This internally speaks and listens.
                 }
 
                 val memory = "Asked user: '$question'. User responded: '$userResponse'."
                 ActionResult(
                     longTermMemory = memory,
-                    extractedContent = userResponse, // The user's answer is the result
+                    extractedContent = userResponse, // The user's answer is the result.
                     includeExtractedContentOnlyOnce = true
                 )
             }
@@ -128,7 +162,6 @@ class ActionExecutor(private val finger: Finger) {
 
                     if (bounds != null) {
                         val (centerX, centerY) = getCenterFromBounds(bounds)
-                        // Assuming finger has a longPress method. Adjust if necessary.
                         finger.longPress(centerX, centerY)
                         ActionResult(longTermMemory = "Long-pressed element text:$text <$resourceId> <$extraInfo> <$className>")
                     } else {
@@ -164,7 +197,6 @@ class ActionExecutor(private val finger: Finger) {
                 ActionResult(longTermMemory = "Opened the app switcher.")
             }
             Action.Wait -> {
-                // Use delay in a coroutine instead of Thread.sleep
                 delay(5_000)
                 ActionResult(longTermMemory = "Waited for 5 seconds.")
             }
@@ -177,13 +209,13 @@ class ActionExecutor(private val finger: Finger) {
                 ActionResult(longTermMemory = "Scrolled up by ${action.amount} pixels.")
             }
             is Action.SearchGoogle -> {
-                // This is a multi-step conceptual action. The executor should handle the concrete steps.
-                finger.openApp("com.android.chrome") // More reliable to use package name
-                // The next steps (typing, pressing enter) should be decided by the agent in the next turn.
+                // This is a multi-step conceptual action. The executor handles the concrete steps.
+                finger.openApp("com.android.chrome") // More reliable to use package name.
+                // The next steps (typing, pressing enter) will be decided by the agent in the next turn.
                 ActionResult(longTermMemory = "Opened Chrome to search Google.")
             }
             is Action.Done -> {
-                // This action doesn't *do* anything. It's a signal to the main loop.
+                // This action doesn't *do* anything directly. It's a signal to the main loop.
                 // We just construct the final ActionResult.
                 ActionResult(
                     isDone = true,
@@ -192,20 +224,10 @@ class ActionExecutor(private val finger: Finger) {
                     attachments = action.filesToDisplay
                 )
             }
-//            is Action.ExtractStructuredData -> {
-//                // This is a placeholder for a complex action.
-//                // A full implementation would require another LLM call with the screen content.
-//                // For now, we return an error indicating it's not yet implemented.
-//                ActionResult(error = "Action 'ExtractStructuredData' is not yet implemented.")
-//            }
             is Action.InputText -> {
                 finger.type(action.text)
                 ActionResult(longTermMemory = "Input text ${action.text}.")
             }
-//            is Action.ScrollToText -> {
-//                // As requested, skipping implementation.
-//                ActionResult(error = "Action 'ScrollToText' is not implemented.")
-//            }
             is Action.AppendFile -> {
                 val success = fileSystem.appendFile(action.fileName, action.content)
                 if (success) {
@@ -234,8 +256,6 @@ class ActionExecutor(private val finger: Finger) {
                     ActionResult(error = "Failed to write to file '${action.fileName}'.")
                 }
             }
-
-//            is Action.ScrollToText -> TODO()
             is Action.TapElementInputTextPressEnter -> {
                 val elementNode = screenAnalysis.elementMap[action.index]
                 if (elementNode != null) {
@@ -248,7 +268,7 @@ class ActionExecutor(private val finger: Finger) {
                     if (bounds != null) {
                         val (centerX, centerY) = getCenterFromBounds(bounds)
                         finger.tap(centerX, centerY)
-                        delay(200) // Small delay to ensure focus
+                        delay(200) // Small delay to ensure focus.
                         finger.type(action.text)
                         ActionResult(longTermMemory = "Typed ${action.text} into element  text:$text <$resourceId> <$extraInfo> <$className>.")
                     } else {

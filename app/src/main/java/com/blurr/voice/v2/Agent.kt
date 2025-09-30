@@ -1,3 +1,11 @@
+/**
+ * @file Agent.kt
+ * @brief The central orchestrator for the autonomous agent's operations.
+ *
+ * This file defines the `Agent` class, which is the core component of the V2 agent architecture.
+ * It integrates all other components—perception, memory, LLM, and actions—to execute tasks
+ * based on the classic SENSE -> THINK -> ACT loop.
+ */
 package com.blurr.voice.v2
 
 import android.content.Context
@@ -14,10 +22,13 @@ import com.blurr.voice.utilities.SpeechCoordinator
 import kotlinx.coroutines.delay
 
 /**
- * The main conductor of the agent.
- * This class owns all the necessary components and runs the primary SENSE -> THINK -> ACT loop.
+ * The main conductor of the agent, orchestrating the entire SENSE -> THINK -> ACT loop.
  *
- * @param settings The agent's configuration.
+ * This class owns all the necessary components for the agent to function. It takes a high-level
+ * task from the user and iteratively perceives the environment, thinks about the next best action
+ * using an LLM, and executes that action until the task is complete or a limit is reached.
+ *
+ * @param settings The agent's configuration, like retry limits.
  * @param memoryManager The agent's short-term memory and prompt builder.
  * @param perception The agent's "eyes," responsible for analyzing the screen.
  * @param llmApi The client for communicating with the Gemini LLM.
@@ -35,22 +46,26 @@ class Agent(
     private val fileSystem: FileSystem,
     private val context: Context
 ) {
-    // The agent's internal state, which is updated at each step.
+    /** Holds the agent's current, mutable state, such as step count and last action result. */
     val state: AgentState = AgentState()
     private val TAG = "AgentV2"
     
-    // Speech coordinator for voice notifications
     private val speechCoordinator = SpeechCoordinator.getInstance(context)
 
-    // A complete, long-term record of the entire session.
-    // We use <Unit> because we haven't defined a custom structured output for the 'done' action yet.
+    /** An append-only, long-term record of the entire session, including all states, decisions, and results. */
     val history: AgentHistoryList<Unit> = AgentHistoryList()
 
     /**
-     * The main entry point to start the agent's execution loop.
+     * Starts the agent's primary execution loop.
      *
-     * @param initialTask The high-level task requested by the user.
-     * @param maxSteps The maximum number of steps the agent can take before stopping.
+     * The agent will continuously perform the SENSE -> THINK -> ACT cycle until one of the
+     * following conditions is met:
+     * 1. The `done` action is executed, marking the task as complete.
+     * 2. The number of steps exceeds `maxSteps`.
+     * 3. The agent fails to get a valid response from the LLM multiple times consecutively.
+     *
+     * @param initialTask The high-level task requested by the user (e.g., "send a message to Bob").
+     * @param maxSteps The maximum number of steps the agent can take before stopping automatically.
      */
     suspend fun run(initialTask: String, maxSteps: Int = 150) {
         memoryManager.addNewTask(initialTask)
