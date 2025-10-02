@@ -382,13 +382,25 @@ class MainActivity : AppCompatActivity(), PaywallResultHandler {
     override fun onResume() {
         super.onResume()
         updateTaskCounter()
-
+        displayDeveloperMessage()
         updateUI()
         val filter = IntentFilter(ACTION_WAKE_WORD_FAILED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(wakeWordFailureReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(wakeWordFailureReceiver, filter)
+        }
+    }
+    private fun displayDeveloperMessage() {
+        val developerMessageTextView = findViewById<TextView>(R.id.developer_message_textview)
+        lifecycleScope.launch {
+            val message = freemiumManager.getDeveloperMessage()
+            if (message.isNotEmpty()) {
+                developerMessageTextView.text = message
+                developerMessageTextView.visibility = View.VISIBLE
+            } else {
+                developerMessageTextView.visibility = View.GONE
+            }
         }
     }
     override fun onPause() {
