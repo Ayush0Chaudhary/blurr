@@ -16,10 +16,6 @@ class FreemiumManager {
     private val db = Firebase.firestore
     private val auth = Firebase.auth
 
-    companion object {
-        const val DAILY_TASK_LIMIT = 100 // Set your daily task limit here
-    }
-
     private suspend fun isUserSubscribed(): Boolean {
         return try {
             val customerInfo = Purchases.sharedInstance.awaitCustomerInfo()
@@ -27,6 +23,26 @@ class FreemiumManager {
         } catch (e: Exception) {
             Log.e("FreemiumManager", "Error fetching customer info: $e")
             false
+        }
+    }
+
+    private suspend fun getDailyTaskLimitFromFirestore(): Long {
+        return try {
+            val document = db.collection("settings").document("freemium").get().await()
+            document.getLong("dailyTaskLimit") ?: 100L
+        } catch (e: Exception) {
+            Log.e("FreemiumManager", "Error fetching daily task limit from Firestore. Using default.", e)
+            100L
+        }
+    }
+
+    suspend fun getDeveloperMessage(): String {
+        return try {
+            val document = db.collection("settings").document("freemium").get().await()
+            document.getString("developerMessage") ?: ""
+        } catch (e: Exception) {
+            Log.e("FreemiumManager", "Error fetching developer message from Firestore.", e)
+            ""
         }
     }
 
@@ -42,13 +58,14 @@ class FreemiumManager {
     private suspend fun resetDailyTasksIfNeeded(uid: String) {
         val userDocRef = db.collection("users").document(uid)
         try {
+            val dailyTaskLimit = getDailyTaskLimitFromFirestore()
             db.runTransaction { transaction ->
                 val snapshot = transaction.get(userDocRef)
                 val lastReset = snapshot.getTimestamp("tasksResetDate")
 
                 if (lastReset == null || !isSameDay(lastReset)) {
                     Log.d("FreemiumManager", "New day detected. Resetting tasks for user $uid.")
-                    transaction.update(userDocRef, "tasksRemaining", DAILY_TASK_LIMIT)
+                    transaction.update(userDocRef, "tasksRemaining", dailyTaskLimit)
                     transaction.update(userDocRef, "tasksResetDate", FieldValue.serverTimestamp())
                 }
             }.await()
@@ -62,13 +79,14 @@ class FreemiumManager {
         val userDocRef = db.collection("users").document(currentUser.uid)
 
         try {
+            val dailyTaskLimit = getDailyTaskLimitFromFirestore()
             val document = userDocRef.get().await()
             if (!document.exists()) {
                 Log.d("FreemiumManager", "Provisioning new user: ${currentUser.uid}")
                 val newUser = hashMapOf(
                     "email" to currentUser.email,
                     "plan" to "free",
-                    "tasksRemaining" to DAILY_TASK_LIMIT,
+                    "tasksRemaining" to dailyTaskLimit,
                     "createdAt" to FieldValue.serverTimestamp(),
                     "tasksResetDate" to FieldValue.serverTimestamp() // Set initial reset date
                 )
@@ -78,7 +96,7 @@ class FreemiumManager {
                 if (!document.contains("tasksResetDate")) {
                     Log.d("FreemiumManager", "Migrating existing user ${currentUser.uid} to daily limit system.")
                     userDocRef.update(mapOf(
-                        "tasksRemaining" to DAILY_TASK_LIMIT,
+                        "tasksRemaining" to dailyTaskLimit,
                         "tasksResetDate" to FieldValue.serverTimestamp()
                     )).await()
                 } else {
