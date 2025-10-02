@@ -54,6 +54,7 @@
         <activity android:name=".PermissionsActivity" android:exported="false" android:label="@string/permissions_explained_title" android:theme="@style/Theme.Blurr" />
         <activity android:name=".MemoriesActivity" android:exported="false" android:label="My Memories" android:theme="@style/Theme.Blurr" />
         <activity android:name=".PrivacyActivity" android:exported="false" android:label="How Panda Remembers" android:theme="@style/Theme.Blurr" />
+        <activity android:name=".PurchaseActivity" android:exported="false" android:label="Go Pro" android:theme="@style/Theme.Blurr" />
         <activity
             android:name=".RoleRequestActivity"
             android:exported="false"

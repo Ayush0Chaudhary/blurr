@@ -49,17 +49,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
-import com.revenuecat.purchases.Purchases
-import com.revenuecat.purchases.awaitCustomerInfo
-import com.revenuecat.purchases.ui.revenuecatui.ExperimentalPreviewRevenueCatUIPurchasesAPI
-import com.revenuecat.purchases.ui.revenuecatui.activity.PaywallActivityLauncher
-import com.revenuecat.purchases.ui.revenuecatui.activity.PaywallResult
-import com.revenuecat.purchases.ui.revenuecatui.activity.PaywallResultHandler
 import kotlinx.coroutines.launch
 import java.io.File
 
-@OptIn(ExperimentalPreviewRevenueCatUIPurchasesAPI::class)
-class MainActivity : AppCompatActivity(), PaywallResultHandler {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var handler: Handler
     private lateinit var managePermissionsButton: TextView
@@ -77,7 +70,6 @@ class MainActivity : AppCompatActivity(), PaywallResultHandler {
     private lateinit var onboardingManager: OnboardingManager
     private lateinit var requestRoleLauncher: ActivityResultLauncher<Intent>
 
-    private lateinit var paywallActivityLauncher: PaywallActivityLauncher
     private lateinit var root: View
     companion object {
         const val ACTION_WAKE_WORD_FAILED = "com.blurr.voice.WAKE_WORD_FAILED"
@@ -102,16 +94,9 @@ class MainActivity : AppCompatActivity(), PaywallResultHandler {
             }
         }
 
-    override fun onActivityResult(result: PaywallResult) {}
-
-    private fun launchPaywallActivity() {
-        paywallActivityLauncher.launchIfNeeded(requiredEntitlementIdentifier = "pro")
-    }
-
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        paywallActivityLauncher = PaywallActivityLauncher(this, this)
 
         auth = Firebase.auth
         val currentUser = auth.currentUser
@@ -305,7 +290,7 @@ class MainActivity : AppCompatActivity(), PaywallResultHandler {
 //            startActivity(Intent(this, MemoriesActivity::class.java))
 //        }
         findViewById<TextView>(R.id.goProButton).setOnClickListener {
-            launchPaywallActivity()
+            startActivity(Intent(this, PurchaseActivity::class.java))
         }
         saveKeyButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
