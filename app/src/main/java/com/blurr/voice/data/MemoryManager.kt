@@ -39,6 +39,7 @@ class MemoryManager(private val context: Context) {
                 
                 // Generate embedding for the text
                 val embedding = EmbeddingService.generateEmbedding(
+                    context = context,
                     text = originalText,
                     taskType = "RETRIEVAL_DOCUMENT"
                 )
@@ -94,6 +95,7 @@ class MemoryManager(private val context: Context) {
                 
                 // Generate embedding for the query
                 val queryEmbedding = EmbeddingService.generateEmbedding(
+                    context = context,
                     text = query,
                     taskType = "RETRIEVAL_QUERY"
                 )
@@ -204,6 +206,7 @@ class MemoryManager(private val context: Context) {
             try {
                 // Generate embedding for the query text
                 val queryEmbedding = EmbeddingService.generateEmbedding(
+                    context = context,
                     text = text,
                     taskType = "RETRIEVAL_QUERY"
                 )
@@ -290,4 +293,4 @@ class MemoryManager(private val context: Context) {
             }
         }
     }
-} 
+}

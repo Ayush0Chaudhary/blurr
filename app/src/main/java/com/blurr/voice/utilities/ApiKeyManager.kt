@@ -1,33 +1,45 @@
 package com.blurr.voice.utilities
 
+import android.content.Context
 import com.blurr.voice.BuildConfig
-import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * A thread-safe, singleton object to manage and rotate a list of API keys.
- * This ensures that every part of the app gets the next key in the sequence.
- */
-object ApiKeyManager {
+class ApiKeyManager private constructor(context: Context) {
 
-    private val apiKeys: List<String> = if (BuildConfig.GEMINI_API_KEYS.isNotEmpty()) {
+    private val geminiKeyManager = GeminiKeyManager(context)
+    private val defaultApiKeys: List<String> = if (BuildConfig.GEMINI_API_KEYS.isNotEmpty()) {
         BuildConfig.GEMINI_API_KEYS.split(",")
     } else {
         emptyList()
     }
 
-    private val currentIndex = AtomicInteger(0)
+    private var keyIndex = 0
 
-    /**
-     * Gets the next API key from the list in a circular, round-robin fashion.
-     * @return The next API key as a String.
-     */
-    fun getNextKey(): String {
-        if (apiKeys.isEmpty()) {
-            throw IllegalStateException("API key list is empty. Please add keys to ApiKeyManager.")
+    fun useCustomKeys(): Boolean {
+        return geminiKeyManager.useCustomKeys() && geminiKeyManager.getKeys().isNotEmpty()
+    }
+
+    fun getNextKey(): String? {
+        if (useCustomKeys()) {
+            return geminiKeyManager.getNextKey()
         }
-        // Get the current index, then increment it for the next call.
-        // The modulo operator (%) makes it loop back to 0 when it reaches the end.
-        val index = currentIndex.getAndIncrement() % apiKeys.size
-        return apiKeys[index]
+
+        if (defaultApiKeys.isEmpty()) {
+            return null
+        }
+
+        val key = defaultApiKeys[keyIndex]
+        keyIndex = (keyIndex + 1) % defaultApiKeys.size
+        return key
+    }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: ApiKeyManager? = null
+
+        fun getInstance(context: Context): ApiKeyManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ApiKeyManager(context.applicationContext).also { INSTANCE = it }
+            }
+        }
     }
 }

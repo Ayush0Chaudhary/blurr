@@ -155,6 +155,7 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("com.revenuecat.purchases:purchases:9.7.0")
     implementation("com.revenuecat.purchases:purchases-ui:9.7.0")
+    implementation("androidx.security:security-crypto:1.0.0")
 }
 
 // Task to increment version for release builds

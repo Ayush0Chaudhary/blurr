@@ -45,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var wakeWordButton: TextView // NEW: Declare wake word button
     private lateinit var wakeWordManager: WakeWordManager // NEW: Wake word manager
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String> // NEW: Permission launcher
+    private lateinit var advancedSettingsButton: TextView
 
 
     private lateinit var sc: SpeechCoordinator
@@ -109,6 +110,7 @@ class SettingsActivity : AppCompatActivity() {
         editUserName = findViewById(R.id.editUserName)
         editUserEmail = findViewById(R.id.editUserEmail)
         textGetPicovoiceKeyLink = findViewById(R.id.textGetPicovoiceKeyLink) // NEW: Initialize the TextView
+        advancedSettingsButton = findViewById(R.id.advancedSettingsButton)
 
 
         setupClickListeners()
@@ -173,6 +175,11 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.makeText(this, "Could not open link. No browser found.", Toast.LENGTH_SHORT).show()
                 Log.e("SettingsActivity", "Failed to open Picovoice link", e)
             }
+        }
+
+        advancedSettingsButton.setOnClickListener {
+            val intent = Intent(this, AdvancedSettingsActivity::class.java)
+            startActivity(intent)
         }
     }
 
