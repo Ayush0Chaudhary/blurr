@@ -66,8 +66,6 @@ android {
         buildConfigField("String", "GCLOUD_GATEWAY_URL", "\"$googlecloudGatewayURL\"")
         buildConfigField("String", "GCLOUD_PROXY_URL", "\"$googlecloudProxyURL\"")
         buildConfigField("String", "GCLOUD_PROXY_URL_KEY", "\"$googlecloudProxyURLKey\"")
-        buildConfigField("String", "REVENUE_CAT_PUBLIC_URL", "\"$revenueCatSDK\"")
-        buildConfigField("String", "REVENUECAT_API_KEY", "\"$revenueCatApiKey\"")
 
     }
 
@@ -153,8 +151,7 @@ dependencies {
     implementation("com.google.firebase:firebase-crashlytics-ndk")
     implementation(libs.firebase.firestore)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
-    implementation("com.revenuecat.purchases:purchases:9.7.0")
-    implementation("com.revenuecat.purchases:purchases-ui:9.7.0")
+    implementation("com.android.billingclient:billing-ktx:7.0.0")
 }
 
 // Task to increment version for release builds

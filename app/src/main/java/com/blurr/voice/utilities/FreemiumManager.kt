@@ -1,29 +1,60 @@
 package com.blurr.voice.utilities
 
 import android.util.Log
+import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.QueryPurchasesParams
+import com.android.billingclient.api.queryPurchasesAsync
+import com.blurr.voice.MyApplication
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.firestore
-import com.revenuecat.purchases.Purchases
-import com.revenuecat.purchases.awaitCustomerInfo
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Calendar
 
 class FreemiumManager {
 
     private val db = Firebase.firestore
     private val auth = Firebase.auth
+    private val billingClient: BillingClient = MyApplication.billingClient
 
     companion object {
         const val DAILY_TASK_LIMIT = 100 // Set your daily task limit here
+        private const val PRO_SKU = "pro" // The SKU for the pro subscription
     }
 
     private suspend fun isUserSubscribed(): Boolean {
+        // Wait for the billing client to be ready, with a timeout.
+        val isReady = withTimeoutOrNull(5000L) { // 5 second timeout
+            MyApplication.isBillingClientReady.first { it }
+        }
+
+        if (isReady != true) {
+            Log.e("FreemiumManager", "BillingClient is not ready after waiting.")
+            return false
+        }
+
         return try {
-            val customerInfo = Purchases.sharedInstance.awaitCustomerInfo()
-            customerInfo.entitlements["pro"]?.isActive == true
+            val params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+            val purchasesResult = billingClient.queryPurchasesAsync(params)
+
+            if (purchasesResult.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                Log.e("FreemiumManager", "Failed to query purchases: ${purchasesResult.billingResult.debugMessage}")
+                return false
+            }
+
+            for (purchase in purchasesResult.purchasesList) {
+                if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED && purchase.products.contains(PRO_SKU)) {
+                    return true
+                }
+            }
+            return false
         } catch (e: Exception) {
             Log.e("FreemiumManager", "Error fetching customer info: $e")
             false
