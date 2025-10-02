@@ -1,0 +1,48 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    tools:context=".AdvancedSettingsActivity">
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/switchUseCustomKeys"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Use Custom Gemini Keys"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/textWarning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/switchUseCustomKeys"
+        android:layout_marginTop="8dp"
+        android:text="Warning: The app may not work properly with just 1 free API key. Add at least 3 free keys. You may be charged for usage with paid keys."
+        android:textColor="@android:color/holo_red_light"
+        android:visibility="gone" />
+
+    <EditText
+        android:id="@+id/editGeminiKey"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/textWarning"
+        android:layout_marginTop="16dp"
+        android:hint="Enter Gemini API Key" />
+
+    <Button
+        android:id="@+id/buttonAddKey"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/editGeminiKey"
+        android:layout_alignParentEnd="true"
+        android:text="Add" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewKeys"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/buttonAddKey"
+        android:layout_marginTop="16dp" />
+
+</RelativeLayout>
