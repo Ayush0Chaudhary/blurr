@@ -50,7 +50,8 @@ class MemoryManager(
         modelOutput: AgentOutput?,
         result: List<ActionResult>?,
         stepInfo: AgentStepInfo?,
-        screenState: ScreenState
+        screenState: ScreenState,
+        dynamicIntentContext: String?
     ) {
         // 1. Update the structured history with the outcome of the last step.
         updateHistory(modelOutput, result, stepInfo)
@@ -64,7 +65,8 @@ class MemoryManager(
             readStateDescription = state.readStateDescription,
             stepInfo = stepInfo,
             sensitiveDataDescription = getSensitiveDataDescription(),
-            availableFilePaths = null // Assuming we get this from fileSystem or elsewhere
+            availableFilePaths = null, // Assuming we get this from fileSystem or elsewhere
+            dynamicIntentContext = dynamicIntentContext
         )
 
         // 3. Construct the new user message using the builder.
