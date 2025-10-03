@@ -41,6 +41,12 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var editUserName: android.widget.EditText
     private lateinit var editUserEmail: android.widget.EditText
     private lateinit var editWakeWordKey: android.widget.EditText
+    private lateinit var editCustomLlmBaseUrl: android.widget.EditText
+    private lateinit var editCustomLlmApiKey: android.widget.EditText
+    private lateinit var editCustomTtsBaseUrl: android.widget.EditText
+    private lateinit var editCustomTtsApiKey: android.widget.EditText
+    private lateinit var editCustomSttBaseUrl: android.widget.EditText
+    private lateinit var editCustomSttApiKey: android.widget.EditText
     private lateinit var textGetPicovoiceKeyLink: TextView // NEW: Declare the TextView for the link
     private lateinit var wakeWordButton: TextView // NEW: Declare wake word button
     private lateinit var wakeWordManager: WakeWordManager // NEW: Wake word manager
@@ -79,6 +85,8 @@ class SettingsActivity : AppCompatActivity() {
         setupUI()
         loadAllSettings()
         setupAutoSavingListeners()
+        setupCustomLlmListeners()
+        setupCustomSpeechListeners()
         cacheVoiceSamples()
     }
 
@@ -108,6 +116,12 @@ class SettingsActivity : AppCompatActivity() {
 
         editUserName = findViewById(R.id.editUserName)
         editUserEmail = findViewById(R.id.editUserEmail)
+        editCustomLlmBaseUrl = findViewById(R.id.editCustomLlmBaseUrl)
+        editCustomLlmApiKey = findViewById(R.id.editCustomLlmApiKey)
+        editCustomTtsBaseUrl = findViewById(R.id.editCustomTtsBaseUrl)
+        editCustomTtsApiKey = findViewById(R.id.editCustomTtsApiKey)
+        editCustomSttBaseUrl = findViewById(R.id.editCustomSttBaseUrl)
+        editCustomSttApiKey = findViewById(R.id.editCustomSttApiKey)
         textGetPicovoiceKeyLink = findViewById(R.id.textGetPicovoiceKeyLink) // NEW: Initialize the TextView
 
 
@@ -249,6 +263,58 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupCustomLlmListeners() {
+        editCustomLlmBaseUrl.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                VoicePreferenceManager.saveCustomLlmBaseUrl(this@SettingsActivity, s.toString())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        editCustomLlmApiKey.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                VoicePreferenceManager.saveCustomLlmApiKey(this@SettingsActivity, s.toString())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+    }
+
+    private fun setupCustomSpeechListeners() {
+        editCustomTtsBaseUrl.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                VoicePreferenceManager.saveCustomTtsBaseUrl(this@SettingsActivity, s.toString())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        editCustomTtsApiKey.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                VoicePreferenceManager.saveCustomTtsApiKey(this@SettingsActivity, s.toString())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        editCustomSttBaseUrl.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                VoicePreferenceManager.saveCustomSttBaseUrl(this@SettingsActivity, s.toString())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        editCustomSttApiKey.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                VoicePreferenceManager.saveCustomSttApiKey(this@SettingsActivity, s.toString())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+    }
+
     private fun loadAllSettings() {
 
         // Inside loadAllSettings()
@@ -257,6 +323,16 @@ class SettingsActivity : AppCompatActivity() {
         val savedVoiceName = sharedPreferences.getString(KEY_SELECTED_VOICE, DEFAULT_VOICE.name)
         val savedVoice = availableVoices.find { it.name == savedVoiceName } ?: DEFAULT_VOICE
         ttsVoicePicker.value = availableVoices.indexOf(savedVoice)
+
+        // Load custom LLM settings
+        editCustomLlmBaseUrl.setText(VoicePreferenceManager.getCustomLlmBaseUrl(this) ?: "")
+        editCustomLlmApiKey.setText(VoicePreferenceManager.getCustomLlmApiKey(this) ?: "")
+
+        // Load custom TTS and STT settings
+        editCustomTtsBaseUrl.setText(VoicePreferenceManager.getCustomTtsBaseUrl(this) ?: "")
+        editCustomTtsApiKey.setText(VoicePreferenceManager.getCustomTtsApiKey(this) ?: "")
+        editCustomSttBaseUrl.setText(VoicePreferenceManager.getCustomSttBaseUrl(this) ?: "")
+        editCustomSttApiKey.setText(VoicePreferenceManager.getCustomSttApiKey(this) ?: "")
         
         // Update wake word button state
         updateWakeWordButtonState()
