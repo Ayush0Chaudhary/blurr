@@ -265,6 +265,22 @@ class ActionExecutor(private val finger: Finger) {
                 if (appIntent == null) {
                     return ActionResult(error = "Intent '$name' not found. Check intents catalog for valid names.")
                 }
+                
+                // Special handling for DirectCalendarEventIntent
+                if (name == "CalendarEvent") {
+                    val intent = appIntent.buildIntent(context, params)
+                    return if (intent == null) {
+                        ActionResult(error = "Failed to create calendar event with params: ${params}")
+                    } else {
+                        val eventTitle = intent.getStringExtra("event_title") ?: "calendar event"
+                        ActionResult(
+                            longTermMemory = "Successfully created calendar event: '$eventTitle'",
+                            isDone = false
+                        )
+                    }
+                }
+                
+                // Standard intent handling for other intents
                 val intent = appIntent.buildIntent(context, params)
                 return if (intent == null) {
                     ActionResult(error = "Intent '$name' missing or invalid parameters: ${params}")

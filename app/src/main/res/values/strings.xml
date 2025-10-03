@@ -98,6 +98,8 @@
     <string name="microphone_permission_desc">The microphone is required for the voice command and wake-word features. It allows you to give instructions to Panda by speaking.</string>
     <string name="overlay_permission_title">Display Over Other Apps</string>
     <string name="overlay_permission_desc">This permission is used to show visual feedback, such as the questions that panda have, captions and the voice wave animations, on top of other apps while Panda is working.</string>
+    <string name="calendar_permission_title">Calendar Access</string>
+    <string name="calendar_permission_desc">Allow Panda to create calendar events directly when you ask. This enables instant calendar event creation without opening the calendar app.</string>
     <string name="default_assistant_permission_title">Default Assistant</string>
     <string name="grant_default_assistant_permission_button">Set as Default Assistant</string>
     <string name="at_the_end_of_a_conversation_panda_s_ai_powered_by_google_s_gemini_model_analyzes_the_dialogue_to_identify_lasting_facts_it_s_trained_to_ignore_fleeting_or_unimportant_details_for_example_if_you_say_remind_me_to_call_my_brother_ankit_tomorrow_the_ai_might_create_a_memory_like_the_user_s_brother_is_named_ankit">At the end of a conversation, Panda\'s AI (powered by Google\'s Gemini model) analyzes the dialogue to identify lasting facts. It\'s trained to ignore fleeting or unimportant details. For example, if you say, || remind me to call my brother Ankit tomorrow ||,the AI might create a memory like: || The user\'s brother is named Anita. ||</string>

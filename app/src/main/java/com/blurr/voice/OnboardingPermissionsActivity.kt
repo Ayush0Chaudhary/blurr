@@ -46,6 +46,7 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
 
     // Activity result launchers for different permission types
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
+    private lateinit var requestMultiplePermissionsLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var requestOverlayLauncher: ActivityResultLauncher<Intent>
     private lateinit var requestRoleLauncher: ActivityResultLauncher<Intent>
     private var pendingRoleRequest = false
@@ -139,11 +140,26 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
             )
         }
 
+        // Step 5: Calendar Access (Standard Permission)
+        permissionSteps.add(
+            PermissionStep(
+                titleRes = R.string.calendar_permission_title,
+                descRes = R.string.calendar_permission_desc,
+                iconRes = R.drawable.ic_overlay, // TODO: Replace with calendar icon
+                isGranted = { 
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+                }
+            ) {
+                // Request both calendar permissions - we need both READ and WRITE
+                requestMultiplePermissionsLauncher.launch(arrayOf(
+                    Manifest.permission.READ_CALENDAR,
+                    Manifest.permission.WRITE_CALENDAR
+                ))
+            }
+        )
 
-        // In your setupPermissionSteps() function
-// ...
-// Step 5: Default Assistant Role (Special Intent)
-// Step 5: Default Assistant Role
+        // Step 6: Default Assistant Role (Special Intent)
         permissionSteps.add(
             PermissionStep(
                 titleRes = R.string.default_assistant_role_title,
@@ -191,6 +207,11 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
     private fun setupLaunchers() {
         requestPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+                updateUIForStep(currentStep)
+            }
+
+        requestMultiplePermissionsLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
                 updateUIForStep(currentStep)
             }
 
