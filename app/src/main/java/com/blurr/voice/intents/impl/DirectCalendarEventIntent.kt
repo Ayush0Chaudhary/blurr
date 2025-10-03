@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.blurr.voice.intents.AppIntent
 import com.blurr.voice.intents.ParameterSpec
+import com.blurr.voice.utilities.CalendarUtils
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -45,15 +46,15 @@ class DirectCalendarEventIntent : AppIntent {
         ),
         ParameterSpec(
             name = "start_time",
-            type = "long",
+            type = "string",
             required = true,
-            description = "The start time of the event in milliseconds since epoch."
+            description = "The start time of the event. Supports natural language like 'today at 3pm', 'tomorrow at 9am', or timestamps."
         ),
         ParameterSpec(
             name = "end_time",
-            type = "long",
-            required = true,
-            description = "The end time of the event in milliseconds since epoch."
+            type = "string",
+            required = false,
+            description = "The end time of the event. If not provided, defaults to 1 hour after start time. Supports natural language."
         ),
         ParameterSpec(
             name = "description",
@@ -104,22 +105,35 @@ class DirectCalendarEventIntent : AppIntent {
                 return false
             }
 
+            // Parse start time - supports natural language and timestamps
             val startTime = when (val start = params["start_time"]) {
                 is Long -> start
-                is String -> start.toLongOrNull()
                 is Number -> start.toLong()
+                is String -> {
+                    // Try to parse as timestamp first, then as natural language
+                    start.toLongOrNull() ?: CalendarUtils.parseDateTime(start)
+                }
                 else -> null
             }
 
+            if (startTime == null) {
+                Log.e(TAG, "Valid start time is required")
+                return false
+            }
+
+            // Parse end time - defaults to 1 hour after start time if not provided
             val endTime = when (val end = params["end_time"]) {
                 is Long -> end
-                is String -> end.toLongOrNull()
                 is Number -> end.toLong()
-                else -> null
+                is String -> {
+                    // Try to parse as timestamp first, then as natural language
+                    end.toLongOrNull() ?: CalendarUtils.parseDateTime(end)
+                }
+                else -> CalendarUtils.calculateEndTime(startTime, 60) // Default 1 hour duration
             }
 
-            if (startTime == null || endTime == null) {
-                Log.e(TAG, "Valid start and end times are required")
+            if (endTime == null) {
+                Log.e(TAG, "Could not determine valid end time")
                 return false
             }
 

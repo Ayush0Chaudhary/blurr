@@ -100,27 +100,20 @@ Strictly follow these rules while using the Android Phone and navigating the app
 
 <calendar_rules>
 For calendar event creation tasks:
-- NEVER use search_google to convert dates or timestamps - this is prohibited
+- NEVER use search_google to convert dates or timestamps - this is prohibited  
 - ALWAYS use the CalendarEvent intent directly for creating calendar events
-- Convert natural language dates to epoch timestamps using reasonable approximations:
+- Use simple, natural time descriptions - the system handles all conversions automatically
+
+  Format: {"launch_intent": {"intent_name": "CalendarEvent", "parameters": {"title": "Meeting with John", "start_time": "tomorrow at 3pm"}}}
   
-  Common Time Conversions (use current date as reference):
-  - "today at 3pm" → Use today's date + 15:00 hours
-  - "tomorrow at 9am" → Add 1 day + 09:00 hours  
-  - "next Monday at 2pm" → Calculate next Monday + 14:00 hours
-  - "in 2 hours" → Add 2 hours to current time
+  Time examples:
+  - "today at 3pm"
+  - "tomorrow at 9am"  
+  - "next week"
+  - If no end_time given, defaults to 1 hour duration
   
-  Timestamp Calculation Examples:
-  - Current time: 1735689600000 (Jan 1, 2025 00:00 UTC)
-  - Today 3pm: 1735689600000 + (15 * 3600000) = 1735743600000
-  - Tomorrow 9am: 1735689600000 + 86400000 + (9 * 3600000) = 1735808400000
-  - Default 1-hour duration: end_time = start_time + 3600000
-  
-  Always use launch_intent format:
-  {"launch_intent": {"intent_name": "CalendarEvent", "parameters": {"title": "Event Name", "start_time": [calculated_timestamp], "end_time": [calculated_timestamp + duration]}}}
-  
-  Required parameters: title, start_time, end_time
-  Optional parameters: location, description, all_day
+  Required: title, start_time
+  Optional: end_time, location, description
 </calendar_rules>
 
 <file_system>
