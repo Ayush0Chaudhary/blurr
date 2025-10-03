@@ -53,9 +53,12 @@ class Agent(
      * @param maxSteps The maximum number of steps the agent can take before stopping.
      */
     suspend fun run(initialTask: String, maxSteps: Int = 150) {
-        memoryManager.addNewTask(initialTask)
-        state.stopped = false
-        Log.d(TAG, "--- Agent starting task: '$initialTask' ---")
+        Log.d(TAG, "🚀 Agent.run() called with task: '$initialTask', maxSteps: $maxSteps")
+        try {
+            Log.d(TAG, "🔧 Adding new task to memory manager...")
+            memoryManager.addNewTask(initialTask)
+            state.stopped = false
+            Log.d(TAG, "--- Agent starting task: '$initialTask' ---")
 
         while (!state.stopped && state.nSteps <= maxSteps) {
             Log.d(TAG,"\n--- Step ${state.nSteps}/$maxSteps ---")
@@ -77,7 +80,9 @@ class Agent(
             // 3. THINK (Get Decision): Send the prepared messages to the LLM.
             Log.d(TAG,"🤔 Asking LLM for next action...")
             val messages = memoryManager.getMessages()
+            Log.d(TAG,"🔄 Calling llmApi.generateAgentOutput()...")
             val agentOutput = llmApi.generateAgentOutput(messages)
+            Log.d(TAG,"📤 LLM API call completed, received response: ${agentOutput != null}")
 
             // --- Handle LLM Failure ---
             if (agentOutput == null) {
@@ -141,6 +146,11 @@ class Agent(
             speechCoordinator.speakToUser("Agent reached maximum steps limit. Stopping execution.")
         } else {
             Log.d(TAG,"--- 🏁 Agent run finished. ---")
+        }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ FATAL ERROR in Agent.run(): ${e.message}", e)
+            speechCoordinator.speakToUser("Agent encountered a fatal error and stopped.")
+            throw e
         }
     }
 }

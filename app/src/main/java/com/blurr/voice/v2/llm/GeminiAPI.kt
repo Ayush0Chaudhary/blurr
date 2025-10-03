@@ -79,8 +79,13 @@ class GeminiApi(
      */
     suspend fun generateAgentOutput(messages: List<GeminiMessage>): AgentOutput? {
         val jsonString = retryWithBackoff(times = maxRetry) {
+            Log.d(TAG, "🔄 Attempting API call...")
             performApiCall(messages)
-        } ?: return null
+        } ?: run {
+            Log.e(TAG, "❌ All API call attempts failed, returning null")
+            return null
+        }
+        Log.d(TAG, "✅ API call successful, got response")
 
         return try {
             Log.d(TAG, "Parsing guaranteed JSON response. $jsonString")

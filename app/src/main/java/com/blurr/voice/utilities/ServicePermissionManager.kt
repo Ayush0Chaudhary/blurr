@@ -21,7 +21,8 @@ class ServicePermissionManager(private val context: Context) {
         return isAccessibilityServiceEnabled() &&
                 isMicrophonePermissionGranted() &&
                 isOverlayPermissionGranted() &&
-                isNotificationPermissionGranted()
+                isNotificationPermissionGranted() &&
+                isCalendarPermissionGranted()
     }
 
     /**
@@ -78,5 +79,14 @@ class ServicePermissionManager(private val context: Context) {
      */
     fun isOverlayPermissionGranted(): Boolean {
         return Settings.canDrawOverlays(context)
+    }
+
+    /**
+     * Check if calendar permissions are granted (both read and write)
+     */
+    fun isCalendarPermissionGranted(): Boolean {
+        val writePermission = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        val readPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        return writePermission && readPermission
     }
 }
