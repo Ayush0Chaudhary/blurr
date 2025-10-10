@@ -8,8 +8,8 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="wave_color">#00BCD4</color>
-    <color name="background_color">#FFFFFF</color> <!-- White background -->
-    <color name="dark_background">#FF0F0F0F</color>
+    <color name="background_color">#101010</color> <!-- Dark background -->
+    <color name="dark_background">#101010</color>
     <color name="button_blue">#FF3663FF</color>
     <color name="text_gray">#FF8A8A8E</color>
     <color name="gradient_start">#FFC882FF</color>
@@ -18,10 +18,18 @@
     <color name="panel_background">#FF1C1C1E</color>
     
     <!-- Memory management colors -->
-    <color name="background">#FFFFFF</color>
-    <color name="primary">#6200EE</color>
+    <color name="background">#101010</color>
+    <color name="primary">#101010</color>
     <color name="accent">#03DAC5</color>
     <color name="surface">#FFFFFF</color>
     <color name="text_primary">#000000</color>
     <color name="text_secondary">#666666</color>
+    <color name="orange">#FFBC87</color>
+
+    <!-- Delta symbol state colors -->
+    <color name="delta_idle">#FFFFFF</color>        <!-- White - ready state -->
+    <color name="delta_listening">#FF9800</color>   <!-- Orange/Amber - listening -->
+    <color name="delta_processing">#2196F3</color>  <!-- Blue - thinking/processing -->
+    <color name="delta_speaking">#4CAF50</color>    <!-- Green - speaking -->
+    <color name="delta_error">#F44336</color>       <!-- Red - error state -->
 </resources>

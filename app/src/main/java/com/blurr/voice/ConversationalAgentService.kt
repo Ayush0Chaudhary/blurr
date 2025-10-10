@@ -47,6 +47,7 @@ import com.google.firebase.analytics.analytics
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.blurr.voice.utilities.ServicePermissionManager
+import com.blurr.voice.utilities.PandaStateManager
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,6 +75,7 @@ class ConversationalAgentService : Service() {
     private val clarificationQuestionViews = mutableListOf<View>()
     private var transcriptionView: TextView? = null
     private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance(this) }
+    private val pandaStateManager by lazy { PandaStateManager.getInstance(this) }
     private var isTextModeActive = false
     private val freemiumManager by lazy { FreemiumManager() }
     private val servicePermissionManager by lazy { ServicePermissionManager(this) }
@@ -128,6 +130,9 @@ class ConversationalAgentService : Service() {
         visualFeedbackManager.showTtsWave()
         showInputBoxIfNeeded()
         visualFeedbackManager.showSpeakingOverlay() // <-- ADD THIS LINE
+        
+        // Start state monitoring
+        pandaStateManager.startMonitoring()
 
 
     }
@@ -284,6 +289,9 @@ class ConversationalAgentService : Service() {
                 Log.e("ConvAgent", "STT Error: $error")
                 if (isTextModeActive) return@startListening // Ignore errors in text mode
                 
+                // Trigger error state in state manager
+                pandaStateManager.triggerErrorState()
+                
                 // Track STT errors
                 val sttErrorBundle = android.os.Bundle().apply {
                     putString("error_message", error.take(100))
@@ -369,6 +377,9 @@ class ConversationalAgentService : Service() {
             onError = { error ->
                 Log.e("ConvAgent", "STT Error: $error")
                 if (isTextModeActive) return@startListening // Ignore errors in text mode
+                
+                // Trigger error state in state manager
+                pandaStateManager.triggerErrorState()
                 
                 // Track STT errors
                 val sttErrorBundle = android.os.Bundle().apply {
@@ -653,6 +664,9 @@ class ConversationalAgentService : Service() {
 
             } catch (e: Exception) {
                 Log.e("ConvAgent", "Error processing user input: ${e.message}", e)
+                
+                // Trigger error state in state manager
+                pandaStateManager.triggerErrorState()
                 
                 // Track processing errors
                 val errorBundle = android.os.Bundle().apply {
@@ -1321,6 +1335,10 @@ class ConversationalAgentService : Service() {
         serviceScope.cancel()
         ttsManager.setCaptionsEnabled(false)
         isRunning = false
+        
+        // Stop state monitoring
+        pandaStateManager.stopMonitoring()
+        
         visualFeedbackManager.hideSpeakingOverlay() // <-- ADD THIS LINE
         // USE the new manager to hide the wave and transcription view
         visualFeedbackManager.hideTtsWave()

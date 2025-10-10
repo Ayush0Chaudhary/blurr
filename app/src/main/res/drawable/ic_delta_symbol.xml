@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="500dp"
+    android:height="500dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Left side of triangle (thinner) -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,3 L3,19"/>
+    <!-- Bottom side of triangle -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3,19 L21,19"/>
+    <!-- Right side of triangle (thicker) -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.6"
+        android:strokeLineCap="butt"
+        android:strokeLineJoin="round"
+        android:pathData="M21,19 L12,3"/>
+</vector>

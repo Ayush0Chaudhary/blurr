@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Delta symbol -->
+    <!-- Left side (thinner) -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,6 L7,18"/>
+    <!-- Bottom side -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.3"
+        android:strokeLineCap="square"
+        android:strokeLineJoin="round"
+        android:pathData="M7,18 L17,18"/>
+    <!-- Right side (thicker) -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.6"
+        android:strokeLineCap="butt"
+        android:strokeLineJoin="miter"
+        android:pathData="M17,18 L12,6"/>
+</vector>

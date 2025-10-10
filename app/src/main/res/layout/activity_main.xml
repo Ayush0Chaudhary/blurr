@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg"
+    android:background="@drawable/bg_solid"
     android:fitsSystemWindows="true">
 
     <!-- Loading overlay -->
@@ -31,113 +31,69 @@
             android:textSize="16sp" />
     </LinearLayout>
 
+    <!-- Pro Upgrade Banner -->
+    <include
+        android:id="@+id/pro_upgrade_banner"
+        layout="@layout/pro_upgrade_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true" />
+
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_below="@+id/pro_upgrade_banner"
         android:layout_above="@+id/permission_section"
         android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="left"
+            android:layout_height="match_parent"
+            android:gravity="center"
             android:orientation="vertical"
-            android:padding="16dp"
-            tools:ignore="RtlHardcoded">
+            android:padding="16dp">
 
-            <LinearLayout
+            <!-- Spacer to center delta symbol -->
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
-                <TextView
-                    android:id="@+id/karan_textview_gradient"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/hello_sir"
-                    android:textColor="#CECECE"
-                    android:textSize="40sp" />
-
-                <ImageButton
-                    android:id="@+id/settingsButton"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/settings"
-                    android:src="@drawable/outline_settings_24"
-                    app:tint="#FFFFFF" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/subtitle_textview"
+            <!-- Central delta symbol container -->
+            <LinearLayout
+                android:id="@+id/center_content"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:gravity="center_horizontal"
-                android:text="@string/assistant_at_nyour_command"
-                android:textAlignment="viewStart"
-                android:textColor="#FFFFFF"
-                android:textSize="40sp"
-                tools:ignore="RtlCompat" />
-
-<!--            <TextView-->
-<!--                android:id="@+id/memoriesButton"-->
-<!--                android:layout_width="match_parent"-->
-<!--                android:layout_height="wrap_content"-->
-<!--                android:layout_marginTop="16dp"-->
-<!--                android:background="@drawable/rounded_button"-->
-<!--                android:clickable="true"-->
-<!--                android:focusable="true"-->
-<!--                android:gravity="center"-->
-<!--                android:padding="12dp"-->
-<!--                android:text="Panda's Memories"-->
-<!--                android:textColor="@android:color/white"-->
-<!--                android:textSize="16sp" />-->
-            <TextView
-                android:id="@+id/startConversationButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/rounded_button"
-                android:clickable="true"
-                android:focusable="true"
+                android:layout_gravity="center"
                 android:gravity="center"
-                android:padding="12dp"
-                android:text="Start Conversation"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
-            <TextView
-                android:id="@+id/triggersButton"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:id="@+id/delta_symbol"
+                    android:layout_width="200dp"
+                    android:layout_height="200dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Panda status indicator"
+                    android:src="@drawable/ic_delta_large" />
+
+                <TextView
+                    android:id="@+id/status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="24dp"
+                    android:text="Ready"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <!-- Spacer to push remaining content to bottom -->
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/rounded_button"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:padding="12dp"
-                android:text="Set up Triggers"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
-
-            <TextView
-                android:id="@+id/goProButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/rounded_button"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:padding="12dp"
-                android:text="Go Pro"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
-
+            <!-- Essential UI elements to preserve -->
             <TextView
                 android:id="@+id/run_example_button"
                 android:layout_width="match_parent"
@@ -154,20 +110,6 @@
                 android:visibility="gone" />
 
             <TextView
-                android:id="@+id/saveKeyButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/btn_with_border"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:padding="12dp"
-                android:text="Setup Wake Word"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
-
-            <TextView
                 android:id="@+id/btn_set_default_assistant"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -181,6 +123,7 @@
                 android:textColor="@android:color/white"
                 android:textSize="16sp" />
 
+            <!-- Essential link: "How to wake up Panda" - preserved with existing styling -->
             <TextView
                 android:id="@+id/wakeWordHelpLink"
                 android:layout_width="wrap_content"
@@ -208,6 +151,7 @@
                 tools:text="✓ Pro Subscription Active"
                 tools:visibility="visible" />
 
+            <!-- Essential element: "Free tasks left" text - preserved with existing styling -->
             <TextView
                 android:id="@+id/tasks_remaining_textview"
                 android:layout_width="wrap_content"
@@ -221,6 +165,7 @@
                 tools:text="15 Free Tasks Remaining"
                 tools:visibility="visible" />
 
+            <!-- Essential link: Developer email - preserved in existing position -->
             <TextView
                 android:id="@+id/increase_limits_link"
                 android:layout_width="wrap_content"
@@ -264,6 +209,7 @@
 
     </ScrollView>
 
+    <!-- Essential element: Permission section - preserved with current visibility logic -->
     <LinearLayout
         android:id="@+id/permission_section"
         android:layout_width="match_parent"

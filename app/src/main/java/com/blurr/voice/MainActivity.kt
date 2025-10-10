@@ -1,29 +1,20 @@
 package com.blurr.voice
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.provider.SyncStateContract
-import android.util.Log
 import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
@@ -31,14 +22,10 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
-import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import com.android.billingclient.api.*
 import com.blurr.voice.v2.AgentService
-import com.blurr.voice.services.EnhancedWakeWordService
 import com.blurr.voice.utilities.FreemiumManager
 import com.blurr.voice.utilities.Logger
 import com.blurr.voice.utilities.OnboardingManager
@@ -47,13 +34,12 @@ import com.blurr.voice.utilities.UserIdManager
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VideoAssetManager
 import com.blurr.voice.utilities.WakeWordManager
-import com.blurr.voice.api.PicovoiceKeyManager
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.blurr.voice.utilities.PandaState
+import com.blurr.voice.utilities.PandaStateManager
+import com.blurr.voice.utilities.DeltaStateColorMapper
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -66,8 +52,6 @@ class MainActivity : BaseNavigationActivity() {
     private lateinit var handler: Handler
     private lateinit var managePermissionsButton: TextView
     private lateinit var tvPermissionStatus: TextView
-    private lateinit var settingsButton: ImageButton
-    private lateinit var saveKeyButton: TextView
     private lateinit var userId: String
     private lateinit var runExampleButton: TextView
     private lateinit var permissionManager: PermissionManager
@@ -80,7 +64,10 @@ class MainActivity : BaseNavigationActivity() {
     private lateinit var onboardingManager: OnboardingManager
     private lateinit var requestRoleLauncher: ActivityResultLauncher<Intent>
     private lateinit var billingStatusTextView: TextView
+    private lateinit var statusTextView: TextView
     private lateinit var loadingOverlay: View
+    private lateinit var pandaStateManager: PandaStateManager
+    private lateinit var stateChangeListener: (PandaState) -> Unit
 
     private lateinit var root: View
     companion object {
@@ -199,23 +186,22 @@ class MainActivity : BaseNavigationActivity() {
         runExampleButton = findViewById(R.id.run_example_button)
 
         tvPermissionStatus = findViewById(R.id.tv_permission_status)
-        settingsButton = findViewById(R.id.settingsButton)
         wakeWordHelpLink = findViewById(R.id.wakeWordHelpLink)
 
-        saveKeyButton = findViewById(R.id.saveKeyButton)
         tasksRemainingTextView = findViewById(R.id.tasks_remaining_textview)
         billingStatusTextView = findViewById(R.id.billing_status_textview)
+        statusTextView = findViewById(R.id.status_text)
         loadingOverlay = findViewById(R.id.loading_overlay)
         freemiumManager = FreemiumManager()
-        // Initialize managers
+        updateStatusText(PandaState.IDLE)
+        setupProBanner()
+        initializePandaStateManager()
         wakeWordManager = WakeWordManager(this, requestPermissionLauncher)
         handler = Handler(Looper.getMainLooper())
 
 
         // Setup UI and listeners
         setupClickListeners()
-        setupSettingsButton()
-        setupGradientText()
 
         
         // Show loading and perform initial billing check
@@ -326,16 +312,11 @@ class MainActivity : BaseNavigationActivity() {
     override fun getCurrentNavItem(): BaseNavigationActivity.NavItem = BaseNavigationActivity.NavItem.HOME
 
     private fun setupClickListeners() {
-        findViewById<TextView>(R.id.startConversationButton).setOnClickListener {
-            startConversationalAgent()
-        }
 //        findViewById<TextView>(R.id.memoriesButton).setOnClickListener {
 //            startActivity(Intent(this, MemoriesActivity::class.java))
 //        }
 
-        saveKeyButton.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
+
 
         managePermissionsButton.setOnClickListener {
             startActivity(Intent(this, PermissionsActivity::class.java))
@@ -356,11 +337,6 @@ class MainActivity : BaseNavigationActivity() {
         }
     }
 
-    private fun setupSettingsButton() {
-        settingsButton.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-    }
     private fun requestLimitIncrease() {
         val userEmail = auth.currentUser?.email
         if (userEmail.isNullOrEmpty()) {
@@ -386,15 +362,39 @@ class MainActivity : BaseNavigationActivity() {
             Toast.makeText(this, "No email application found.", Toast.LENGTH_SHORT).show()
         }
     }
-    private fun setupGradientText() {
-        val karanTextView = findViewById<TextView>(R.id.karan_textview_gradient)
-        karanTextView.measure(0, 0)
-        val textShader: Shader = LinearGradient(
-            0f, 0f, karanTextView.measuredWidth.toFloat(), 0f,
-            intArrayOf("#BE63F3".toColorInt(), "#5880F7".toColorInt()),
-            null, Shader.TileMode.CLAMP
-        )
-        karanTextView.paint.shader = textShader
+
+
+    private fun setupProBanner() {
+        val proBanner = findViewById<View>(R.id.pro_upgrade_banner)
+        val upgradeButton = findViewById<TextView>(R.id.upgrade_button)
+        
+        upgradeButton.setOnClickListener {
+            // Navigate to Pro purchase screen (Requirement 2.3)
+            val intent = Intent(this, ProPurchaseActivity::class.java)
+            startActivity(intent)
+        }
+        
+        // Initially hide the banner - it will be shown/hidden based on subscription status
+        proBanner.visibility = View.GONE
+    }
+
+    /**
+     * Initialize PandaStateManager and set up state change listeners
+     */
+    private fun initializePandaStateManager() {
+        pandaStateManager = PandaStateManager.getInstance(this)
+        
+        // Create and store the state change listener for proper cleanup
+        stateChangeListener = { newState ->
+            // Update status text based on new state
+            updateStatusText(newState)
+            
+            // Update delta symbol color if needed (this will be handled by the delta symbol component)
+            Logger.d("MainActivity", "Panda state changed to: ${newState.name}")
+        }
+        
+        // Add state change listener to update UI when state changes
+        pandaStateManager.addStateChangeListener(stateChangeListener)
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -406,6 +406,9 @@ class MainActivity : BaseNavigationActivity() {
         performBillingCheck()
         displayDeveloperMessage()
         updateUI()
+        
+        // Start state monitoring when activity becomes visible
+        pandaStateManager.startMonitoring()
         
         // Register broadcast receivers
         val wakeWordFilter = IntentFilter(ACTION_WAKE_WORD_FAILED)
@@ -421,6 +424,10 @@ class MainActivity : BaseNavigationActivity() {
     }
     override fun onPause() {
         super.onPause()
+        
+        // Stop state monitoring when activity is not visible
+        pandaStateManager.stopMonitoring()
+        
         // Unregister the BroadcastReceivers to avoid leaks
         try {
             unregisterReceiver(wakeWordFailureReceiver)
@@ -428,6 +435,16 @@ class MainActivity : BaseNavigationActivity() {
         } catch (e: IllegalArgumentException) {
             // Receivers might not be registered, ignore
             Logger.d("MainActivity", "Receivers were not registered")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        
+        // Clean up state change listener to prevent memory leaks
+        if (::pandaStateManager.isInitialized && ::stateChangeListener.isInitialized) {
+            pandaStateManager.removeStateChangeListener(stateChangeListener)
+            pandaStateManager.stopMonitoring()
         }
     }
 
@@ -493,16 +510,23 @@ class MainActivity : BaseNavigationActivity() {
             val tasksLeft = freemiumManager.getTasksRemaining()
 
             if (tasksLeft == Long.MAX_VALUE) {
+                // Pro user - hide both elements
                 tasksRemainingTextView.visibility = View.GONE
                 increaseLimitsLink.visibility = View.GONE
 
             } else if (tasksLeft != null && tasksLeft >= 0) {
-                if (tasksLeft > 0) {
-                    tasksRemainingTextView.text = "You have $tasksLeft free tasks remaining today."
+                // Free user - only show tasks remaining text when 3 or fewer tasks left (Requirement 3.7)
+                if (tasksLeft <= 3) {
+                    if (tasksLeft > 0) {
+                        tasksRemainingTextView.text = "You have $tasksLeft free tasks remaining today."
+                    } else {
+                        tasksRemainingTextView.text = "You have 0 free tasks left for today."
+                    }
+                    tasksRemainingTextView.visibility = View.VISIBLE
                 } else {
-                    tasksRemainingTextView.text = "You have 0 free tasks left for today."
+                    // More than 3 tasks left - hide the counter
+                    tasksRemainingTextView.visibility = View.GONE
                 }
-                tasksRemainingTextView.visibility = View.VISIBLE
                 increaseLimitsLink.visibility = View.VISIBLE
 
             } else {
@@ -517,22 +541,35 @@ class MainActivity : BaseNavigationActivity() {
             try {
                 val isSubscribed = freemiumManager.isUserSubscribed()
                 val billingClientReady = MyApplication.isBillingClientReady.value
+                val proBanner = findViewById<View>(R.id.pro_upgrade_banner)
+                
+                // Add null check to prevent crashes
+                if (proBanner == null) {
+                    Logger.w("MainActivity", "pro_banner view not found in updateBillingStatus")
+                    return@launch
+                }
                 
                 when {
                     !billingClientReady -> {
                         billingStatusTextView.text = "Billing: Connecting..."
                         billingStatusTextView.setTextColor(Color.parseColor("#FF9800")) // Orange
                         billingStatusTextView.visibility = View.VISIBLE
+                        // Show banner while connecting (user might not be subscribed)
+                        proBanner.visibility = View.VISIBLE
                     }
                     isSubscribed -> {
                         billingStatusTextView.text = "✓ Pro Subscription Active"
                         billingStatusTextView.setTextColor(Color.parseColor("#4CAF50")) // Green
                         billingStatusTextView.visibility = View.VISIBLE
+                        // Hide banner for Pro users
+                        proBanner.visibility = View.GONE
                     }
                     else -> {
                         billingStatusTextView.text = "Free Plan"
                         billingStatusTextView.setTextColor(Color.parseColor("#757575")) // Gray
                         billingStatusTextView.visibility = View.VISIBLE
+                        // Show banner for free users
+                        proBanner.visibility = View.VISIBLE
                     }
                 }
             } catch (e: Exception) {
@@ -540,6 +577,13 @@ class MainActivity : BaseNavigationActivity() {
                 billingStatusTextView.text = "Billing: Error"
                 billingStatusTextView.setTextColor(Color.parseColor("#F44336")) // Red
                 billingStatusTextView.visibility = View.VISIBLE
+                // Show banner on error (assume not subscribed)
+                val proBanner = findViewById<View>(R.id.pro_upgrade_banner)
+                if (proBanner != null) {
+                    proBanner.visibility = View.VISIBLE
+                } else {
+                    Logger.w("MainActivity", "pro_banner view not found in error handler")
+                }
             }
         }
     }
@@ -773,6 +817,37 @@ class MainActivity : BaseNavigationActivity() {
                 }
             } catch (e: Exception) {
                 Logger.e("MainActivity", "Exception in displayDeveloperMessage", e)
+            }
+        }
+    }
+
+    /**
+     * Update the status text based on the current PandaState
+     */
+    fun updateStatusText(state: PandaState) {
+        runOnUiThread {
+            try {
+                val statusText = DeltaStateColorMapper.getStatusText(state)
+                statusTextView.text = statusText
+                Logger.d("MainActivity", "Status text updated to: $statusText for state: ${state.name}")
+            } catch (e: Exception) {
+                Logger.e("MainActivity", "Error updating status text", e)
+                statusTextView.text = "Ready" // Fallback to default
+            }
+        }
+    }
+
+    /**
+     * Update the status text with custom text (overrides state-based text)
+     */
+    fun updateStatusText(customText: String) {
+        runOnUiThread {
+            try {
+                statusTextView.text = customText
+                Logger.d("MainActivity", "Status text updated to custom text: $customText")
+            } catch (e: Exception) {
+                Logger.e("MainActivity", "Error updating status text with custom text", e)
+                statusTextView.text = "Ready" // Fallback to default
             }
         }
     }

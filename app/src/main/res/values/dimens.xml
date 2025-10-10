@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Delta symbol dimensions -->
+    <dimen name="delta_symbol_size">500dp</dimen>
+    <dimen name="status_text_margin_top">24dp</dimen>
+    
+    <!-- Navigation delta dimensions -->
+    <dimen name="delta_nav_size">32dp</dimen>
+</resources>

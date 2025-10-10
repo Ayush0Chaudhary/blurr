@@ -3,54 +3,95 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg"
+    android:background="@drawable/bg_solid"
     android:padding="24dp"
     tools:context=".LoginActivity">
 
-    <TextView
-        android:id="@+id/welcomeTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <ImageView
+        android:id="@+id/logoImage"
+        android:layout_width="140dp"
+        android:layout_height="96dp"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="100dp"
-        android:text="Hey, I am Panda!"
-        android:textColor="@android:color/white"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        android:layout_marginTop="10dp"
+        android:contentDescription="Panda logo"
+        android:src="@drawable/panda_logo" />
 
     <TextView
         android:id="@+id/inviteMessage"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_above="@id/googleSignInButton"
+        android:layout_below="@id/logoImage"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="16dp"
-        android:text="Your AI assistant for Android"
+        android:layout_marginTop="16dp"
+        android:text="Voice Assistant capable of using your phone"
         android:textAlignment="center"
+        android:textColor="#FFBD86"
+        android:textSize="20sp" />
+
+    <EditText
+        android:id="@+id/emailInput"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_below="@id/dividerContainer"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/input_box_background"
+        android:hint="Enter your email"
+        android:inputType="textEmailAddress"
+        android:padding="12dp"
         android:textColor="@android:color/white"
-        android:textSize="16sp" />
+        android:textColorHint="#80FFFFFF" />
 
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/googleSignInButton"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
-        android:layout_width="wrap_content"
+        android:id="@+id/emailSendLinkButton"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"
-        android:paddingStart="12dp"
-        android:paddingTop="12dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="12dp"
-        android:text="Sign in with Google"
+        android:layout_below="@id/emailInput"
+        android:layout_marginTop="12dp"
+        android:text="Send magic link"
         android:textAllCaps="false"
-        android:textColor="#5F6368"
-        app:backgroundTint="@android:color/white"
-        app:cornerRadius="4dp"
-        app:icon="@drawable/ic_login"
-        app:iconPadding="12dp"
-        app:iconTint="@null"
-        app:strokeColor="#DADCE0"
-        app:strokeWidth="1dp" />
+        android:textColor="@color/black"
+        app:backgroundTint="#FFBD86"
+        app:cornerRadius="12dp" />
+
+    <com.google.android.gms.common.SignInButton
+        android:id="@+id/googleSignInButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/inviteMessage"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="50dp" />
+
+    <LinearLayout
+        android:id="@+id/dividerContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/googleSignInButton"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="12dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:background="#323232" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:text="OR"
+            android:textColor="#C7C7C7"
+            android:textStyle="normal" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:background="#323232" />
+    </LinearLayout>
 
     <ProgressBar
         android:id="@+id/progressBar"

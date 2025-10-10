@@ -1,4 +1,4 @@
-<!-- res/values/themes.xml -->
+<!-- res/values-night/themes.xml -->
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.Blurr" parent="Theme.MaterialComponents.Light.NoActionBar">
         <!-- Required for AppCompat -->
@@ -52,14 +52,7 @@
 
     <style name="AppTheme.NumberPicker" parent="Theme.AppCompat.Light">
         <item name="android:textColorPrimary">@android:color/white</item>
-
         <item name="colorControlNormal">@android:color/transparent</item>
     </style>
 
 </resources>
-
-
-<!--<resources>-->
-<!--<style name="Theme.Blurr" parent="Theme.Material3.Dark.NoActionBar">-->
-<!--</style>-->
-<!--</resources>-->

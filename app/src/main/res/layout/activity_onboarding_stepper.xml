@@ -3,60 +3,47 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg"
-    android:padding="24dp"
+    android:background="#121212"
     tools:context=".OnboardingPermissionsActivity">
 
     <LinearLayout
-        android:id="@+id/permissionContentLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
+        android:layout_margin="24dp"
         android:background="@drawable/rounded_background"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="32dp">
 
         <ImageView
             android:id="@+id/permissionIcon"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="300dp"
+            android:layout_height="200dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="16dp"
-            app:tint="@color/white"
-            tools:src="@drawable/ic_accessibility"
-            tools:ignore="ContentDescription" />
+            tools:ignore="ContentDescription"
+            />
 
         <TextView
             android:id="@+id/permissionTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="8dp"
+            android:layout_marginBottom="12dp"
             android:text="@string/accessibility_permission_title"
-            android:textAlignment="center"
             android:textColor="@color/white"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/permissionDescription"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="24dp"
+            android:lineSpacingExtra="4dp"
             android:text="@string/accessibility_permission_desc"
             android:textAlignment="center"
-            android:textColor="@android:color/white"
-            android:textSize="16sp" />
+            android:textColor="#B3FFFFFF"
+            android:textSize="15sp" />
 
-        <Button
-            android:id="@+id/grantButton"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/rounded_button_bg"
-            android:text="@string/grant_permission_button"
-            android:textColor="@android:color/white" />
     </LinearLayout>
 
     <LinearLayout
@@ -64,35 +51,52 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_marginTop="24dp"
-        android:orientation="vertical">
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="24dp">
 
         <TextView
             android:id="@+id/stepperIndicator"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
             android:layout_marginBottom="16dp"
             android:text="Step 1 of 5"
-            android:textColor="@android:color/white"
+            android:textColor="#B3FFFFFF"
             android:textSize="14sp" />
 
-        <Button
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/grantButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="14dp"
+            android:text="@string/grant_permission_button"
+            android:textAllCaps="false"
+            android:textColor="@color/black"
+            android:textSize="16sp"
+            app:backgroundTint="@color/orange"
+            app:cornerRadius="12dp" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/nextButton"
-            style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/rounded_button"
+            android:padding="14dp"
             android:text="Next"
-            android:textColor="@android:color/white" />
+            android:textAllCaps="false"
+            android:textColor="@color/black"
+            android:textSize="16sp"
+            android:visibility="gone"
+            app:backgroundTint="@color/orange"
+            app:cornerRadius="12dp" />
 
-        <Button
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/skipButton"
-            style="@style/Widget.AppCompat.Button.Borderless"
-            android:layout_width="match_parent"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:text="Skip for now"
-            android:textColor="#FFFFFF" />
-
+            android:textColor="#B3FFFFFF" />
     </LinearLayout>
+
 </RelativeLayout>
