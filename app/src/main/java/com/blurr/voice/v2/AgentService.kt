@@ -16,6 +16,7 @@ import com.blurr.voice.R
 import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.api.Eyes
 import com.blurr.voice.api.Finger
+import com.blurr.voice.utilities.FreemiumManager
 import com.blurr.voice.utilities.VisualFeedbackManager
 import com.blurr.voice.v2.actions.ActionExecutor
 import com.blurr.voice.v2.fs.FileSystem
@@ -62,6 +63,7 @@ class AgentService : Service() {
     private lateinit var perception: Perception
     private lateinit var llmApi: GeminiApi
     private lateinit var actionExecutor: ActionExecutor
+    private lateinit var freemiumManager: FreemiumManager
     
     // Firebase instances for task tracking
     private val db = Firebase.firestore
@@ -136,6 +138,7 @@ class AgentService : Service() {
         fileSystem = FileSystem(this)
         // Pass an empty initial task; it will be updated in onStartCommand
         memoryManager = MemoryManager(this, "", fileSystem, settings)
+        freemiumManager = FreemiumManager()
         // Assuming Eyes, Finger, and SemanticParser can be instantiated directly
         perception = Perception(Eyes(this), SemanticParser())
         llmApi = GeminiApi(
@@ -210,6 +213,16 @@ class AgentService : Service() {
 
             // Update notification for the new task
             notificationManager.notify(NOTIFICATION_ID, createNotification("Agent is running task: $task"))
+
+            // Freemium check
+            if (freemiumManager.canPerformTask()) {
+                freemiumManager.decrementTaskCount()
+                Log.d(TAG, "Task deducted. Remaining tasks: ${freemiumManager.getRemainingTasks()}")
+            } else {
+                Log.w(TAG, "Task execution denied. No free tasks remaining.")
+                // Optionally, notify the user that the scheduled task failed due to limits.
+                continue // Skip to the next task in the queue
+            }
 
             try {
                 Log.i(TAG, "Executing task: $task")
