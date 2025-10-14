@@ -29,7 +29,8 @@ class PermissionManager(private val activity: AppCompatActivity) {
         return isAccessibilityServiceEnabled() &&
                 isMicrophonePermissionGranted() &&
                 isOverlayPermissionGranted() &&
-                isNotificationPermissionGranted()
+                isNotificationPermissionGranted() &&
+                isCalendarPermissionGranted()
     }
 
         /**
@@ -101,6 +102,7 @@ class PermissionManager(private val activity: AppCompatActivity) {
         fun requestAllPermissions() {
                 requestNotificationPermission()
                 requestMicrophonePermission()
+                requestCalendarPermission()
             }
 
         /**
@@ -217,6 +219,41 @@ class PermissionManager(private val activity: AppCompatActivity) {
                         status.add("Overlay: ✗")
                     }
                 
+                if (isCalendarPermissionGranted()) {
+                        status.add("Calendar: ✓")
+                    } else {
+                        status.add("Calendar: ✗")
+                    }
+                
                 return status.joinToString(", ")
             }
+
+        /**
+         * Request calendar permission for direct event creation
+         */
+        fun requestCalendarPermission() {
+            when {
+                ContextCompat.checkSelfPermission(activity, Manifest.permission.WRITE_CALENDAR) ==
+                        PackageManager.PERMISSION_GRANTED -> {
+                    Log.i("PermissionManager", "Calendar permission is already granted.")
+                }
+                activity.shouldShowRequestPermissionRationale(Manifest.permission.WRITE_CALENDAR) -> {
+                    Log.w("PermissionManager", "Showing rationale and requesting calendar permission.")
+                    permissionLauncher?.launch(Manifest.permission.WRITE_CALENDAR)
+                }
+                else -> {
+                    Log.i("PermissionManager", "Requesting calendar permission for the first time.")
+                    permissionLauncher?.launch(Manifest.permission.WRITE_CALENDAR)
+                }
+            }
+        }
+
+        /**
+         * Check if calendar permissions are granted (both read and write)
+         */
+        fun isCalendarPermissionGranted(): Boolean {
+            val writePermission = ContextCompat.checkSelfPermission(activity, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
+            val readPermission = ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+            return writePermission && readPermission
+        }
 }

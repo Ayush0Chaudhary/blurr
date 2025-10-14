@@ -2,9 +2,11 @@ package com.blurr.voice.intents
 
 import android.content.Context
 import android.util.Log
+import com.blurr.voice.intents.impl.DirectCalendarEventIntent
 import com.blurr.voice.intents.impl.DialIntent
 import com.blurr.voice.intents.impl.EmailComposeIntent
 import com.blurr.voice.intents.impl.ShareTextIntent
+import com.blurr.voice.intents.impl.StandardCalendarEventIntent
 import com.blurr.voice.intents.impl.ViewUrlIntent
 
 /**
@@ -24,6 +26,9 @@ object IntentRegistry {
         register(ViewUrlIntent())
         register(ShareTextIntent())
         register(EmailComposeIntent())
+        register(DirectCalendarEventIntent())
+        // Also register the standard calendar intent as an alternative
+        // register(StandardCalendarEventIntent()) // Commented out to avoid duplicate names for now
         initialized = true
     }
     fun register(intent: AppIntent) {
