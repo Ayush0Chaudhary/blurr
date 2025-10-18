@@ -35,6 +35,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.Blurr">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -46,7 +47,7 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <activity android:name=".LoginActivity" android:exported="true" android:label="Login_activity" android:theme="@style/Theme.Blurr">
+        <activity android:name=".LoginActivity" android:exported="true" android:label="Login_activity" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait">
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -57,18 +58,19 @@
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
         </activity>
-        <activity android:name=".ChatActivity" android:exported="true" android:label="@string/app_name" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".DialogueActivity" android:exported="false" android:label="@string/app_name" android:theme="@style/Theme.Blurr" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".SettingsActivity" android:exported="false" android:label="@string/settings" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".OnboardingPermissionsActivity" android:exported="false" android:label="onboarding" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".PermissionsActivity" android:exported="false" android:label="@string/permissions_explained_title" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".MemoriesActivity" android:exported="false" android:label="My Memories" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".PrivacyActivity" android:exported="false" android:label="How Panda Remembers" android:theme="@style/Theme.Blurr" />
+        <activity android:name=".ChatActivity" android:exported="true" android:label="@string/app_name" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".DialogueActivity" android:exported="false" android:label="@string/app_name" android:theme="@style/Theme.Blurr" android:windowSoftInputMode="adjustResize" android:screenOrientation="portrait" />
+        <activity android:name=".SettingsActivity" android:exported="false" android:label="@string/settings" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".OnboardingPermissionsActivity" android:exported="false" android:label="onboarding" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".PermissionsActivity" android:exported="false" android:label="@string/permissions_explained_title" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".MemoriesActivity" android:exported="false" android:label="My Memories" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".PrivacyActivity" android:exported="false" android:label="How Panda Remembers" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
         <activity
             android:name=".RoleRequestActivity"
             android:exported="false"
             android:launchMode="singleTop"
             android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.Blurr" />
 
         <activity
@@ -76,18 +78,19 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
-            android:excludeFromRecents="true">
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
-        <activity android:name=".triggers.ui.TriggersActivity" android:exported="false" android:label="Triggers" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".triggers.ui.CreateTriggerActivity" android:exported="false" android:label="Create Trigger" android:theme="@style/Theme.Blurr" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".triggers.ui.ChooseTriggerTypeActivity" android:exported="false" android:label="Choose Trigger Type" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".ProPurchaseActivity" android:exported="false" android:label="Upgrade to Pro" android:theme="@style/Theme.Blurr" />
-        <activity android:name=".MomentsActivity" android:exported="false" android:label="Moments" android:theme="@style/Theme.Blurr" />
+        <activity android:name=".triggers.ui.TriggersActivity" android:exported="false" android:label="Triggers" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".triggers.ui.CreateTriggerActivity" android:exported="false" android:label="Create Trigger" android:theme="@style/Theme.Blurr" android:windowSoftInputMode="adjustResize" android:screenOrientation="portrait" />
+        <activity android:name=".triggers.ui.ChooseTriggerTypeActivity" android:exported="false" android:label="Choose Trigger Type" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".ProPurchaseActivity" android:exported="false" android:label="Upgrade to Pro" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
+        <activity android:name=".MomentsActivity" android:exported="false" android:label="Moments" android:theme="@style/Theme.Blurr" android:screenOrientation="portrait" />
 
 
         <!-- Your Other Services -->
@@ -104,15 +107,15 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-<!--        <service-->
-<!--            android:name=".ContentModerationService"-->
-<!--            android:exported="false"-->
-<!--            android:foregroundServiceType="dataSync" />-->
+<!--        <service
+            android:name=".ContentModerationService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />-->
 
-<!--        <service-->
-<!--            android:name=".services.AgentTaskService"-->
-<!--            android:exported="false"-->
-<!--            android:foregroundServiceType="connectedDevice" />-->
+<!--        <service
+            android:name=".services.AgentTaskService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />-->
 
         <service
             android:name=".v2.AgentService"

@@ -246,16 +246,6 @@
             android:textColor="@color/accent"
             android:textSize="16sp"
             android:textStyle="bold" />
-
-            <TextView
-              android:id="@+id/appVersionText"
-              android:layout_width="wrap_content"
-              android:layout_height="wrap_content"
-              android:layout_gravity="center_horizontal"
-              android:layout_marginTop="8dp"
-              android:textColor="#888888"
-              android:textSize="12sp"
-              tools:text="Version 1.2.3" />
             <Button
                 android:id="@+id/buttonSignOut"
                 android:layout_width="wrap_content"
