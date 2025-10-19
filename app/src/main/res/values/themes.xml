@@ -13,7 +13,7 @@
         <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
         <item name="android:windowBackground">@color/background</item>
         <item name="android:colorBackground">@color/background</item>
-        
+
         <!-- Force light status bar content on dark background -->
         <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o">false</item>
@@ -52,14 +52,30 @@
 
     <style name="AppTheme.NumberPicker" parent="Theme.AppCompat.Light">
         <item name="android:textColorPrimary">@android:color/white</item>
-
         <item name="colorControlNormal">@android:color/transparent</item>
     </style>
 
+    <!-- This theme is for the main overlay UI -->
+    <style name="Theme.Blurr.Transparent" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">true</item> <!-- Dims the background -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- *** ADDED: A completely invisible theme for the entry/trampoline activity to prevent flicker *** -->
+    <style name="Theme.Blurr.Trampoline" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">false</item> <!-- No dimming for the flicker-fix -->
+        <item name="android:windowAnimationStyle">@null</item> <!-- No entry/exit animation -->
+    </style>
+
 </resources>
-
-
-<!--<resources>-->
-<!--<style name="Theme.Blurr" parent="Theme.Material3.Dark.NoActionBar">-->
-<!--</style>-->
-<!--</resources>-->

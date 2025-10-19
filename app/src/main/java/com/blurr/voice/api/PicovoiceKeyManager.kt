@@ -21,7 +21,7 @@ import java.util.UUID
  * Only fetches the key once and keeps it permanently.
  */
 class PicovoiceKeyManager(private val context: Context) {
-    
+
     companion object {
         private const val TAG = "PicovoiceKeyManager"
         private const val PREFS_NAME = "PicovoicePrefs"
@@ -38,7 +38,7 @@ class PicovoiceKeyManager(private val context: Context) {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
-    
+
     /**
      * Gets the Picovoice access key. If not cached, fetches it from the API once.
      * @return The access key, or null if fetching failed
@@ -56,7 +56,7 @@ class PicovoiceKeyManager(private val context: Context) {
                 Log.d(TAG, "Using cached Picovoice access key")
                 return@withContext cachedKey
             }
-            
+
             // Fetch new key from API (only once)
             Log.d(TAG, "Fetching new Picovoice access key from API")
             val newKey = fetchAccessKeyFromApi()
@@ -109,13 +109,13 @@ class PicovoiceKeyManager(private val context: Context) {
                     Log.e(TAG, "API request failed with code: ${response.code}")
                     return@withContext null
                 }
-                
+
                 val responseBody = response.body?.string()
                 if (responseBody.isNullOrEmpty()) {
                     Log.e(TAG, "Empty response from API")
                     return@withContext null
                 }
-                
+
                 // The response is the key directly (base64 encoded)
                 val accessKey = responseBody.trim()
                 if (accessKey.isNotEmpty()) {
@@ -131,14 +131,14 @@ class PicovoiceKeyManager(private val context: Context) {
             return@withContext null
         }
     }
-    
+
     /**
      * Gets the cached access key from SharedPreferences
      */
     private fun getCachedAccessKey(): String? {
         return sharedPreferences.getString(KEY_ACCESS_KEY, null)
     }
-    
+
     /**
      * Saves the access key to SharedPreferences permanently
      */
@@ -147,7 +147,7 @@ class PicovoiceKeyManager(private val context: Context) {
             putString(KEY_ACCESS_KEY, accessKey)
         }
     }
-    
+
     /**
      * Clears the cached access key (useful for testing or forcing a refresh)
      */
@@ -173,4 +173,4 @@ class PicovoiceKeyManager(private val context: Context) {
     fun getUserProvidedKey(): String? {
         return sharedPreferences.getString(KEY_USER_PROVIDED_KEY, null)
     }
-} 
+}

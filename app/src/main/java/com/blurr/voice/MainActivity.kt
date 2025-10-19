@@ -80,7 +80,7 @@ class MainActivity : BaseNavigationActivity() {
         const val ACTION_WAKE_WORD_FAILED = "com.blurr.voice.WAKE_WORD_FAILED"
         const val ACTION_PURCHASE_UPDATED = "com.blurr.voice.PURCHASE_UPDATED"
     }
-    
+
     private val wakeWordFailureReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_WAKE_WORD_FAILED) {
@@ -91,7 +91,7 @@ class MainActivity : BaseNavigationActivity() {
             }
         }
     }
-    
+
     private val purchaseUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_PURCHASE_UPDATED) {
@@ -185,7 +185,7 @@ class MainActivity : BaseNavigationActivity() {
         setupClickListeners()
         showLoading(true)
         performBillingCheck()
-        
+
         lifecycleScope.launch {
             val videoUrl = "https://storage.googleapis.com/blurr-app-assets/wake_word_demo.mp4"
             VideoAssetManager.getVideoFile(this@MainActivity, videoUrl)
@@ -241,7 +241,7 @@ class MainActivity : BaseNavigationActivity() {
             finish()
             return
         }
-        
+
         showLoading(true)
         performBillingCheck()
     }
@@ -271,7 +271,7 @@ class MainActivity : BaseNavigationActivity() {
     }
 
     override fun getContentLayoutId(): Int = R.layout.activity_main_content
-    
+
     override fun getCurrentNavItem(): BaseNavigationActivity.NavItem = BaseNavigationActivity.NavItem.HOME
 
     private fun setupClickListeners() {
@@ -291,7 +291,7 @@ class MainActivity : BaseNavigationActivity() {
         findViewById<TextView>(R.id.examples_link).setOnClickListener {
             showExamplesDialog()
         }
-        
+
         // Add click listener to delta symbol
         deltaSymbol.setOnClickListener {
             // Only start conversational agent if in ready/idle state
@@ -331,13 +331,13 @@ class MainActivity : BaseNavigationActivity() {
     private fun setupProBanner() {
         val proBanner = findViewById<View>(R.id.pro_upgrade_banner)
         val upgradeButton = findViewById<TextView>(R.id.upgrade_button)
-        
+
         upgradeButton.setOnClickListener {
             // Navigate to Pro purchase screen (Requirement 2.3)
             val intent = Intent(this, ProPurchaseActivity::class.java)
             startActivity(intent)
         }
-        
+
         // Initially hide the banner - it will be shown/hidden based on subscription status
         proBanner.visibility = View.GONE
     }
@@ -431,7 +431,7 @@ class MainActivity : BaseNavigationActivity() {
             "Open calculator",
             "Surprise me"
         )
-        
+
         val dialog = AlertDialog.Builder(this)
             .setTitle("Example Commands")
             .setItems(examples) { _, which ->
@@ -446,7 +446,7 @@ class MainActivity : BaseNavigationActivity() {
                 dialog.dismiss()
             }
             .show()
-        
+
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(
             ContextCompat.getColor(this, R.color.black)
         )
@@ -578,7 +578,7 @@ class MainActivity : BaseNavigationActivity() {
                 queryAndHandlePurchases()
                 updateTaskCounter()
                 updateBillingStatus()
-                
+
             } catch (e: Exception) {
                 Logger.e("MainActivity", "Error during billing check", e)
                 updateTaskCounter()
@@ -593,12 +593,12 @@ class MainActivity : BaseNavigationActivity() {
         return withContext(Dispatchers.IO) {
             var attempts = 0
             val maxAttempts = 10
-            
+
             while (!MyApplication.isBillingClientReady.value && attempts < maxAttempts) {
                 kotlinx.coroutines.delay(500)
                 attempts++
             }
-            
+
             if (!MyApplication.isBillingClientReady.value) {
                 Logger.w("MainActivity", "Billing client not ready after waiting")
             }
@@ -616,12 +616,12 @@ class MainActivity : BaseNavigationActivity() {
                 val params = QueryPurchasesParams.newBuilder()
                     .setProductType(BillingClient.ProductType.SUBS)
                     .build()
-                
+
                 Logger.d("MainActivity", "queryPurchases: BillingClient is ready")
 
                 val purchasesResult = MyApplication.billingClient.queryPurchasesAsync(params)
                 val billingResult = purchasesResult.billingResult
-                
+
                 Logger.d("MainActivity", "queryPurchases: Got billing result: ${billingResult.responseCode}")
 
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
@@ -657,7 +657,7 @@ class MainActivity : BaseNavigationActivity() {
                         val acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
                             .setPurchaseToken(purchase.purchaseToken)
                             .build()
-                        
+
                         MyApplication.billingClient.acknowledgePurchase(acknowledgePurchaseParams) { billingResult ->
                             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                                 Logger.d("MainActivity", "Purchase acknowledged: ${purchase.orderId}")
@@ -711,15 +711,15 @@ class MainActivity : BaseNavigationActivity() {
                 // Check if message has been shown more than once
                 val sharedPrefs = getSharedPreferences("developer_message_prefs", Context.MODE_PRIVATE)
                 val displayCount = sharedPrefs.getInt("developer_message_count", 0)
-                
+
                 if (displayCount >= 1) {
                     Logger.d("MainActivity", "Developer message already shown $displayCount times, skipping display")
                     return@launch
                 }
-                
+
                 val db = Firebase.firestore
                 val docRef = db.collection("settings").document("freemium")
-                
+
                 docRef.get().addOnSuccessListener { document ->
                     if (document != null && document.exists()) {
                         val message = document.getString("developerMessage")

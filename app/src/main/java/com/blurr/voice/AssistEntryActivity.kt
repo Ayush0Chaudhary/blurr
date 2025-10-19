@@ -4,14 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import androidx.core.content.ContextCompat
 
 class AssistEntryActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleAssistLaunch(intent)
-        // No UI — finish immediately
         finish()
     }
 
@@ -22,18 +20,12 @@ class AssistEntryActivity : Activity() {
     }
 
     private fun handleAssistLaunch(intent: Intent?) {
-        Log.d("AssistEntryActivity", "Assistant invoked via ACTION_ASSIST, intent=$intent")
+        Log.d("AssistEntryActivity", "Assistant invoked. Launching AssistantActivity.")
 
-        // If agent already running, you can signal it to focus/show UI instead of starting again
-        if (!ConversationalAgentService.isRunning) {
-            val serviceIntent = Intent(this, ConversationalAgentService::class.java).apply {
-                action = "com.blurr.voice.ACTION_START_FROM_ASSIST"
-                putExtra("source", "assist_gesture")       // optional metadata
-            }
-            ContextCompat.startForegroundService(this, serviceIntent)
-        } else {
-            // e.g., tell the service to bring its overlay/mic UI to front
-            sendBroadcast(Intent("com.blurr.voice.ACTION_SHOW_OVERLAY"))
+        // We now launch our transparent AssistantActivity instead of the old service.
+        val activityIntent = Intent(this, AssistantActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        startActivity(activityIntent)
     }
 }

@@ -87,12 +87,37 @@ object GeminiApi {
             Log.d("GeminiApi", "Payload: ${payload.toString().take(500)}...")
 
             try {
-                val request = Request.Builder()
-                    .url(proxyUrl)
-                    .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                    .addHeader("Content-Type", "application/json")
-                    .addHeader("X-API-Key", proxyKey)
-                    .build()
+                // --- MODIFICATION START ---
+                // This block dynamically chooses between the proxy and a direct API call.
+                val request: Request
+
+                if (proxyUrl.isNotBlank() && proxyKey.isNotBlank()) {
+                    // If proxy is configured, use the original logic
+                    Log.d("GeminiApi", "Using proxy URL for API request.")
+                    request = Request.Builder()
+                        .url(proxyUrl) // This was the original line that was failing
+                        .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                        .addHeader("Content-Type", "application/json")
+                        .addHeader("X-API-Key", proxyKey)
+                        .build()
+                } else {
+                    // If proxy is NOT configured, build a direct API call
+                    Log.d("GeminiApi", "Proxy not configured. Using direct API call.")
+                    val directUrl = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$currentApiKey"
+
+                    // The 'generateContent' REST API expects a slightly different payload structure.
+                    // The correct direct payload should be just the 'messages' part.
+                    val directPayload = JSONObject().apply {
+                        put("contents", payload.getJSONArray("messages"))
+                    }
+
+                    request = Request.Builder()
+                        .url(directUrl) // Use the direct URL
+                        .post(directPayload.toString().toRequestBody("application/json".toMediaType()))
+                        .addHeader("Content-Type", "application/json")
+                        .build()
+                }
+                // --- MODIFICATION END ---
 
                 val requestStartTime = System.currentTimeMillis()
                 client.newCall(request).execute().use { response ->
@@ -110,8 +135,13 @@ object GeminiApi {
                         throw Exception("API Error ${response.code}: $responseBody")
                     }
 
-                    // Assuming the proxy returns the standard Gemini API response format
-                    val parsedResponse = responseBody
+                    // Parse the success response to get the text content
+                    val parsedResponse = parseSuccessResponse(responseBody)
+
+                    if (parsedResponse == null) {
+                        Log.e("GeminiApi", "Failed to parse a valid response from API body: $responseBody")
+                        throw Exception("Parsing error: Could not extract content from response.")
+                    }
 
                     val logEntry = createLogEntry(
                         attempt = attempts + 1,
@@ -137,7 +167,6 @@ object GeminiApi {
                         status = "pass",
                     )
                     logToFirestore(logData)
-
 
                     return parsedResponse
                 }
@@ -201,7 +230,9 @@ object GeminiApi {
         val messagesArray = JSONArray()
         chat.forEach { (role, parts) ->
             val messageObject = JSONObject()
-            messageObject.put("role", role.lowercase())
+            // Use "model" role for what the assistant says, and "user" for system/user prompts
+            val correctedRole = if (role.equals("assistant", ignoreCase = true)) "model" else role.lowercase()
+            messageObject.put("role", correctedRole)
 
             val jsonParts = JSONArray()
             parts.forEach { part ->

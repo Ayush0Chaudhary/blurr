@@ -53,7 +53,7 @@ android {
         versionName = versionProps.getProperty("VERSION_NAME", "1.0.13")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
+
         // Common build config fields - applies to all build types
         buildConfigField("String", "GEMINI_API_KEYS", "\"$apiKeys\"")
         buildConfigField("String", "TAVILY_API", "\"$tavilyApiKeys\"")
@@ -161,13 +161,13 @@ tasks.register("incrementVersion") {
         val versionFile = rootProject.file("version.properties")
         val props = Properties()
         props.load(FileInputStream(versionFile))
-        
+
         val currentVersionCode = props.getProperty("VERSION_CODE").toInt()
         val currentVersionName = props.getProperty("VERSION_NAME")
-        
+
         // Increment version code
         val newVersionCode = currentVersionCode + 1
-        
+
         // Increment patch version in semantic versioning (x.y.z -> x.y.z+1)
         val versionParts = currentVersionName.split(".")
         val newPatchVersion = if (versionParts.size >= 3) {
@@ -180,11 +180,11 @@ tasks.register("incrementVersion") {
         } else {
             "1.0.$newPatchVersion"
         }
-        
+
         // Update properties
         props.setProperty("VERSION_CODE", newVersionCode.toString())
         props.setProperty("VERSION_NAME", newVersionName)
-        
+
         // Save back to file with comments
         val output = FileOutputStream(versionFile)
         output.use { fileOutput ->
@@ -196,7 +196,7 @@ tasks.register("incrementVersion") {
             fileOutput.write("# Current version name (semantic version - increments patch number each release)\n".toByteArray())
             fileOutput.write("VERSION_NAME=$newVersionName".toByteArray())
         }
-        
+
         println("Version incremented to: versionCode=$newVersionCode, versionName=$newVersionName")
     }
 }

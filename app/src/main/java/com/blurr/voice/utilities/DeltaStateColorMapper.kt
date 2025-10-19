@@ -29,6 +29,7 @@ object DeltaStateColorMapper {
             PandaState.LISTENING -> R.color.delta_listening
             PandaState.PROCESSING -> R.color.delta_processing
             PandaState.SPEAKING -> R.color.delta_speaking
+            PandaState.AWAITING_INPUT -> R.color.delta_speaking // Same as speaking
             PandaState.ERROR -> R.color.delta_error
         }
     }
@@ -50,6 +51,7 @@ object DeltaStateColorMapper {
             PandaState.LISTENING -> "Listening..."
             PandaState.PROCESSING -> "Processing..."
             PandaState.SPEAKING -> "Speaking..."
+            PandaState.AWAITING_INPUT -> "Tap input to ask a follow-up" // New text
             PandaState.ERROR -> "Error"
         }
     }
@@ -88,7 +90,7 @@ object DeltaStateColorMapper {
      */
     fun isActiveState(state: PandaState): Boolean {
         return when (state) {
-            PandaState.LISTENING, PandaState.PROCESSING, PandaState.SPEAKING -> true
+            PandaState.LISTENING, PandaState.PROCESSING, PandaState.SPEAKING, PandaState.AWAITING_INPUT -> true
             PandaState.IDLE, PandaState.ERROR -> false
         }
     }
@@ -110,6 +112,7 @@ object DeltaStateColorMapper {
             PandaState.SPEAKING -> 4   // High priority
             PandaState.LISTENING -> 3  // Medium-high priority
             PandaState.PROCESSING -> 2 // Medium priority
+            PandaState.AWAITING_INPUT -> 1 // Low priority
             PandaState.IDLE -> 1       // Lowest priority
         }
     }

@@ -14,7 +14,7 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="10dp"
         android:contentDescription="Panda logo"
-        android:src="@drawable/panda_logo" />
+        android:src="@drawable/panda_icon" />
 
     <TextView
         android:id="@+id/inviteMessage"
