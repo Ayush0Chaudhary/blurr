@@ -51,6 +51,7 @@ class DeltaSymbolAnimator(private val context: Context) {
             PandaState.LISTENING -> ContextCompat.getColor(context, R.color.delta_listening)
             PandaState.PROCESSING -> ContextCompat.getColor(context, R.color.delta_processing)
             PandaState.SPEAKING -> ContextCompat.getColor(context, R.color.delta_speaking)
+            PandaState.AWAITING_INPUT -> ContextCompat.getColor(context, R.color.delta_speaking) // Same as speaking
             PandaState.ERROR -> ContextCompat.getColor(context, R.color.delta_error)
         }
     }
@@ -71,12 +72,12 @@ class DeltaSymbolAnimator(private val context: Context) {
 
         currentAnimator = ValueAnimator.ofObject(ArgbEvaluator(), fromColor, toColor).apply {
             duration = ANIMATION_DURATION
-            
+
             addUpdateListener { animator ->
                 val animatedColor = animator.animatedValue as Int
                 applyColorToImageView(imageView, animatedColor)
             }
-            
+
             start()
         }
     }
