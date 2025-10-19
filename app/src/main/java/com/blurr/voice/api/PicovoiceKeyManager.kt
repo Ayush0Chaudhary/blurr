@@ -13,8 +13,7 @@ import java.util.concurrent.TimeUnit
 import com.blurr.voice.utilities.NetworkConnectivityManager
 import com.blurr.voice.utilities.UserIdManager
 import com.blurr.voice.utilities.UserProfileManager
-import okhttp3.internal.platform.PlatformRegistry.applicationContext
-import java.util.UUID
+
 
 /**
  * Manages the Picovoice access key by fetching it from the API and caching it locally.

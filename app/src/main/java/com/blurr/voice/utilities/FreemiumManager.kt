@@ -2,19 +2,12 @@ package com.blurr.voice.utilities
 
 import android.util.Log
 import com.android.billingclient.api.BillingClient
-import com.android.billingclient.api.Purchase
-import com.android.billingclient.api.QueryPurchasesParams
-import com.android.billingclient.api.queryPurchasesAsync
 import com.blurr.voice.MyApplication
 import com.google.firebase.Firebase
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.firestore
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Calendar
 
 class FreemiumManager {
 

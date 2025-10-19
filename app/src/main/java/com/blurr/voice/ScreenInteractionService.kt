@@ -284,26 +284,6 @@ class ScreenInteractionService : AccessibilityService() {
             Log.e("InteractionService", "Error parsing XML for simplified elements", e)
         }
 
-//        // --- De-duplication Logic ---
-//        val filteredElements = mutableListOf<SimplifiedElement>()
-//        val claimedAreas = mutableListOf<Rect>()
-//
-//        // Process larger elements first to claim their space
-//        allElements.sortedByDescending { it.bounds.width() * it.bounds.height() }.forEach { element ->
-//            // Check if the element's center is already within a claimed area
-//            val isContained = claimedAreas.any { claimedRect ->
-//                claimedRect.contains(element.center.x, element.center.y)
-//            }
-//
-//            if (!isContained) {
-//                filteredElements.add(element)
-//                // Only clickable containers should claim space to prevent them from hiding their children
-//                if (element.isClickable) {
-//                    claimedAreas.add(element.bounds)
-//                }
-//            }
-//        }
-
         // Return the filtered list, sorted by top-to-bottom, left-to-right position
 //        return filteredElements.sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
         return allElements
@@ -419,8 +399,6 @@ class ScreenInteractionService : AccessibilityService() {
                 }
 
 
-//                 val semanticParser = SemanticParser()
-//                 val simplifiedJson = semanticParser.toHierarchicalString(rawXml)
 //                // 1. Parse the raw XML into a structured list.
                 val simplifiedElements = parseXmlToSimplifiedElements(rawXml)
                 println("SIZEEEE : " + simplifiedElements.size)

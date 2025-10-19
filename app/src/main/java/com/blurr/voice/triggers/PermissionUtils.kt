@@ -2,7 +2,6 @@ package com.blurr.voice.triggers
 
 import android.content.Context
 import android.provider.Settings
-
 import android.app.AlarmManager
 import android.os.Build
 

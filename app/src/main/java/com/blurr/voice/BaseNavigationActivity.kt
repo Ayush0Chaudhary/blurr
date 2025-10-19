@@ -1,7 +1,6 @@
 package com.blurr.voice
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity

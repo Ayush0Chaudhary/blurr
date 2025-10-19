@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import com.blurr.voice.intents.AppIntent
 import com.blurr.voice.intents.ParameterSpec
-import androidx.core.net.toUri
 
 class EmailComposeIntent : AppIntent {
     override val name: String = "EmailCompose"
@@ -32,15 +31,5 @@ class EmailComposeIntent : AppIntent {
                 putExtra(Intent.EXTRA_TEXT, it)
             }
         }
-//        val recipient = "ayush0000ayush@gmail.com"
-//        val subject = "Please increase limits"
-//        val body = "Hello,\n\nPlease increase the task limits for my account: $userEmail\n\nThank you."
-//
-//        val intent = Intent(Intent.ACTION_SENDTO).apply {
-//            data = Uri.parse("mailto:") // Only email apps should handle this
-//            putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
-//            putExtra(Intent.EXTRA_SUBJECT, subject)
-//            putExtra(Intent.EXTRA_TEXT, body)
-//        }
     }
 }

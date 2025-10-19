@@ -145,6 +145,8 @@ class FloatingPandaButtonService : Service() {
             try {
                 if (button.isAttachedToWindow) {
                     windowManager?.removeView(button)
+                } else {
+
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing floating button", e)

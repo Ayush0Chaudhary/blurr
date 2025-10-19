@@ -22,7 +22,6 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.blurr.voice.api.Eyes
-//import com.blurr.voice.services.AgentTaskService
 import com.blurr.voice.utilities.SpeechCoordinator
 import android.os.Handler
 import android.os.Looper
@@ -681,29 +680,7 @@ class ConversationalAgentService : Service() {
             }
         }
     }
-//    private suspend fun getGroundedStepsForTask(taskInstruction: String): String {
-//        Log.d("ConvAgent", "Performing grounded search for task: '$taskInstruction'")
-//
-//        // We create a specific prompt for the search.
-//        val searchPrompt = """
-//        Search the web and provide a concise, step-by-step guide for a human assistant to perform the following task on an Android phone: '$taskInstruction'.
-//        Focus on the exact taps and settings involved.
-//    """.trimIndent()
-//
-//        // Here we use the direct REST API call with search that we created previously.
-//        // We need an instance of GeminiApi to call it.
-//        // NOTE: You might need to adjust how you get your GeminiApi instance.
-//        // For now, we'll assume we can create one or access it.
-//        val geminiApi = GeminiApi("gemini-2.5-flash", ApiKeyManager, 2)
-//
-//        val searchResult = geminiApi.generateGroundedContent(searchPrompt)
-//        Log.d("CONVO_SEARCH", searchResult.toString())
-//        return if (!searchResult.isNullOrBlank()) {
-//            searchResult
-//        } else {
-//            ""
-//        }
-//    }
+
     private suspend fun checkIfClarificationNeeded(instruction: String): Pair<Boolean, List<String>> {
         Log.d("ConvAgent", "Checking for clarification on instruction: '$instruction'")
 

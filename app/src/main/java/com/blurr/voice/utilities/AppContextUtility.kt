@@ -76,65 +76,6 @@ class AppContextUtility(private val context: Context) {
      * MAIN FUNCTION: Uses Gemini API to intelligently filter and format app data based on user instruction
      * This avoids using large context windows by letting AI determine what's relevant
      */
-//    suspend fun getAppsForInstruction(userInstruction: String, includeSystemApps: Boolean = false): String {
-//        return withContext(Dispatchers.IO) {
-//            try {
-//                // Get all apps data
-//                val allApps = if (includeSystemApps) getAllApps() else getUserApps()
-//                println("All apps:")
-//                for(i in allApps){
-//                    println(i)
-//                }
-//                if (allApps.isEmpty()) {
-//                    return@withContext "No apps found on this device."
-//                }
-//
-//                // Create the apps data string
-//                val appsData = allApps.joinToString("\n") { app ->
-//                    "Application Name: \"${app.appName}\", Package Name: \"${app.packageName}\""
-//                }
-//
-//                // Create the prompt for Gemini API
-//                val prompt = """
-//                    Based on the user's instruction, analyze the following list of applications.
-//                    If the user is asking to open or interact with a specific app, return only the line for that single application.
-//                    If the user's instruction is general and doesn't mention a specific app, return the entire list unchanged.
-//
-//                    USER INSTRUCTION:
-//                    "$userInstruction"
-//
-//                    FULL APP LIST:
-//                    $appsData
-//                """.trimIndent()
-//
-//                Log.d(TAG, "Sending request to Gemini API for instruction: $userInstruction")
-//
-//                // Call Gemini API
-////                val response = GeminiApi.generateContent(
-////                    prompt = prompt,
-////                    context = context
-////                )
-//
-////                if (response.isNullOrEmpty()) {
-////                    Log.e(TAG, "Gemini API returned null or empty response")
-////                    return@withContext "Error: Could not process app data. Please try again."
-////                }
-////
-////                Log.d(TAG, "Gemini API response received: ${response.length} characters")
-////
-////                // Clean up the response - remove any markdown formatting or extra text
-////                val cleanedResponse = response.trim()
-////                    .removePrefix("```")
-////                    .removeSuffix("```")
-////                    .trim()
-//
-//                return@withContext cleanedResponse
-//
-//            } catch (e: Exception) {
-//                Log.e(TAG, "Error getting apps for instruction: $userInstruction", e)
-//                return@withContext "Error: Failed to process app data. ${e.message}"
-//            }
-//        }
-//    }
-}
+    }
+
 

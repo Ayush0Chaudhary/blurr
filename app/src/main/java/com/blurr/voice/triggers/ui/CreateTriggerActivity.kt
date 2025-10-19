@@ -73,16 +73,6 @@ class CreateTriggerActivity : AppCompatActivity() {
         grantNotificationPermissionButton = findViewById(R.id.grantNotificationPermissionButton)
         alarmPermissionWarning = findViewById(R.id.alarmPermissionWarning)
         grantAlarmPermissionButton = findViewById(R.id.grantAlarmPermissionButton)
-//        scrollView = findViewById(R.id.scrollView)
-
-//        instructionEditText.setOnFocusChangeListener { view, hasFocus ->
-//            if (hasFocus) {
-//                // Delay scrolling until the keyboard is likely to be visible
-//                view.postDelayed({
-//                    scrollView.smoothScrollTo(0, view.bottom)
-//                }, 200)
-//            }
-//        }
 
         val saveButton = findViewById<Button>(R.id.saveTriggerButton)
 

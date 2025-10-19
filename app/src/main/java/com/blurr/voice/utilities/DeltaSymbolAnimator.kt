@@ -3,7 +3,6 @@ package com.blurr.voice.utilities
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.content.Context
-import android.graphics.drawable.VectorDrawable
 import android.util.Log
 import android.widget.ImageView
 import androidx.core.content.ContextCompat

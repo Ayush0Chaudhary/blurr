@@ -10,8 +10,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import com.blurr.voice.MyApplication
-import com.blurr.voice.utilities.NetworkConnectivityManager
 import com.blurr.voice.utilities.NetworkNotifier
 
 /**

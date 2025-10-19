@@ -750,39 +750,7 @@ class MainActivity : BaseNavigationActivity() {
                             Log.e("MainActivity", "Failed to fetch Remote Config.", task.exception)
                         }
                     }
-                
-//                val db = Firebase.firestore
-//                val docRef = db.collection("settings").document("freemium")
-//
-//                docRef.get().addOnSuccessListener { document ->
-//                    if (document != null && document.exists()) {
-//                        val message = document.getString("developerMessage")
-//                        if (!message.isNullOrEmpty()) {
-//                            val dialog = AlertDialog.Builder(this@MainActivity)
-//                                .setTitle("Message from Developer")
-//                                .setMessage(message)
-//                                .setPositiveButton("OK") { dialogInterface, _ ->
-//                                    dialogInterface.dismiss()
-//                                    // Increment the display count after user dismisses
-//                                    val editor = sharedPrefs.edit()
-//                                    editor.putInt("developer_message_count", displayCount + 1)
-//                                    editor.apply()
-//                                    Logger.d("MainActivity", "Developer message display count updated to ${displayCount + 1}")
-//                                }
-//                                .show()
-//                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
-//                                ContextCompat.getColor(this@MainActivity, R.color.black)
-//                            )
-//                            Logger.d("MainActivity", "Developer message displayed in dialog")
-//                        } else {
-//                            Logger.d("MainActivity", "Developer message is empty")
-//                        }
-//                    } else {
-//                        Logger.d("MainActivity", "Developer message document does not exist")
-//                    }
-//                }.addOnFailureListener { exception ->
-//                    Logger.e("MainActivity", "Error fetching developer message", exception)
-//                }
+
             } catch (e: Exception) {
                 Logger.e("MainActivity", "Exception in displayDeveloperMessage", e)
             }

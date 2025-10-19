@@ -8,10 +8,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.blurr.voice.R
 import com.blurr.voice.services.EnhancedWakeWordService
-import kotlinx.coroutines.launch
 
 class WakeWordManager(
     private val context: Context,

@@ -1,23 +1,19 @@
 package com.blurr.voice
 
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -26,7 +22,6 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.getSystemService
 import com.blurr.voice.utilities.OnboardingManager
 
 class OnboardingPermissionsActivity : AppCompatActivity() {
@@ -164,7 +159,6 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
             )
         }
 
-// ...
         // Start the flow with the first step
         updateUIForStep(currentStep)
     }

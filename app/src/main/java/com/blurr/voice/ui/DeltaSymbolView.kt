@@ -125,9 +125,6 @@ class DeltaSymbolView @JvmOverloads constructor(
                 // Animate glow and scale on all three paints
                 allPaints.forEach { it.setShadowLayer(glowRadius, 0f, 0f, it.color) }
 
-//                val scale = START_SCALE + (END_SCALE - START_SCALE) * fraction
-//                scaleX = scale
-//                scaleY = scale
 
                 invalidate()
             }
