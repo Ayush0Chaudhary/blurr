@@ -1,15 +1,17 @@
 package com.blurr.voice
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.widget.Button // Changed from SignInButton
-import android.widget.ProgressBar
-import android.widget.TextView
+import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
+import android.widget.RelativeLayout
+import android.widget.TextView
 import android.widget.Toast
-import android.graphics.Color
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,15 +23,16 @@ import com.blurr.voice.utilities.UserProfileManager
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
-import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.SignInButton
+import com.google.android.gms.common.api.ApiException
 import com.google.firebase.Firebase
-import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.actionCodeSettings
 import com.google.firebase.auth.auth
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.functions
 import kotlinx.coroutines.launch
 
 class LoginActivity : AppCompatActivity() {
@@ -37,14 +40,25 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var oneTapClient: SignInClient
     private lateinit var signInRequest: BeginSignInRequest
     private lateinit var firebaseAuth: FirebaseAuth
+
+    private lateinit var functions: FirebaseFunctions
     private lateinit var signInButton: SignInButton // Using Google's SignInButton
     private lateinit var emailField: EditText
-    private lateinit var emailSendLinkButton: Button
+    private lateinit var emailSendOtpButton: Button
+    private lateinit var otpField: EditText
+    private lateinit var otpVerifyButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var loadingText: TextView
+    private lateinit var usernameField: EditText
+
+    // Track whether the email corresponds to an existing Firebase Auth user
+    private var isExistingEmailUser: Boolean = true
 
     // New ActivityResultLauncher for the modern Identity API
     private lateinit var googleSignInLauncher: ActivityResultLauncher<IntentSenderRequest>
+
+    // New: hold onto the name entered during OTP flow for local profile fallback
+    private var lastEnteredName: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,10 +70,15 @@ class LoginActivity : AppCompatActivity() {
         signInButton.setColorScheme(SignInButton.COLOR_LIGHT)
         customizeGoogleSignInButton(signInButton)
         emailField = findViewById(R.id.emailInput)
-        emailSendLinkButton = findViewById(R.id.emailSendLinkButton)
+        otpField = findViewById(R.id.otpInput)
+        emailSendOtpButton = findViewById(R.id.emailSendOtpButton)
+        otpVerifyButton = findViewById(R.id.otpVerifyButton)
         progressBar = findViewById(R.id.progressBar)
         loadingText = findViewById(R.id.loadingText)
+        // Bind username field
+        usernameField = findViewById(R.id.usernameInput)
         firebaseAuth = Firebase.auth
+        functions = Firebase.functions("us-central1")
 
         // 1. Initialize the OneTapClient
         oneTapClient = Identity.getSignInClient(this)
@@ -79,53 +98,252 @@ class LoginActivity : AppCompatActivity() {
             .build()
 
         // 3. Initialize the new launcher
-        googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                try {
-                    // The one-tap UI returns a Sign-In Credential
-                    val credential = oneTapClient.getSignInCredentialFromIntent(result.data)
-                    val googleIdToken = credential.googleIdToken
-                    if (googleIdToken != null) {
-                        Log.d("LoginActivity", "Got Google ID Token.")
-                        // Pass the token to Firebase - keep progress bar visible during Firebase auth
-                        firebaseAuthWithGoogle(googleIdToken)
-                    } else {
-                        Log.e("LoginActivity", "Google ID Token was null.")
+        googleSignInLauncher =
+            registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+                if (result.resultCode == RESULT_OK) {
+                    try {
+                        // The one-tap UI returns a Sign-In Credential
+                        val credential = oneTapClient.getSignInCredentialFromIntent(result.data)
+                        val googleIdToken = credential.googleIdToken
+                        if (googleIdToken != null) {
+                            Log.d("LoginActivity", "Got Google ID Token.")
+                            // Pass the token to Firebase - keep progress bar visible during Firebase auth
+                            firebaseAuthWithGoogle(googleIdToken)
+                        } else {
+                            Log.e("LoginActivity", "Google ID Token was null.")
+                            Toast.makeText(this, "Google Sign-In failed.", Toast.LENGTH_SHORT)
+                                .show()
+                            progressBar.visibility = View.GONE
+                            loadingText.visibility = View.GONE
+                            signInButton.isEnabled = true
+                        }
+                    } catch (e: ApiException) {
+                        Log.w("LoginActivity", "Google sign in failed", e)
+                        FirebaseCrashlytics.getInstance().recordException(e)
+                        FirebaseCrashlytics.getInstance()
+                            .log("Google Sign-In failed in credential extraction with ApiException")
                         Toast.makeText(this, "Google Sign-In failed.", Toast.LENGTH_SHORT).show()
                         progressBar.visibility = View.GONE
                         loadingText.visibility = View.GONE
                         signInButton.isEnabled = true
                     }
-                } catch (e: ApiException) {
-                    Log.w("LoginActivity", "Google sign in failed", e)
-                    FirebaseCrashlytics.getInstance().recordException(e)
-                    FirebaseCrashlytics.getInstance().log("Google Sign-In failed in credential extraction with ApiException")
-                    Toast.makeText(this, "Google Sign-In failed.", Toast.LENGTH_SHORT).show()
+                } else {
+                    // User cancelled or there was an error - hide progress bar
                     progressBar.visibility = View.GONE
                     loadingText.visibility = View.GONE
                     signInButton.isEnabled = true
                 }
-            } else {
-                // User cancelled or there was an error - hide progress bar
-                progressBar.visibility = View.GONE
-                loadingText.visibility = View.GONE
-                signInButton.isEnabled = true
             }
-        }
 
 
         signInButton.setOnClickListener {
             signIn()
         }
 
-        emailSendLinkButton.setOnClickListener {
+        emailSendOtpButton.setOnClickListener {
             val email = emailField.text?.toString()?.trim()
             if (!email.isNullOrEmpty()) {
-                sendSignInLink(email)
+                // First check whether a Firebase Auth user exists with this email
+                requestOtp(email)
             } else {
                 Toast.makeText(this, "Enter your email", Toast.LENGTH_SHORT).show()
             }
         }
+
+        otpVerifyButton.setOnClickListener {
+            val email = emailField.text?.toString()?.trim()
+            val otp = otpField.text?.toString()?.trim() ?: ""
+            val enteredName = usernameField.text?.toString()?.trim() ?: ""
+            if (email.isNullOrEmpty() || otp.isNullOrEmpty()) {
+                Toast.makeText(this, "Please enter the OTP", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            // If we're in the new-user flow (username field visible), enforce non-empty name
+            if (usernameField.visibility == View.VISIBLE && enteredName.isBlank()) {
+                usernameField.error = "Name required"
+                Toast.makeText(this, "Please enter your name", Toast.LENGTH_SHORT).show()
+                usernameField.requestFocus()
+                return@setOnClickListener
+            }
+            // Don’t block otherwise; send name when present
+            lastEnteredName = if (enteredName.isNotEmpty()) enteredName else null
+            verifyOtpAndSignIn(email, otp, lastEnteredName)
+        }
+    }
+
+    private fun placeVerifyButtonBelow(target: View) {
+        val params = otpVerifyButton.layoutParams as RelativeLayout.LayoutParams
+        params.removeRule(RelativeLayout.BELOW)
+        params.addRule(RelativeLayout.BELOW, target.id)
+        otpVerifyButton.layoutParams = params
+    }
+
+    private fun requestOtp(email: String) {
+        showProgress(true, "Sending OTP...")
+        val data = hashMapOf("email" to email)
+
+        functions
+            .getHttpsCallable("sendOtp")
+            .call(data)
+            .addOnCompleteListener { task ->
+                showProgress(false)
+                if (task.isSuccessful) {
+                    // Default assumption: treat as existing unless backend explicitly says otherwise
+                    var userExists = true
+                    val resultData = task.result?.data
+                    if (resultData is Map<*, *>) {
+                        val existsFlag = (resultData["userExists"] as? Boolean)
+                        if (existsFlag != null) userExists = existsFlag
+                        Log.d(
+                            "LoginActivity",
+                            "sendOtp response parsed: exists=$existsFlag (default true)"
+                        )
+                    } else {
+                        Log.d(
+                            "LoginActivity",
+                            "sendOtp response had no map payload; defaulting to existing user"
+                        )
+                    }
+                    isExistingEmailUser = userExists
+
+                    Toast.makeText(this, "OTP sent to $email", Toast.LENGTH_LONG).show()
+                    // Update UI to show OTP field and verify button
+                    emailField.isEnabled = false
+                    emailSendOtpButton.visibility = View.GONE
+                    otpField.visibility = View.VISIBLE
+                    otpVerifyButton.visibility = View.VISIBLE
+
+                    // Show username field only if backend indicated the user does NOT exist
+                    usernameField.visibility = if (userExists) View.GONE else View.VISIBLE
+
+                    // Re-anchor Verify button accordingly
+                    if (userExists) {
+                        placeVerifyButtonBelow(otpField)
+                        otpField.requestFocus()
+                    } else {
+                        placeVerifyButtonBelow(usernameField)
+                        usernameField.requestFocus()
+                    }
+
+                    // Force a layout pass to ensure the UI updates immediately
+                    usernameField.requestLayout()
+                    otpVerifyButton.requestLayout()
+                    (otpVerifyButton.parent as? ViewGroup)?.requestLayout()
+                } else {
+                    Log.w("LoginActivity", "sendOtp:failure", task.exception)
+                    Toast.makeText(
+                        this,
+                        "Failed to send OTP. Please try again.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+    }
+
+    private fun verifyOtpAndSignIn(
+        email: String,
+        otp: String,
+        name: String? = null,
+        allowAutoNameRetry: Boolean = true
+    ) {
+        showProgress(true, "Verifying OTP...")
+        val data = hashMapOf(
+            "email" to email,
+            "otp" to otp
+        )
+        if (!name.isNullOrBlank()) {
+            data["name"] = name
+        }
+
+        functions
+            .getHttpsCallable("verifyOtp")
+            .call(data)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val result = task.result?.data as? Map<*, *>
+                    val customToken = result?.get("token") as? String
+                    if (customToken != null) {
+                        signInWithCustomToken(customToken)
+                    } else {
+                        showProgress(false)
+                        Toast.makeText(
+                            this,
+                            "Authentication failed. Please try again.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } else {
+                    showProgress(false)
+                    val ex = task.exception
+                    Log.w("LoginActivity", "verifyOtp:failure", ex)
+
+                    // If backend indicates name is required
+                    if (ex is FirebaseFunctionsException) {
+                        val message = ex.message?.lowercase() ?: ""
+                        val details = ex.details
+                        val codeHint = when (details) {
+                            is Map<*, *> -> (details["code"] as? String)?.lowercase()
+                            else -> null
+                        }
+                        val nameRequired =
+                            codeHint == "name_required" ||
+                                    message.contains("name required") ||
+                                    message.contains("provide name") ||
+                                    message.contains("username")
+
+                        if (nameRequired) {
+                            // If we previously determined the email belongs to an existing account,
+                            // auto-derive a display name and retry once to avoid blocking the user.
+                            if (isExistingEmailUser && allowAutoNameRetry) {
+                                val derived = email.substringBefore('@')
+                                    .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                                lastEnteredName = derived
+                                verifyOtpAndSignIn(email, otp, derived, allowAutoNameRetry = false)
+                                return@addOnCompleteListener
+                            }
+
+                            // Otherwise, prompt for username entry (new user flow)
+                            isExistingEmailUser = false
+                            usernameField.visibility = View.VISIBLE
+                            placeVerifyButtonBelow(usernameField)
+                            // Force layout update after showing username
+                            usernameField.requestLayout()
+                            otpVerifyButton.requestLayout()
+                            (otpVerifyButton.parent as? ViewGroup)?.requestLayout()
+                            Toast.makeText(
+                                this,
+                                "Please enter your name to create your account",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@addOnCompleteListener
+                        }
+                    }
+
+                    Toast.makeText(this, "Invalid or expired OTP.", Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
+    private fun signInWithCustomToken(token: String) {
+        firebaseAuth.signInWithCustomToken(token)
+            .addOnCompleteListener { task ->
+                // The progress bar is handled in the final step (startPostAuthFlow or failure toast)
+                if (task.isSuccessful) {
+                    Log.d("LoginActivity", "signInWithCustomToken:success")
+                    val isNewUser = task.result?.additionalUserInfo?.isNewUser ?: false
+                    startPostAuthFlow(isNewUser)
+                } else {
+                    showProgress(false)
+                    Log.w("LoginActivity", "signInWithCustomToken:failure", task.exception)
+                    Toast.makeText(this, "Authentication Failed.", Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
+    private fun showProgress(show: Boolean, text: String = "Loading...") {
+        progressBar.visibility = if (show) View.VISIBLE else View.GONE
+        loadingText.visibility = if (show) View.VISIBLE else View.GONE
+        loadingText.text = text
     }
 
     private fun customizeGoogleSignInButton(button: SignInButton) {
@@ -143,24 +361,30 @@ class LoginActivity : AppCompatActivity() {
         progressBar.visibility = View.VISIBLE
         loadingText.visibility = View.VISIBLE
         signInButton.isEnabled = false
-        
+
         Log.d("LoginActivity", "Starting Google Sign-In process")
         Log.d("LoginActivity", "Using web client ID: ${getString(R.string.default_web_client_id)}")
-        
+
         // 4. Launch the sign-in flow
         oneTapClient.beginSignIn(signInRequest)
             .addOnSuccessListener(this) { result ->
                 try {
                     Log.d("LoginActivity", "One Tap UI started successfully")
                     // The BeginSignInResult contains a PendingIntent
-                    val intentSenderRequest = IntentSenderRequest.Builder(result.pendingIntent.intentSender).build()
+                    val intentSenderRequest =
+                        IntentSenderRequest.Builder(result.pendingIntent.intentSender).build()
                     // Launch the intent sender
                     googleSignInLauncher.launch(intentSenderRequest)
                 } catch (e: Exception) {
                     Log.e("LoginActivity", "Couldn't start One Tap UI: ${e.localizedMessage}", e)
                     FirebaseCrashlytics.getInstance().recordException(e)
-                    FirebaseCrashlytics.getInstance().log("Failed to start One Tap UI: ${e.localizedMessage}")
-                    Toast.makeText(this, "Sign-in UI failed to start: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    FirebaseCrashlytics.getInstance()
+                        .log("Failed to start One Tap UI: ${e.localizedMessage}")
+                    Toast.makeText(
+                        this,
+                        "Sign-in UI failed to start: ${e.localizedMessage}",
+                        Toast.LENGTH_LONG
+                    ).show()
                     progressBar.visibility = View.GONE
                     loadingText.visibility = View.GONE
                     signInButton.isEnabled = true
@@ -169,70 +393,21 @@ class LoginActivity : AppCompatActivity() {
             .addOnFailureListener(this) { e ->
                 Log.e("LoginActivity", "Sign-in failed: ${e.localizedMessage}", e)
                 FirebaseCrashlytics.getInstance().recordException(e)
-                FirebaseCrashlytics.getInstance().log("Google One Tap sign-in failed: ${e.localizedMessage}")
-                Toast.makeText(this, "Sign-in failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                FirebaseCrashlytics.getInstance()
+                    .log("Google One Tap sign-in failed: ${e.localizedMessage}")
+                Toast.makeText(this, "Sign-in failed: ${e.localizedMessage}", Toast.LENGTH_LONG)
+                    .show()
                 progressBar.visibility = View.GONE
                 loadingText.visibility = View.GONE
                 signInButton.isEnabled = true
             }
     }
 
-    private fun sendSignInLink(email: String) {
-        // Configure action code settings
-        val actionCodeSettings = ActionCodeSettings.newBuilder()
-            .setAndroidPackageName(packageName, true, null)
-            .setHandleCodeInApp(true)
-            .setUrl("https://black-radius-341415.firebaseapp.com/__/auth/action")
-            .build()
-        Firebase.auth.sendSignInLinkToEmail(email, actionCodeSettings)
-            .addOnSuccessListener {
-                Log.d("EmailLink", "Email sent OK to $email")
-            }
-            .addOnFailureListener { e ->
-                Log.e("EmailLink", "Failed to send email", e)
-            }
-
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        intent?.let { handleEmailLinkIntent(it) }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        handleEmailLinkIntent(intent)
-    }
-
-    private fun handleEmailLinkIntent(intent: Intent) {
-        val auth = Firebase.auth
-        val data = intent.data?.toString() ?: return
-        if (!auth.isSignInWithEmailLink(data)) return
-
-        val storedEmail = getSharedPreferences("email_link", MODE_PRIVATE)
-            .getString("pending_email", null)
-        val email = storedEmail ?: return
-
-        progressBar.visibility = View.VISIBLE
-        loadingText.visibility = View.VISIBLE
-
-        auth.signInWithEmailLink(email, data).addOnCompleteListener { task ->
-            progressBar.visibility = View.GONE
-            loadingText.visibility = View.GONE
-            if (task.isSuccessful) {
-                getSharedPreferences("email_link", MODE_PRIVATE)
-                    .edit().remove("pending_email").apply()
-                startPostAuthFlow(task.result?.additionalUserInfo?.isNewUser ?: false)
-            } else {
-                Toast.makeText(this, "Email link sign-in failed: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     private fun startPostAuthFlow(isNewUser: Boolean) {
         val profileManager = UserProfileManager(this)
         val user = firebaseAuth.currentUser
-        val name = user?.displayName ?: "Unknown"
+        // Prefer Firebase displayName; if absent (new custom token user), use the lastEnteredName fallback
+        val name = user?.displayName ?: lastEnteredName ?: "Unknown"
         val email = user?.email ?: "unknown"
         profileManager.saveProfile(name, email)
 
@@ -259,7 +434,7 @@ class LoginActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
                 loadingText.visibility = View.GONE
                 signInButton.isEnabled = true
-                
+
                 if (task.isSuccessful) {
                     val isNewUser = task.result?.additionalUserInfo?.isNewUser ?: false
 
@@ -276,7 +451,10 @@ class LoginActivity : AppCompatActivity() {
 
                         // 4. Save the profile information
                         profileManager.saveProfile(name, email)
-                        Log.d("LoginActivity", "User profile saved: Name='${name}', Email='${email}'")
+                        Log.d(
+                            "LoginActivity",
+                            "User profile saved: Name='$name', Email='$email'"
+                        )
                     } else {
                         profileManager.saveProfile("Unknown", "unknown")
                         Log.w("LoginActivity", "User name or email was null, profile not saved.")
@@ -286,18 +464,32 @@ class LoginActivity : AppCompatActivity() {
                         val onboardingManager = OnboardingManager(this@LoginActivity)
 
                         if (isNewUser) {
-                            Log.d("LoginActivity", "New user detected. Provisioning freemium account.")
+                            Log.d(
+                                "LoginActivity",
+                                "New user detected. Provisioning freemium account."
+                            )
                             val freemiumManager = FreemiumManager()
                             freemiumManager.provisionUserIfNeeded()
                         }
 
                         // CHECK THE LOCAL FLAG INSTEAD OF isNewUser
                         if (onboardingManager.isOnboardingCompleted()) {
-                            Log.d("LoginActivity", "Onboarding already completed on this device. Launching main activity.")
+                            Log.d(
+                                "LoginActivity",
+                                "Onboarding already completed on this device. Launching main activity."
+                            )
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                         } else {
-                            Log.d("LoginActivity", "Onboarding not completed. Launching permissions stepper.")
-                            startActivity(Intent(this@LoginActivity, OnboardingPermissionsActivity::class.java))
+                            Log.d(
+                                "LoginActivity",
+                                "Onboarding not completed. Launching permissions stepper."
+                            )
+                            startActivity(
+                                Intent(
+                                    this@LoginActivity,
+                                    OnboardingPermissionsActivity::class.java
+                                )
+                            )
                         }
                         finish()
                     }
@@ -305,7 +497,8 @@ class LoginActivity : AppCompatActivity() {
                     Log.w("LoginActivity", "signInWithCredential:failure", task.exception)
                     task.exception?.let { exception ->
                         FirebaseCrashlytics.getInstance().recordException(exception)
-                        FirebaseCrashlytics.getInstance().log("Firebase authentication failed: ${exception.localizedMessage}")
+                        FirebaseCrashlytics.getInstance()
+                            .log("Firebase authentication failed: ${exception.localizedMessage}")
                     }
                     Toast.makeText(this, "Authentication Failed.", Toast.LENGTH_SHORT).show()
                 }
