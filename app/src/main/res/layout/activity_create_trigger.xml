@@ -11,7 +11,7 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
+        android:background="@color/primary"
         app:title="Create Trigger"
         app:titleTextColor="@color/white" />
 
@@ -106,13 +106,13 @@
                     android:layout_height="wrap_content"
                     app:singleSelection="false">
 
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="S"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="M"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="T"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="W"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="T"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="F"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="S"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="S" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="M" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="T" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="W" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="T" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="F" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="S" app:chipBackgroundColor="@color/chip_background_selector" android:textColor="@color/chip_text_selector"/>
                 </com.google.android.material.chip.ChipGroup>
             </LinearLayout>
 

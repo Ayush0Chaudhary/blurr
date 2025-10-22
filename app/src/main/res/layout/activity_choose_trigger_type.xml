@@ -12,7 +12,7 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
+        android:background="@color/primary"
         app:title="Choose Trigger Type"
         app:titleTextColor="@color/white" />
 
@@ -38,11 +38,12 @@
                 android:padding="24dp"
                 android:gravity="center_vertical">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🕒"
-                    android:textSize="32sp"/>
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/ic_trigger_time"
+                    app:tint="@color/white"
+                    android:contentDescription="Scheduled Time" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -55,7 +56,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Scheduled Time"
-                        android:textColor="@color/white"
+                        android:textColor="@color/orange"
                         android:textSize="20sp"
                         android:textStyle="bold"/>
 
@@ -73,6 +74,7 @@
             android:id="@+id/notificationCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
             app:cardBackgroundColor="@color/panel_background"
             app:cardCornerRadius="16dp">
 
@@ -83,11 +85,12 @@
                 android:padding="24dp"
                 android:gravity="center_vertical">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="📲"
-                    android:textSize="32sp"/>
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/ic_trigger_notification"
+                    app:tint="@color/white"
+                    android:contentDescription="Notification" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -100,7 +103,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Notification"
-                        android:textColor="@color/white"
+                        android:textColor="@color/orange"
                         android:textSize="20sp"
                         android:textStyle="bold"/>
 
@@ -118,7 +121,6 @@
             android:id="@+id/chargingStateCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
             app:cardBackgroundColor="@color/panel_background"
             app:cardCornerRadius="16dp">
 
@@ -129,11 +131,12 @@
                 android:padding="24dp"
                 android:gravity="center_vertical">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🔋"
-                    android:textSize="32sp"/>
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@drawable/ic_trigger_charging"
+                    app:tint="@color/white"
+                    android:contentDescription="Charging State" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -146,7 +149,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Charging State"
-                        android:textColor="@color/white"
+                        android:textColor="@color/orange"
                         android:textSize="20sp"
                         android:textStyle="bold"/>
 

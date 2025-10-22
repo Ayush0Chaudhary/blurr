@@ -120,6 +120,6 @@
     <string name="microphone_permission_not_granted">Microphone permission not granted</string>
     <string name="accessibility_permission_needed_for_task">Hey, accessibility permission is needed to execute any task. I know you might have doubt giving this permission to me, but my code is open source, so can always check it out if you have doubts.</string>
     <string name="get_your_free_accesskey_from_the_picovoice_console"><u>Get your free AccessKey from the Picovoice Console</u></string>
-    <string name="triggers_not_working_for_you"><u>Triggers not working for you?</u>u></string>
+    <string name="triggers_not_working_for_you"><u>Triggers not working for you?</u></string>
     <string name="sign_out">Sign Out</string>
 </resources>

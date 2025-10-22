@@ -12,7 +12,7 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
+        android:background="@color/primary"
         app:title="Your Triggers"
         android:fontFamily="@font/playfair_display"
         app:titleTextColor="@color/white" />
@@ -30,7 +30,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Enable Triggers"
-            android:textColor="@color/white" />
+            android:textColor="@color/white"
+            app:buttonTint="@color/orange" />
 
         <TextView
             android:id="@+id/triggers_not_working_text"
@@ -62,9 +63,9 @@
         android:text="Add Trigger"
         app:icon="@drawable/ic_add"
         android:fontFamily="@font/oxanium"
-        app:iconTint="@color/white"
-        android:textColor="@color/white"
-        app:backgroundTint="@color/button_blue"
+        app:iconTint="@color/black"
+        android:textColor="@color/black"
+        app:backgroundTint="@color/orange"
         android:contentDescription="Add new trigger" />
 
 </RelativeLayout>
