@@ -345,9 +345,9 @@ class ConversationalAgentService : Service() {
     @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun speakAndThenListen(text: String, draw: Boolean = true) {
         // Only update system prompt with memories if we've heard the first utterance
-        if (hasHeardFirstUtterance) {
+//        if (hasHeardFirstUtterance) {
             updateSystemPromptWithMemories()
-        }
+//        }
         ttsManager.setCaptionsEnabled(draw)
 
         pandaStateManager.setState(PandaState.SPEAKING)
@@ -756,6 +756,8 @@ class ConversationalAgentService : Service() {
             """
             ### Memory Status ###
             Memory system is temporarily disabled. Panda cannot remember or learn from previous conversations at this time.
+            some memories added by developers
+            {memory_context}
             ### End Memory Status ###
             """
         }
@@ -772,14 +774,17 @@ class ConversationalAgentService : Service() {
 
             Some Guideline:
             1. If the user ask you to do something creative, you do this task and be the most creative person in the world.
-            2. If you know the user's name from the memories, refer to them by their name to make the conversation more personal and friendly.
+            2. If you know the user's name from the memories, refer to them by their name to make the conversation more personal and friendly as often as possible.
             3. Use the current screen context to better understand what the user is looking at and provide more relevant responses.
             4. If the user asks about something on the screen, you can reference the screen content directly.
             5. When the user ask to sing, shout or produce any sound, just generate text, we will sing it for you.
             6. Your code is opensource so you can tell tell that to user. repo is ayush0chaudhary/blurr
             
-            $memoryContextSection
-        
+            Use these memories to answer the user's question with his personal data
+            ### Memory Context Start ###
+            {memory_context}
+            ### Memory Context Ends ###
+            
             Analyze the user's request and respond ONLY with a single, valid JSON object.
             Do not include any text, notes, or explanations outside of the JSON object.
             The JSON object must have the following structure:
@@ -885,11 +890,13 @@ class ConversationalAgentService : Service() {
 
             // Check if memory is enabled before processing memories
             if (!MEMORY_ENABLED) {
-                Log.d("ConvAgent", "Memory is disabled, skipping memory operations")
-                // Replace memory context with disabled message
                 var userProfile = UserProfileManager(this@ConversationalAgentService)
 
-                updatedPrompt = updatedPrompt.replace("{memory_context}", "Memory system is temporarily disabled but user name is ${userProfile.getName()}")
+                Log.d("ConvAgent", "Memory is disabled, skipping memory operations")
+                Log.d("ConvAgent", "User name is ${userProfile.getName()}")
+                // Replace memory context with disabled message
+
+                updatedPrompt = updatedPrompt.replace("{memory_context}", "User name is ${userProfile.getName()}")
             } else {
                 // Get the last user message to search for relevant memories
                 val lastUserMessage = conversationHistory.lastOrNull { it.first == "user" }
