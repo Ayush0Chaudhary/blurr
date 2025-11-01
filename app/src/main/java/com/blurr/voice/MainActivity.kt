@@ -737,6 +737,9 @@ class MainActivity : BaseNavigationActivity() {
                                     .setMessage(message)
                                     .setPositiveButton("OK") { dialogInterface, _ ->
                                         dialogInterface.dismiss()
+                                        val editor = sharedPrefs.edit()
+                                        editor.putInt("developer_message_count", displayCount + 1)
+                                        editor.apply()
                                     }
                                     .show()
                                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
