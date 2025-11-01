@@ -266,7 +266,7 @@ class ConversationalAgentService : Service() {
             }
             return // Skip starting the voice listener entirely.
         }
-        
+
         speechCoordinator.startListening(
             onResult = { recognizedText ->
                 if (isTextModeActive) return@startListening // Ignore results in text mode
@@ -887,7 +887,9 @@ class ConversationalAgentService : Service() {
             if (!MEMORY_ENABLED) {
                 Log.d("ConvAgent", "Memory is disabled, skipping memory operations")
                 // Replace memory context with disabled message
-                updatedPrompt = updatedPrompt.replace("{memory_context}", "Memory system is temporarily disabled")
+                var userProfile = UserProfileManager(this@ConversationalAgentService)
+
+                updatedPrompt = updatedPrompt.replace("{memory_context}", "Memory system is temporarily disabled but user name is ${userProfile.getName()}")
             } else {
                 // Get the last user message to search for relevant memories
                 val lastUserMessage = conversationHistory.lastOrNull { it.first == "user" }
