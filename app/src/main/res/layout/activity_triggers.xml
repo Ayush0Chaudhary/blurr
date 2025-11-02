@@ -8,20 +8,43 @@
     android:fitsSystemWindows="true"
     tools:context=".triggers.ui.TriggersActivity">
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
+    <LinearLayout
+        android:id="@+id/header_container"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/primary"
-        app:title="Your Triggers"
-        android:fontFamily="@font/playfair_display"
-        app:titleTextColor="@color/white" />
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingTop="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginBottom="24dp">
+
+        <View
+            android:layout_width="48dp"
+            android:layout_height="48dp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Your Triggers"
+            android:textColor="#FFFFFF"
+            android:fontFamily="@font/oxanium"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="48dp"
+            android:layout_height="48dp" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/trigger_options_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/toolbar"
+        android:layout_below="@+id/header_container"
         android:orientation="vertical"
         android:padding="16dp">
 
@@ -52,6 +75,46 @@
         android:padding="8dp"
         android:clipToPadding="false"
         tools:listitem="@layout/item_trigger" />
+
+    <LinearLayout
+        android:id="@+id/empty_state_triggers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:layout_below="@id/trigger_options_container"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginBottom="16dp"
+            android:src="@drawable/trigger"
+            app:tint="@color/white"
+            android:alpha="0.8" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="No Triggers Yet"
+            android:textColor="#FFFFFF"
+            android:fontFamily="@font/oxanium"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="Triggers allow Panda to automatically run tasks for you based on time, notifications, or other events."
+            android:textColor="#BDBDBD"
+            android:textSize="16sp" />
+
+    </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/addTriggerFab"

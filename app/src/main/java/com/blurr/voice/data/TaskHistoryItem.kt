@@ -10,12 +10,12 @@ data class TaskHistoryItem(
     val success: Boolean?,
     val errorMessage: String?
 ) {
-    fun getStatusEmoji(): String {
+    fun getStatusIconRes(): Int {
         return when (status.lowercase()) {
-            "started" -> "🔄"
-            "completed" -> if (success == true) "✅" else "❌"
-            "failed" -> "❌"
-            else -> "⏳"
+            "started" -> com.blurr.voice.R.drawable.ic_moment_pending
+            "completed" -> if (success == true) com.blurr.voice.R.drawable.ic_moment_success else com.blurr.voice.R.drawable.ic_moment_fail
+            "failed" -> com.blurr.voice.R.drawable.ic_moment_fail
+            else -> com.blurr.voice.R.drawable.ic_moment_unknown
         }
     }
     

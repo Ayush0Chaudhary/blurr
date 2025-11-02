@@ -19,8 +19,7 @@ class ProPurchaseActivity : BaseNavigationActivity(), PurchasesUpdatedListener {
     private lateinit var purchaseButton: Button
     private lateinit var loadingProgressBar: ProgressBar
     private lateinit var featuresTextView: TextView
-    private lateinit var backButton: View
-    
+
     private val billingClient: BillingClient = MyApplication.billingClient
     private var productDetails: ProductDetails? = null
     
@@ -43,17 +42,13 @@ class ProPurchaseActivity : BaseNavigationActivity(), PurchasesUpdatedListener {
         purchaseButton = findViewById(R.id.purchase_button)
         loadingProgressBar = findViewById(R.id.loading_progress)
 //        featuresTextView = findViewById(R.id.features_text)
-        backButton = findViewById(R.id.back_button)
-        
+
         // Initially hide purchase button and show loading
         purchaseButton.visibility = View.GONE
         loadingProgressBar.visibility = View.VISIBLE
     }
-    
+
     private fun setupClickListeners() {
-        backButton.setOnClickListener {
-            finish()
-        }
         
         purchaseButton.setOnClickListener {
             launchPurchaseFlow()

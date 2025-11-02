@@ -57,7 +57,7 @@
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Edit trigger"
-            android:src="@android:drawable/ic_menu_edit"
+            android:src="@drawable/ic_edit"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/deleteTriggerButton"
             app:layout_constraintTop_toTopOf="parent"

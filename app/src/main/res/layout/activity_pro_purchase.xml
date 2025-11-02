@@ -13,33 +13,33 @@
         android:padding="24dp">
 
         <!-- Header with back button -->
-        <RelativeLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp">
 
-            <ImageView
-                android:id="@+id/back_button"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_alignParentStart="true"
-                android:layout_centerVertical="true"
-                android:src="@drawable/ic_arrow_back"
-                android:contentDescription="Back"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:padding="4dp"
-                app:tint="@color/white" />
+            <View
+                android:layout_width="48dp"
+                android:layout_height="48dp" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:text="Upgrade to Pro"
-                android:textColor="@color/white"
-                android:textSize="20sp"
+                android:textColor="#FFFFFF"
+                android:fontFamily="@font/oxanium"
+                android:textSize="24sp"
                 android:textStyle="bold" />
 
-        </RelativeLayout>
+            <View
+                android:layout_width="48dp"
+                android:layout_height="48dp" />
+
+        </LinearLayout>
 
         <!-- Pro Badge -->
         <LinearLayout

@@ -16,22 +16,34 @@
 
         tools:context=".SettingsActivity">
 
-        <RelativeLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp"
+            android:paddingTop="16dp">
+
+            <View
+                android:layout_width="48dp"
+                android:layout_height="48dp" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:text="@string/settings"
-                android:paddingTop="50dp"
-                android:textColor="@color/white"
-                android:textSize="20sp"
+                android:textColor="#FFFFFF"
                 android:fontFamily="@font/oxanium"
+                android:textSize="24sp"
                 android:textStyle="bold" />
-        </RelativeLayout>
+
+            <View
+                android:layout_width="48dp"
+                android:layout_height="48dp" />
+
+        </LinearLayout>
         <TextView
             android:id="@+id/batteryOptimizationHelpButton"
             android:layout_width="wrap_content"

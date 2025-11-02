@@ -14,7 +14,7 @@ class MomentsAdapter(private val taskHistory: List<TaskHistoryItem>) :
         val taskText: TextView = itemView.findViewById(R.id.task_text)
         val statusText: TextView = itemView.findViewById(R.id.status_text)
         val timeText: TextView = itemView.findViewById(R.id.time_text)
-        val statusEmoji: TextView = itemView.findViewById(R.id.status_emoji)
+        val statusIcon: android.widget.ImageView = itemView.findViewById(R.id.status_icon) // Change ID and type
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
@@ -25,10 +25,10 @@ class MomentsAdapter(private val taskHistory: List<TaskHistoryItem>) :
 
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int) {
         val task = taskHistory[position]
-        
+
         holder.taskText.text = task.task
-        holder.statusEmoji.text = task.getStatusEmoji()
-        
+        holder.statusIcon.setImageResource(task.getStatusIconRes()) // Change this line
+
         when (task.status.lowercase()) {
             "started" -> {
                 holder.statusText.text = "Started"

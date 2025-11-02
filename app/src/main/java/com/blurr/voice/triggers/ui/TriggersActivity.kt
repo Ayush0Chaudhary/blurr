@@ -6,12 +6,14 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.CheckBox
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import com.blurr.voice.BaseNavigationActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.blurr.voice.BaseNavigationActivity
 import com.blurr.voice.R
 import com.blurr.voice.triggers.TriggerManager
 import com.blurr.voice.triggers.TriggerMonitoringService
@@ -26,6 +28,7 @@ class TriggersActivity : BaseNavigationActivity() {
     private lateinit var triggersNotWorkingText: TextView
     private lateinit var addTriggerFab: ExtendedFloatingActionButton
     private lateinit var triggersRecyclerView: RecyclerView
+    private lateinit var emptyStateView: LinearLayout // Added for empty state
 
     private lateinit var sharedPreferences: SharedPreferences
 
@@ -38,9 +41,8 @@ class TriggersActivity : BaseNavigationActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_triggers)
 
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        // Note: The Toolbar, setSupportActionBar, and supportActionBar lines
+        // have been removed as per your request.
 
         triggerManager = TriggerManager.getInstance(this)
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -49,6 +51,7 @@ class TriggersActivity : BaseNavigationActivity() {
         triggersNotWorkingText = findViewById(R.id.triggers_not_working_text)
         addTriggerFab = findViewById(R.id.addTriggerFab)
         triggersRecyclerView = findViewById(R.id.triggersRecyclerView)
+        emptyStateView = findViewById(R.id.empty_state_triggers) // Initialize empty state view
 
         setupRecyclerView()
         setupFab()
@@ -113,11 +116,7 @@ class TriggersActivity : BaseNavigationActivity() {
         stopService(serviceIntent)
     }
 
-
-    override fun onSupportNavigateUp(): Boolean {
-        onBackPressed()
-        return true
-    }
+    // Note: The onSupportNavigateUp() function has been removed.
 
     override fun onResume() {
         super.onResume()
@@ -189,9 +188,18 @@ class TriggersActivity : BaseNavigationActivity() {
     private fun loadTriggers() {
         val triggers = triggerManager.getTriggers()
         triggerAdapter.updateTriggers(triggers)
+
+        // Show/hide the empty state
+        if (triggers.isEmpty()) {
+            triggersRecyclerView.visibility = View.GONE
+            emptyStateView.visibility = View.VISIBLE
+        } else {
+            triggersRecyclerView.visibility = View.VISIBLE
+            emptyStateView.visibility = View.GONE
+        }
     }
-    
+
     override fun getContentLayoutId(): Int = R.layout.activity_triggers
-    
+
     override fun getCurrentNavItem(): BaseNavigationActivity.NavItem = BaseNavigationActivity.NavItem.TRIGGERS
 }
