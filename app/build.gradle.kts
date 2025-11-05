@@ -77,6 +77,9 @@ android {
 
     buildTypes {
         release {
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             firebaseCrashlytics {
                 nativeSymbolUploadEnabled = true
             }
