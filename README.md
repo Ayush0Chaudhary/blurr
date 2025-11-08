@@ -38,6 +38,8 @@ Panda is built on a sophisticated multi-agent system written entirely in Kotlin.
 * **The Agent:**
     * **Operator:** This is executor with Notepad.
 
+<img width="421" height="251" alt="Untitled Diagram drawio (2)" src="https://github.com/user-attachments/assets/78339f17-0d71-469a-a9e9-3cb36902d4eb" />
+
 
 ## 🚀 Getting Started
 
