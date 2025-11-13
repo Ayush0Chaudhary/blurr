@@ -33,51 +33,62 @@ class Perception(
      */
     suspend fun analyze(previousState: Set<String>? = null): ScreenAnalysis {
         return coroutineScope {
-//        val screenshotDeferred = async { eyes.openEyes() }
         val rawDataDeferred = async { eyes.getRawScreenData() }
         val keyboardStatusDeferred = async { eyes.getKeyBoardStatus() }
         val currentActivity = async { eyes.getCurrentActivityName() }
-//        val screenshot = screenshotDeferred.await()
-        val rawData = rawDataDeferred.await() ?: RawScreenData(
-            "<hierarchy error=\"service not available\"/>", 0, 0, 0,0
+        val rawTree = rawDataDeferred.await() ?: RawScreenData(
+            null, 0, 0, 0,0
         )
         val isKeyboardOpen = keyboardStatusDeferred.await()
-
-        // Assume you have a way to get this
         val activityName = currentActivity.await()
+        val rootNode = rawTree.rootNode
 
         // Parse the XML from the raw data
-        Log.d("ScreenAnal", rawData.xml)
-        val parseResult = semanticParser.toHierarchicalString(rawData.xml, previousState, rawData.screenWidth, rawData.screenHeight)
-        var uiRepresentation = parseResult.first
-        val elementMap = parseResult.second
+            if(rootNode != null) {
+                var (uiRepresentation, elementMap) =
+                    semanticParser.parseNodeTree(
+                        rootNode,
+                        previousState,
+                        rawTree.screenWidth,
+                        rawTree.screenHeight
+                    )
 
-        val hasContentAbove = rawData.pixelsAbove > 0
-        val hasContentBelow = rawData.pixelsBelow > 0
+                val hasContentAbove = rawTree.pixelsAbove > 0
+                val hasContentBelow = rawTree.pixelsBelow > 0
 
-        if (uiRepresentation.isNotBlank()) {
-            if (hasContentAbove) {
-                uiRepresentation = "... ${rawData.pixelsAbove} pixels above - scroll up to see more ...\n$uiRepresentation"
-            } else {
-                uiRepresentation = "[Start of page]\n$uiRepresentation"
+                if (uiRepresentation.isNotBlank()) {
+                    if (hasContentAbove) {
+                        uiRepresentation = "... ${rawTree.pixelsAbove} pixels above - scroll up to see more ...\n$uiRepresentation"
+                    } else {
+                        uiRepresentation = "[Start of page]\n$uiRepresentation"
+                    }
+                    if (hasContentBelow) {
+                        uiRepresentation = "$uiRepresentation\n... ${rawTree.pixelsBelow} pixels below - scroll down to see more ..."
+                    } else {
+                        uiRepresentation = "$uiRepresentation\n[End of page]"
+                    }
+                } else {
+                    uiRepresentation = "The screen is empty or contains no interactive elements."
+                }
+
+                ScreenAnalysis(
+                    uiRepresentation = uiRepresentation, // The newly formatted string
+                    isKeyboardOpen = isKeyboardOpen,
+                    activityName = activityName,
+                    elementMap = elementMap,
+                    scrollUp = rawTree.pixelsAbove, // Store the raw numbers
+                    scrollDown = rawTree.pixelsBelow  // Store the raw numbers
+                )
+            } else{
+                ScreenAnalysis(
+                    uiRepresentation = "uiRepresentation", // The newly formatted string
+                    isKeyboardOpen = isKeyboardOpen,
+                    activityName = activityName,
+                    elementMap = mutableMapOf(),
+                    scrollUp = rawTree.pixelsAbove, // Store the raw numbers
+                    scrollDown = rawTree.pixelsBelow  // Store the raw numbers
+                )
             }
-            if (hasContentBelow) {
-                uiRepresentation = "$uiRepresentation\n... ${rawData.pixelsBelow} pixels below - scroll down to see more ..."
-            } else {
-                uiRepresentation = "$uiRepresentation\n[End of page]"
-            }
-        } else {
-            uiRepresentation = "The screen is empty or contains no interactive elements."
-        }
-
-        ScreenAnalysis(
-            uiRepresentation = uiRepresentation, // The newly formatted string
-            isKeyboardOpen = isKeyboardOpen,
-            activityName = activityName,
-            elementMap = elementMap,
-            scrollUp = rawData.pixelsAbove, // Store the raw numbers
-            scrollDown = rawData.pixelsBelow  // Store the raw numbers
-        )
     }
     }
 }

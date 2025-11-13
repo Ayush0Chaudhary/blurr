@@ -2,7 +2,9 @@ package com.blurr.voice.v2.actions
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.os.Build
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
 import com.blurr.voice.api.Finger
 import com.blurr.voice.utilities.SpeechCoordinator
@@ -24,6 +26,24 @@ import kotlin.text.removePrefix
 class ActionExecutor(private val finger: Finger) {
 
     // Add this function inside ActionExecutor.kt, outside the class, or as a private fun.
+    private fun getExtraInfo(node: AccessibilityNodeInfo): String {
+        val infoParts = mutableListOf<String>()
+        if (node.isCheckable) infoParts.add("checkable")
+        if (node.isChecked) infoParts.add("checked")
+        if (node.isClickable) infoParts.add("clickable")
+        if (node.isEnabled) infoParts.add("enabled")
+        if (node.isFocusable) infoParts.add("focusable")
+        if (node.isFocused) infoParts.add("focused")
+        if (node.isScrollable) infoParts.add("scrollable")
+        if (node.isLongClickable) infoParts.add("long clickable")
+        if (node.isSelected) infoParts.add("selected")
+
+        return if (infoParts.isNotEmpty()) {
+            "This element is ${infoParts.joinToString(", ")}."
+        } else {
+            ""
+        }
+    }
 
     private fun findPackageNameFromAppName(appName: String, context: Context): String? {
         val pm = context.packageManager
@@ -52,16 +72,21 @@ class ActionExecutor(private val finger: Finger) {
 
         return null // Not found
     }
-    private fun getCenterFromBounds(bounds: String): Pair<Int, Int> {
-        val regex = """\[(\d+),(\d+)\]\[(\d+),(\d+)\]""".toRegex()
-        val match = regex.find(bounds)
-        if (match != null) {
-            val (l, t, r, b) = match.destructured.toList().map { it.toInt() }
-            return Pair((l + r) / 2, (t + b) / 2)
-        }
-        return Pair(0, 0) // Should not happen if bounds are valid
-    }
 
+    private fun getVisibleText(node: AccessibilityNodeInfo): String {
+        val text = node.text?.toString() ?: ""
+        val contentDesc = node.contentDescription?.toString() ?: ""
+        // Prefer text, fall back to content description
+        return (if (text.isNotBlank()) text else contentDesc).replace("\n", " ")
+    }
+    private fun getCenterFromNode(node: AccessibilityNodeInfo): Pair<Int, Int>? {
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+        if (bounds.isEmpty) {
+            return null // Node is not on screen or has no bounds
+        }
+        return Pair(bounds.centerX(), bounds.centerY())
+    }
     /**
      * Executes a single action and returns the result.
      * @return An ActionResult detailing the outcome of the action.
@@ -76,20 +101,21 @@ class ActionExecutor(private val finger: Finger) {
         // This 'when' block now returns an ActionResult for every case.
         return when (action) {
             is Action.TapElement -> {
+                // MODIFIED: 'elementNode' is now AccessibilityNodeInfo
                 val elementNode = screenAnalysis.elementMap[action.elementId]
                 if (elementNode != null) {
-                    val bounds = elementNode.attributes["bounds"]
-                    val text = elementNode.getVisibleText().replace("\n", " ")
-                    val resourceId = elementNode.attributes["resource-id"] ?: ""
-                    val extraInfo = elementNode.extraInfo
-                    val className = (elementNode.attributes["class"] ?: "").removePrefix("android.")
+                    // MODIFIED: Use new helpers
+                    val text = getVisibleText(elementNode)
+                    val resourceId = elementNode.viewIdResourceName ?: ""
+                    val extraInfo = getExtraInfo(elementNode)
+                    val className = (elementNode.className ?: "").removePrefix("android.")
 
-                    if (bounds != null) {
-                        val (centerX, centerY) = getCenterFromBounds(bounds)
-                        finger.tap(centerX, centerY)
+                    val center = getCenterFromNode(elementNode)
+                    if (center != null) {
+                        elementNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         ActionResult(longTermMemory = "Tapped element text:$text <$resourceId> <$extraInfo> <$className>")
                     } else {
-                        ActionResult(error = "Element with ID ${action.elementId} has no bounds information.")
+                        ActionResult(error = "Element with ID ${action.elementId} has no visible bounds.")
                     }
                 } else {
                     ActionResult(error = "Element with ID ${action.elementId} not found in the current screen state.")
@@ -118,21 +144,22 @@ class ActionExecutor(private val finger: Finger) {
                 )
             }
             is Action.LongPressElement -> {
+                // MODIFIED: 'elementNode' is now AccessibilityNodeInfo
                 val elementNode = screenAnalysis.elementMap[action.elementId]
                 if (elementNode != null) {
-                    val bounds = elementNode.attributes["bounds"]
-                    val text = elementNode.getVisibleText().replace("\n", " ")
-                    val resourceId = elementNode.attributes["resource-id"] ?: ""
-                    val extraInfo = elementNode.extraInfo
-                    val className = (elementNode.attributes["class"] ?: "").removePrefix("android.")
+                    // MODIFIED: Use new helpers
+                    val text = getVisibleText(elementNode)
+                    val resourceId = elementNode.viewIdResourceName ?: ""
+                    val extraInfo = getExtraInfo(elementNode)
+                    val className = (elementNode.className ?: "").removePrefix("android.")
 
-                    if (bounds != null) {
-                        val (centerX, centerY) = getCenterFromBounds(bounds)
-                        // Assuming finger has a longPress method. Adjust if necessary.
-                        finger.longPress(centerX, centerY)
+                    val center = getCenterFromNode(elementNode)
+                    if (center != null) {
+//                        finger.longPress(center.first, center.second)
+                        elementNode.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
                         ActionResult(longTermMemory = "Long-pressed element text:$text <$resourceId> <$extraInfo> <$className>")
                     } else {
-                        ActionResult(error = "Element with ID ${action.elementId} has no bounds information.")
+                        ActionResult(error = "Element with ID ${action.elementId} has no visible bounds.")
                     }
                 } else {
                     ActionResult(error = "Element with ID ${action.elementId} not found in the current screen state.")
@@ -239,20 +266,22 @@ class ActionExecutor(private val finger: Finger) {
             is Action.TapElementInputTextPressEnter -> {
                 val elementNode = screenAnalysis.elementMap[action.index]
                 if (elementNode != null) {
-                    val bounds = elementNode.attributes["bounds"]
-                    val text = elementNode.getVisibleText().replace("\n", " ")
-                    val resourceId = elementNode.attributes["resource-id"] ?: ""
-                    val extraInfo = elementNode.extraInfo
-                    val className = (elementNode.attributes["class"] ?: "").removePrefix("android.")
 
-                    if (bounds != null) {
-                        val (centerX, centerY) = getCenterFromBounds(bounds)
-                        finger.tap(centerX, centerY)
-                        delay(200) // Small delay to ensure focus
+                    val text = getVisibleText(elementNode)
+                    val resourceId = elementNode.viewIdResourceName ?: ""
+                    val extraInfo = getExtraInfo(elementNode)
+                    val className = (elementNode.className ?: "").removePrefix("android.")
+
+                    val center = getCenterFromNode(elementNode)
+                    if (center != null) {
+                        elementNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        delay(200)
                         finger.type(action.text)
-                        ActionResult(longTermMemory = "Typed ${action.text} into element  text:$text <$resourceId> <$extraInfo> <$className>.")
+                        delay(100)
+                        finger.enter()
+                        ActionResult(longTermMemory = "Tapped, typed '${action.text}', and pressed Enter on element: text:$text <$resourceId> <$extraInfo> <$className>.")
                     } else {
-                        ActionResult(error = "Element with ID ${action.index} has no bounds information.")
+                        ActionResult(error = "Element with ID ${action.index} has no visible bounds.")
                     }
                 } else {
                     ActionResult(error = "Element with ID ${action.index} for input not found.")
