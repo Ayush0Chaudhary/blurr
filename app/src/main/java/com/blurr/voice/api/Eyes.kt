@@ -80,7 +80,7 @@ class Eyes(context: Context) {
         val service = ScreenInteractionService.instance
         if (service == null) {
             Log.e("AccessibilityController", "Accessibility Service is not running!")
-            return RawScreenData("", 0,0, 0, 0)
+            return RawScreenData(null, 0,0, 0, 0)
         }
         return service.getScreenAnalysisData()
     }

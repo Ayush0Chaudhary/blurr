@@ -168,7 +168,6 @@ data class StepMetadata(
 /**
  * A complete record of a single step in the agent's execution history.
  */
-@Serializable
 data class AgentHistory(
     val modelOutput: AgentOutput?,
     val result: List<ActionResult>,
@@ -203,7 +202,6 @@ data class AgentHistory(
  * A list of all agent history steps for a session.
  * The generic type T represents a custom, structured output model for the `done` action.
  */
-@Serializable
 data class AgentHistoryList<T>(
     val history: MutableList<AgentHistory> = mutableListOf(),
     val usage: UsageSummary? = null // Using placeholder

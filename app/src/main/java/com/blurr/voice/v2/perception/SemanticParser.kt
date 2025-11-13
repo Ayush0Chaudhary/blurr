@@ -1,6 +1,6 @@
 package com.blurr.voice.v2.perception
 
-import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.serialization.Serializable
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
@@ -131,76 +131,121 @@ data class XmlNode(
 class SemanticParser {
 
     // Stores a map of Integer index -> XmlNode for interactive elements from the last parse.
-    private val interactiveNodeMap = mutableMapOf<Int, XmlNode>()
+    private val interactiveNodeMap = mutableMapOf<Int, AccessibilityNodeInfo>()
     private var interactiveElementCounter = 0
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
-    // --- New Public API ---
 
-    /**
-     * Parses the XML tree into a custom string format highlighting interactive elements.
-     *
-     * Rules:
-     * - Only interactive elements get a numeric index like `[1]`.
-     * - Child elements are indented with tabs (`\t`).
-     * - Elements marked with `*` are new compared to the `previousNodes` set.
-     * - Non-interactive elements with text are shown as plain text.
-     *
-     * @param xmlString The raw XML dump of the screen hierarchy.
-     * @param previousNodes A set of unique identifiers for nodes from a previous screen state,
-     * used to detect new elements. A good identifier is "text|resource-id|class".
-     * @return A formatted string representing the UI hierarchy.
-     */
-    fun toHierarchicalString(xmlString: String, previousNodes: Set<String>? = null, screenWidth: Int, screenHeight: Int): Pair<String,  Map<Int, XmlNode>> {
-        val rootNode = buildTreeFromXml(xmlString) ?: return Pair("", emptyMap())
+    fun parseNodeTree(
+        rootNode: AccessibilityNodeInfo,
+        previousNodes: Set<String>?,
+        screenWidth: Int,
+        screenHeight: Int
+    ): Pair<String, Map<Int, AccessibilityNodeInfo>> {
         this.screenWidth = screenWidth
         this.screenHeight = screenHeight
 
-        // Prune the tree to remove noise before generating the string.
-        val prunedChildren = rootNode.children.flatMap { prune(it) }
-        rootNode.children.clear()
-        rootNode.children.addAll(prunedChildren)
-
-        // Reset state for the new parse.
         interactiveNodeMap.clear()
         interactiveElementCounter = 0
         val stringBuilder = StringBuilder()
 
-        // Recursively build the string starting from the children of the root.
-        rootNode.children.forEach { child ->
-            buildHierarchicalStringRecursive(child, 0, stringBuilder, previousNodes ?: emptySet())
-        }
+        // Recursively build the string starting from the root node.
+        buildStringFromNodeRecursive(rootNode, 0, stringBuilder, previousNodes ?: emptySet())
 
         return Pair(stringBuilder.toString(), interactiveNodeMap)
     }
 
-    /**
-     * Returns the center coordinates of an interactive element given its index.
-     * This function should be called after `toHierarchicalString` has been run.
-     *
-     * @param index The numeric index of the element (e.g., `1` from `[1] ...`).
-     * @return A `Pair(x, y)` representing the center coordinates, or `null` if the index
-     * is invalid or the element has no bounds.
-     */
-    fun getCenterOfElement(index: Int): Pair<Int, Int>? {
-        val node = interactiveNodeMap[index] ?: return null
-        val bounds = node.attributes["bounds"] ?: return null // e.g., "[981,1304][1036,1359]"
+    private fun getExtraInfo(node: AccessibilityNodeInfo): String {
+        val infoParts = mutableListOf<String>()
+        if (node.isCheckable) infoParts.add("checkable")
+        if (node.isChecked) infoParts.add("checked")
+        if (node.isClickable) infoParts.add("clickable")
+        if (node.isEnabled) infoParts.add("enabled")
+        if (node.isFocusable) infoParts.add("focusable")
+        if (node.isFocused) infoParts.add("focused")
+        if (node.isScrollable) infoParts.add("scrollable")
+        if (node.isLongClickable) infoParts.add("long clickable")
+        if (node.isSelected) infoParts.add("selected")
 
-        // Regex to extract the four coordinate numbers.
-        val regex = """\[(\d+),(\d+)\]\[(\d+),(\d+)\]""".toRegex()
-        val matchResult = regex.find(bounds) ?: return null
-
-        return try {
-            val (left, top, right, bottom) = matchResult.destructured.toList().map { it.toInt() }
-            val centerX = (left + right) / 2
-            val centerY = (top + bottom) / 2
-            Pair(centerX, centerY)
-        } catch (e: NumberFormatException) {
-            null // Return null if coordinates are not valid integers.
+        return if (infoParts.isNotEmpty()) {
+            "This element is ${infoParts.joinToString(", ")}."
+        } else {
+            ""
         }
     }
 
 
+    private fun buildStringFromNodeRecursive(
+        node: AccessibilityNodeInfo,
+        indentLevel: Int,
+        builder: StringBuilder,
+        previousNodes: Set<String>
+    ) {
+        // 1. Pruning/Visibility Check
+        // We only process nodes visible to the user.
+        if (!node.isVisibleToUser) {
+            return
+        }
+
+        // 2. Get Node Properties
+        val text = node.text?.toString() ?: ""
+        val contentDesc = node.contentDescription?.toString() ?: ""
+        val visibleText = if (text.isNotBlank()) text else contentDesc
+        val resourceId = node.viewIdResourceName ?: ""
+        val className = node.className?.toString() ?: ""
+
+        // 3. Check Importance & Interactivity
+        val isSemanticallyImportant = resourceId.isNotBlank() || visibleText.isNotBlank()
+        // Check if node is interactive
+        val isInteractive = (node.isClickable ||
+                node.isLongClickable ||
+                node.isCheckable ||
+                node.isScrollable ||
+                node.isEditable ||
+                node.isFocusable) && node.isEnabled
+
+        // We will print the node if it's interactive OR semantically important
+        val shouldPrintNode = isInteractive || isSemanticallyImportant
+
+        if (shouldPrintNode) {
+            val nodeKey = "$visibleText|$resourceId|$className"
+            val isNew = !previousNodes.contains(nodeKey) && isSemanticallyImportant
+            val indent = "\t".repeat(indentLevel)
+
+            if (isInteractive) {
+                interactiveElementCounter++
+                interactiveNodeMap[interactiveElementCounter] = node // Store the actual node
+
+                val newMarker = if (isNew) "* " else ""
+                val extraInfo = getExtraInfo(node) // Helper function
+                val simpleClassName = className.removePrefix("android.widget.")
+
+                // Format: [1] text:"<text>" <resource-id> <ExtraInfo> <class_name>
+                builder.append("$indent$newMarker[$interactiveElementCounter] ")
+                    .append("text:\"${visibleText.replace("\n", " ")}\" ")
+                    .append("<$resourceId> ")
+                    .append("<$extraInfo> ")
+                    .append("<$simpleClassName>\n")
+
+            } else {
+                // Just text
+                val newMarker = if (isNew) "* " else ""
+                builder.append("$indent$newMarker${visibleText.replace("\n", " ")}\n")
+            }
+        }
+
+        // 4. Recurse for children
+        // If we printed this node, children are indented.
+        // If we *didn't* print this node (e.g., invisible container),
+        // its children are processed at the *same* indent level (this simulates child promotion).
+        val nextIndent = if (shouldPrintNode) indentLevel + 1 else indentLevel
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (child != null) {
+                buildStringFromNodeRecursive(child, nextIndent, builder, previousNodes)
+            }
+        }
+    }
     // --- Original Public API (Maintained) ---
 
     /**
@@ -219,54 +264,6 @@ class SemanticParser {
         return toXmlString(rootNode)
     }
 
-    // --- Private Helper Functions ---
-
-    /**
-     * Recursively builds the hierarchical string for the new format.
-     */
-    private fun buildHierarchicalStringRecursive(
-        node: XmlNode,
-        indentLevel: Int,
-        builder: StringBuilder,
-        previousNodes: Set<String>
-    ) {
-        val indent = "\t".repeat(indentLevel)
-
-        // A unique key to identify a node across different hierarchy snapshots.
-        val nodeKey = "${node.getVisibleText()}|${node.attributes["resource-id"]}|${node.attributes["class"]}"
-        val isNew = !previousNodes.contains(nodeKey) && node.isSemanticallyImportant()
-
-        if (node.isInteractive()) {
-            interactiveElementCounter++
-            interactiveNodeMap[interactiveElementCounter] = node
-
-            val newMarker = if (isNew) "* " else ""
-            val text = node.getVisibleText().replace("\n", " ")
-            val resourceId = node.attributes["resource-id"] ?: ""
-            val extraInfo = node.extraInfo
-            val className = (node.attributes["class"] ?: "").removePrefix("android.")
-
-            // Format: [1] text:"<text>" <resource-id> <ExtraInfo> <class_name>
-            builder.append("$indent$newMarker[$interactiveElementCounter] ")
-                .append("text:\"$text\" ")
-                .append("<$resourceId> ")
-                .append("<$extraInfo> ")
-                .append("<$className>\n")
-
-        } else {
-            // Only print non-interactive elements if they contain text.
-            val text = node.getVisibleText()
-            if (text.isNotBlank()) {
-                val newMarker = if (isNew) "* " else ""
-                builder.append("$indent$newMarker${text.replace("\n", " ")}\n")
-            }
-        }
-
-        // Recurse for children
-        node.children.forEach { child ->
-            buildHierarchicalStringRecursive(child, indentLevel + 1, builder, previousNodes)
-        }
-    }
 
     /**
      * Recursively prunes the tree. It removes nodes that are not semantically important

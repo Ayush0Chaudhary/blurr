@@ -54,7 +54,8 @@ private data class SimplifiedElement(
 )
 
 data class RawScreenData(
-    val xml: String,
+//    val xml: String,
+    val rootNode: AccessibilityNodeInfo?,
     val pixelsAbove: Int,
     val pixelsBelow: Int,
     val screenWidth: Int,
@@ -790,41 +791,29 @@ class ScreenInteractionService : AccessibilityService() {
     suspend fun getScreenAnalysisData(): RawScreenData {
         val (screenWidth, screenHeight) = getScreenDimensions()
         val maxRetries = 5
-        val retryDelay = 800L // 200 milliseconds
+        val retryDelay = 800L
 
         for (attempt in 1..maxRetries) {
             // Attempt to get the root node in each iteration.
             val rootNode = rootInActiveWindow
 
             if (rootNode != null) {
-                // --- SUCCESS PATH ---
-                // If the root node is available, proceed with the analysis and return.
                 Log.d("InteractionService", "Got rootInActiveWindow on attempt $attempt.")
 
-                // 1. Get scroll info by traversing the live nodes
                 val (pixelsAbove, pixelsBelow) = findScrollableNodeAndGetInfo(rootNode)
 
-                // 2. Get the XML dump
-                val xmlString = dumpWindowHierarchy(true)
-                // Return the complete data, exiting the function successfully.
-                return RawScreenData(xmlString, pixelsAbove, pixelsBelow, screenWidth, screenHeight)
+                return RawScreenData(rootNode, pixelsAbove, pixelsBelow, screenWidth, screenHeight) // MODIFIED
             }
 
-            // --- RETRY PATH ---
-            // If the root node is null and this isn't the last attempt, wait and retry.
             if (attempt < maxRetries) {
                 Log.d("InteractionService", "rootInActiveWindow is null on attempt $attempt. Retrying in ${retryDelay}ms...")
                 delay(retryDelay)
             }
         }
 
-        // --- FAILURE PATH ---
-        // If the loop completes, all retries have failed.
         Log.e("InteractionService", "Failed to get rootInActiveWindow after $maxRetries attempts.")
-        // Return the placeholder to indicate failure.
-        return RawScreenData("<hierarchy/>", 0, 0, screenWidth, screenHeight)
+        return RawScreenData(null, 0, 0, screenWidth, screenHeight) // MODIFIED
     }
-
     /**
      * Asynchronously captures a screenshot from an AccessibilityService in a safe and reliable way.
      * This function follows the "Strict Librarian" rule: it always closes the screenshot resource

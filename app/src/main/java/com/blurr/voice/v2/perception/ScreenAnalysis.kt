@@ -1,6 +1,7 @@
 package com.blurr.voice.v2.perception
 
 import android.graphics.Bitmap
+import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.serialization.Serializable
 
 /**
@@ -14,12 +15,11 @@ import kotlinx.serialization.Serializable
  * @param elementMap A map from the integer ID `[1]` in the uiRepresentation to the
  * actual XmlNode object, allowing the ActionExecutor to find center coordinates.
  */
-@Serializable
 data class ScreenAnalysis(
     val uiRepresentation: String,
     val isKeyboardOpen: Boolean,
     val activityName: String,
-    val elementMap: Map<Int, XmlNode>,
+    val elementMap: Map<Int, AccessibilityNodeInfo>,
     val scrollUp: Int?,
     val scrollDown: Int?
 )
