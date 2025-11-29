@@ -4,19 +4,25 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.os.Build
+import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
+import com.blurr.voice.ScreenInteractionService
 import com.blurr.voice.api.Finger
 import com.blurr.voice.utilities.SpeechCoordinator
 import com.blurr.voice.utilities.UserInputManager
+import com.blurr.voice.overlay.OverlayManager
 import com.blurr.voice.v2.ActionResult
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.perception.ScreenAnalysis
 import com.blurr.voice.intents.IntentRegistry
+import com.blurr.voice.overlay.OverlayDispatcher
+import com.blurr.voice.overlay.OverlayPriority
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlin.system.measureTimeMillis
 import kotlin.text.removePrefix
 
 /**
@@ -101,26 +107,117 @@ class ActionExecutor(private val finger: Finger) {
         // This 'when' block now returns an ActionResult for every case.
         return when (action) {
             is Action.TapElement -> {
-                // MODIFIED: 'elementNode' is now AccessibilityNodeInfo
                 val elementNode = screenAnalysis.elementMap[action.elementId]
                 if (elementNode != null) {
-                    // MODIFIED: Use new helpers
                     val text = getVisibleText(elementNode)
-                    val resourceId = elementNode.viewIdResourceName ?: ""
-                    val extraInfo = getExtraInfo(elementNode)
-                    val className = (elementNode.className ?: "").removePrefix("android.")
+                    val service = ScreenInteractionService.instance
 
-                    val center = getCenterFromNode(elementNode)
-                    if (center != null) {
+                    var signatureBefore = ""
+                    var signatureAfter = ""
+                    var screenChanged = false
+
+                    // --- START: Time Measurement ---
+                    val diffTime = measureTimeMillis {
+                        // 1. GET SIGNATURE (The entire XML tree)
+                        signatureBefore = service?.getWindowHierarchySignature() ?: ""
+
+                        // 2. ATTEMPT 1: Polite Accessibility Action
                         elementNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        ActionResult(longTermMemory = "Tapped element text:$text <$resourceId> <$extraInfo> <$className>")
+
+                        // 3. WAIT & VERIFY
+                        // We wait for the app to process the click and update the UI
+                        delay(100)
+
+                        signatureAfter = service?.getWindowHierarchySignature() ?: ""
+
+                        // If the XML strings are different, the screen changed.
+                        screenChanged = signatureBefore != signatureAfter
+                    }
+
+                    // --- LOG THE RESULT ---
+                    Log.d("ActionExecutor", "Signature diff + 600ms delay took ${diffTime}ms. Screen changed: $screenChanged")
+
+                    if (screenChanged) {
+                        ActionResult(longTermMemory = "Clicked element '$text'. Screen updated successfully.")
                     } else {
-                        ActionResult(error = "Element with ID ${action.elementId} has no visible bounds.")
+                        // 4. ESCALATE: BRUTE FORCE TAP
+                        // The XML is identical, so the app ignored the click.
+                        val center = getCenterFromNode(elementNode)
+                        if (center != null) {
+                            finger.tap(center.first, center.second)
+                            delay(500) // Wait for the physical tap to register
+                            ActionResult(longTermMemory = "Accessibility click failed (screen didn't change). Escalated to physical tap at ${center.first},${center.second} on '$text'.")
+                        } else {
+                            ActionResult(error = "Click sent to '$text' but screen did not change, and cannot find coordinates for physical retry.")
+                        }
                     }
                 } else {
-                    ActionResult(error = "Element with ID ${action.elementId} not found in the current screen state.")
+                    ActionResult(error = "Element with ID ${action.elementId} not found.")
                 }
             }
+//            is Action.TapElement -> {
+//                val elementNode = screenAnalysis.elementMap[action.elementId]
+//                if (elementNode != null) {
+//                    val text = getVisibleText(elementNode)
+//                    val service = ScreenInteractionService.instance
+//
+//                    // 1. GET SIGNATURE (The entire XML tree)
+//                    val signatureBefore = service?.getWindowHierarchySignature() ?: ""
+//
+//                    // 2. ATTEMPT 1: Polite Accessibility Action
+//                    elementNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+//
+//                    // 3. WAIT & VERIFY
+//                    // We wait for the app to process the click and update the UI
+//                    delay(600)
+//
+//                    val signatureAfter = service?.getWindowHierarchySignature() ?: ""
+//
+//                    // If the XML strings are different, the screen changed.
+//                    val screenChanged = signatureBefore != signatureAfter
+//
+//                    if (screenChanged) {
+//                        ActionResult(longTermMemory = "Clicked element '$text'. Screen updated successfully.")
+//                    } else {
+//                        // 4. ESCALATE: BRUTE FORCE TAP
+//                        // The XML is identical, so the app ignored the click.
+//                        val center = getCenterFromNode(elementNode)
+//                        if (center != null) {
+//                            finger.tap(center.first, center.second)
+//                            delay(500) // Wait for the physical tap to register
+//                            ActionResult(longTermMemory = "Accessibility click failed (screen didn't change). Escalated to physical tap at ${center.first},${center.second} on '$text'.")
+//                        } else {
+//                            ActionResult(error = "Click sent to '$text' but screen did not change, and cannot find coordinates for physical retry.")
+//                        }
+//                    }
+//                } else {
+//                    ActionResult(error = "Element with ID ${action.elementId} not found.")
+//                }
+//            }
+//            is Action.TapElement -> {
+//                // MODIFIED: 'elementNode' is now AccessibilityNodeInfo
+//                val elementNode = screenAnalysis.elementMap[action.elementId]
+//                if (elementNode != null) {
+//                    // MODIFIED: Use new helpers
+//                    val text = getVisibleText(elementNode)
+//                    val resourceId = elementNode.viewIdResourceName ?: ""
+//                    val extraInfo = getExtraInfo(elementNode)
+//                    val className = (elementNode.className ?: "").removePrefix("android.")
+//
+//                    val center = getCenterFromNode(elementNode)
+//                    if (center != null) {
+//                        elementNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+////                        finger.tap(center.first, center.second)
+//                        val si = ScreenInteractionService.instance
+//                        si?.showDebugTap(center.first.toFloat(), center.second.toFloat())
+//                        ActionResult(longTermMemory = "Tapped element text:$text <$resourceId> <$extraInfo> <$className>")
+//                    } else {
+//                        ActionResult(error = "Element with ID ${action.elementId} has no visible bounds.")
+//                    }
+//                } else {
+//                    ActionResult(error = "Element with ID ${action.elementId} not found in the current screen state.")
+//                }
+//            }
             is Action.Speak -> {
                 // The message is taken directly from the type-safe action class.
                 val message = action.message
@@ -256,6 +353,11 @@ class ActionExecutor(private val finger: Finger) {
             is Action.WriteFile -> {
                 val success = fileSystem.writeFile(action.fileName, action.content)
                 if (success) {
+                    Log.d("ActionExecutor", "Wrote content to '${action.fileName} ${action.content}'.")
+                        OverlayDispatcher.show(
+                            action.content,
+                            OverlayPriority.CAPTION
+                        )
                     ActionResult(longTermMemory = "Wrote content to '${action.fileName}'.")
                 } else {
                     ActionResult(error = "Failed to write to file '${action.fileName}'.")

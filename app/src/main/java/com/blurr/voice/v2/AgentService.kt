@@ -17,6 +17,7 @@ import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.api.Eyes
 import com.blurr.voice.api.Finger
 import com.blurr.voice.utilities.VisualFeedbackManager
+import com.blurr.voice.overlay.OverlayManager
 import com.blurr.voice.v2.actions.ActionExecutor
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.llm.GeminiApi
@@ -62,7 +63,8 @@ class AgentService : Service() {
     private lateinit var perception: Perception
     private lateinit var llmApi: GeminiApi
     private lateinit var actionExecutor: ActionExecutor
-    
+    private var overlayManager = OverlayManager.getInstance(this)
+
     // Firebase instances for task tracking
     private val db = Firebase.firestore
     private val auth = Firebase.auth
@@ -138,27 +140,21 @@ class AgentService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate: Service is being created.")
-        visualFeedbackManager.showTtsWave()
+        overlayManager.startObserving()
 
-        // Create the notification channel required for foreground services on Android 8.0+
+        visualFeedbackManager.showTtsWave()
         createNotificationChannel()
 
-        // --- Initialize all the agent's components here ---
-        // This is the logic from your example, now placed within the service's lifecycle.
         settings = AgentSettings() // Use default settings for now
-        fileSystem = FileSystem(this)
-        // Pass an empty initial task; it will be updated in onStartCommand
+        fileSystem = FileSystem(this,)
         memoryManager = MemoryManager(this, "", fileSystem, settings)
-        // Assuming Eyes, Finger, and SemanticParser can be instantiated directly
         perception = Perception(Eyes(this), SemanticParser())
         llmApi = GeminiApi(
             "gemini-2.5-flash",
             apiKeyManager = ApiKeyManager,
             maxRetry = 10
-        ) // Or your preferred model
+        )
         actionExecutor = ActionExecutor(Finger(this))
-
-        // Finally, create the Agent instance with all its dependencies
         agent = Agent(
             settings,
             memoryManager,
@@ -237,19 +233,18 @@ class AgentService : Service() {
             }
         }
 
-        Log.i(TAG, "Task queue is empty. Stopping service.")
+        Log.i(TAG, "Task queue is ActionExecutorempty. Stopping service.")
         stopSelf() // Stop the service only when the queue is empty
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy: Service is being destroyed.")
-        // RESET STATUS
+//        overlayManager.stopObserving()
+
         isRunning = false
         currentTask = null
-        taskQueue.clear() // Clear any pending tasks
-
-        // Cancel the coroutine scope to clean up the agent's running job and prevent leaks.
+        taskQueue.clear()
         serviceScope.cancel()
         visualFeedbackManager.hideTtsWave()
         Log.i(TAG, "Service destroyed and all resources cleaned up.")
