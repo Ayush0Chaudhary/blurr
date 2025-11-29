@@ -67,7 +67,7 @@ class ScreenInteractionService : AccessibilityService() {
     companion object {
         var instance: ScreenInteractionService? = null
 
-        const val DEBUG_SHOW_TAPS = false
+        const val DEBUG_SHOW_TAPS = true
 
         const val DEBUG_SHOW_BOUNDING_BOXES = false
     }
@@ -116,13 +116,13 @@ class ScreenInteractionService : AccessibilityService() {
     /**
      * Shows a temporary visual indicator on the screen for debugging taps.
      */
-    private fun showDebugTap(tapX: Float, tapY: Float) {
-        if (!Settings.canDrawOverlays(this)) {
-            Log.w("InteractionService", "Cannot show debug tap: 'Draw over other apps' permission not granted.")
-            return
-        }
+    fun showDebugTap(tapX: Float, tapY: Float) {
+//        if (!Settings.canDrawOverlays(this)) {
+//            Log.w("InteractionService", "Cannot show debug tap: 'Draw over other apps' permission not granted.")
+//            return
+//        }
 
-        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val overlayView = ImageView(this)
 
         val tapIndicator = GradientDrawable().apply {
@@ -326,6 +326,32 @@ class ScreenInteractionService : AccessibilityService() {
         return "Interactable Screen Elements:\n" + elementStrings.joinToString("\n")
     }
     /**
+     * Returns the raw XML hierarchy string.
+     * Used as a "Signature" to detect screen changes.
+     */
+    fun getWindowHierarchySignature(): String {
+        val rootNode = rootInActiveWindow ?: return "null_root"
+
+        val stringWriter = StringWriter()
+        try {
+            val serializer: XmlSerializer = Xml.newSerializer()
+            serializer.setOutput(stringWriter)
+            serializer.startDocument("UTF-8", true)
+            serializer.startTag(null, "hierarchy")
+
+            // Reuse your existing dumpNode function
+            dumpNode(rootNode, serializer, 0)
+
+            serializer.endTag(null, "hierarchy")
+            serializer.endDocument()
+
+            return stringWriter.toString()
+        } catch (e: Exception) {
+            Log.e("InteractionService", "Error generating signature", e)
+            return "error_generating_signature"
+        }
+    }
+    /**
      * Shows a thin, white border around the entire screen for 300ms.
      * This serves as a non-intrusive visual feedback mechanism.
      */
@@ -333,56 +359,88 @@ class ScreenInteractionService : AccessibilityService() {
         // All UI operations must be on the main thread
         val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
-            // Although AccessibilityServices can often draw overlays without this,
-            // it's good practice to check, especially for broader compatibility.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                Log.w("InteractionService", "Cannot show screen flash: 'Draw over other apps' permission not granted.")
+
+            // --- Improved Check 1: Check if windowManager is null ---
+            // Get a local non-null reference. If wm is null, the service may not
+            // be fully connected yet.
+            val wm = windowManager
+            if (wm == null) {
+                Log.e("InteractionService", "showScreenFlash failed: WindowManager is null.")
                 return@post
             }
 
-            // 1. Create the View that will be our border
+            // --- Improved Check 2: Check for overlay permission ---
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Log.w("InteractionService", "Cannot show screen flash: 'Draw over other apps' permission not granted.")
+                // You could add a Toast here for debugging if you want
+                // Toast.makeText(this, "Screen flash permission missing", Toast.LENGTH_SHORT).show()
+                return@post
+            }
+
+            // 1. Create the View
             val borderView = View(this)
 
-            // 2. Create a drawable for the border (transparent inside, white stroke)
+            // 2. Create the border drawable
             val borderDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                setColor(Color.TRANSPARENT) // The middle of the shape is transparent
-                // Set the stroke (the border). 8px is a good thickness.
-                setStroke(8, Color.WHITE)
+                setColor(Color.TRANSPARENT)
+                setStroke(8, Color.WHITE) // 8px stroke
             }
             borderView.background = borderDrawable
 
-            // 3. Define the layout parameters for the overlay
+            // --- FIX: Use the correct window type based on Android version ---
+            val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+
+            // 3. Define the layout parameters
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, // Full width
-                WindowManager.LayoutParams.MATCH_PARENT, // Full height
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Draw on top of everything
-                // These flags make the view non-interactive (can't be touched or focused)
-                // and allow it to draw over the status bar.
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                windowType, // Use the dynamically-set windowType
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT // Required for transparency
+                PixelFormat.TRANSLUCENT
             )
 
+            // --- Improved Error Handling ---
             try {
-                // 4. Add the view to the window manager
-                windowManager?.addView(borderView, params)
+                // 4. Add the view
+                wm.addView(borderView, params) // Use the non-null reference
 
-                // 5. Schedule the removal of the view after 300ms
+                // 5. Schedule removal
                 mainHandler.postDelayed({
-                    // Ensure the view is still attached to the window before removing
+                    // Check if view is still attached before trying to remove
                     if (borderView.isAttachedToWindow) {
-                        windowManager?.removeView(borderView)
+                        try {
+                            wm.removeView(borderView)
+                        } catch (e: Exception) {
+                            // This can happen if the service is destroyed
+                            // during the 500ms delay
+                            Log.e("InteractionService", "Failed to remove screen flash view.", e)
+                        }
                     }
                 }, 500L) // The flash duration
 
+            } catch (e: WindowManager.BadTokenException) {
+                // This is the most likely error you were facing
+                Log.e("InteractionService", "Failed to add screen flash view. Is the window type ($windowType) correct for this Android version? (This is a 'BadTokenException')", e)
+            } catch (e: IllegalStateException) {
+                // This happens if you accidentally try to add the view twice
+                Log.e("InteractionService", "Failed to add screen flash view. Was it already added? (This is an 'IllegalStateException')", e)
+            } catch (e: SecurityException) {
+                // This can happen if permissions are revoked while the service is running
+                Log.e("InteractionService", "Failed to add screen flash view. Permission issue? (This is a 'SecurityException')", e)
             } catch (e: Exception) {
-                Log.e("InteractionService", "Failed to add screen flash view", e)
+                // Catch-all for any other unexpected errors
+                Log.e("InteractionService", "Failed to add screen flash view with an unknown exception.", e)
             }
         }
     }
-
     suspend fun dumpWindowHierarchy(pureXML: Boolean = false): String {
         return withContext(Dispatchers.Default) {
             val rootNode = rootInActiveWindow ?: run {

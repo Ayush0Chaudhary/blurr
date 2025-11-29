@@ -36,6 +36,7 @@ import com.blurr.voice.utilities.addResponse
 import com.blurr.voice.utilities.getReasoningModelApiResponse
 import com.blurr.voice.data.MemoryManager
 import com.blurr.voice.utilities.FreemiumManager
+import com.blurr.voice.overlay.OverlayManager
 import com.blurr.voice.utilities.PandaState
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
@@ -73,6 +74,7 @@ class ConversationalAgentService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var conversationHistory = listOf<Pair<String, List<Any>>>()
     private val ttsManager by lazy { TTSManager.getInstance(this) }
+    private val overlayManager by lazy { OverlayManager.getInstance(this) }
     private val clarificationQuestionViews = mutableListOf<View>()
     private var transcriptionView: TextView? = null
     private val visualFeedbackManager by lazy { VisualFeedbackManager.getInstance(this) }
@@ -94,6 +96,7 @@ class ConversationalAgentService : Service() {
     private var hasHeardFirstUtterance = false // Track if we've received the first user utterance
     private lateinit var firebaseAnalytics: FirebaseAnalytics
     private val eyes by lazy { Eyes(this) }
+
     
     // Firebase instances for conversation tracking
     private val db = Firebase.firestore
@@ -123,12 +126,12 @@ class ConversationalAgentService : Service() {
         isRunning = true
         createNotificationChannel()
         initializeConversation()
-        ttsManager.setCaptionsEnabled(true)
         clarificationAttempts = 0 // Reset clarification attempts counter
         sttErrorAttempts = 0 // Reset STT error attempts counter
         usedMemories.clear() // Clear used memories for new conversation
         hasHeardFirstUtterance = false // Reset first utterance flag
 
+        overlayManager.startObserving()
         visualFeedbackManager.showSpeakingOverlay() // <-- ADD THIS LINE
         visualFeedbackManager.showTtsWave()
 
@@ -348,7 +351,6 @@ class ConversationalAgentService : Service() {
 //        if (hasHeardFirstUtterance) {
             updateSystemPromptWithMemories()
 //        }
-        ttsManager.setCaptionsEnabled(draw)
 
         pandaStateManager.setState(PandaState.SPEAKING)
         speechCoordinator.speakText(text)
@@ -434,7 +436,6 @@ class ConversationalAgentService : Service() {
                 }
             }
         )
-        ttsManager.setCaptionsEnabled(true)
     }
 
     // START: ADD THESE NEW METHODS AT THE END OF THE CLASS, before onDestroy()
@@ -725,6 +726,7 @@ class ConversationalAgentService : Service() {
     private suspend fun checkIfClarificationNeeded(instruction: String): Pair<Boolean, List<String>> {
         Log.d("ConvAgent", "Checking for clarification on instruction: '$instruction'")
 
+        return Pair(false, listOf())
         // Use the clarificationAgent instance to analyze the instruction.
         // The agent encapsulates all the logic for API calls and parsing.
         val result = clarificationAgent.analyze(
@@ -777,8 +779,9 @@ class ConversationalAgentService : Service() {
             2. If you know the user's name from the memories, refer to them by their name to make the conversation more personal and friendly as often as possible.
             3. Use the current screen context to better understand what the user is looking at and provide more relevant responses.
             4. If the user asks about something on the screen, you can reference the screen content directly.
-            5. When the user ask to sing, shout or produce any sound, just generate text, we will sing it for you.
-            6. Your code is opensource so you can tell tell that to user. repo is ayush0chaudhary/blurr
+            5. Always ask for clarification if the user's request is ambiguous or unclear.
+            6. When the user ask to sing, shout or produce any sound, just generate text, we will sing it for you.
+            7. Your code is opensource so you can tell tell that to user. repo is ayush0chaudhary/blurr
             
             Use these memories to answer the user's question with his personal data
             ### Memory Context Start ###
@@ -1353,6 +1356,7 @@ class ConversationalAgentService : Service() {
         Log.d("ConvAgent", "Service onDestroy")
         
         // Track service destruction
+        overlayManager.stopObserving()
         firebaseAnalytics.logEvent("conversational_agent_destroyed", null)
         
         // Track conversation end if not already tracked
@@ -1362,7 +1366,6 @@ class ConversationalAgentService : Service() {
         
         removeClarificationQuestions()
         serviceScope.cancel()
-        ttsManager.setCaptionsEnabled(false)
         isRunning = false
         
         // Stop state monitoring and set final state

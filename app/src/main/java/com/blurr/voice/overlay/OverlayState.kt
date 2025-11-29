@@ -1,0 +1,13 @@
+package com.blurr.voice.overlay
+
+enum class OverlayPriority(val level: Int) {
+    CAPTION(1),
+    TASKS(1),
+}
+
+data class OverlayContent(
+    val id: String,
+    val text: String,
+    val priority: OverlayPriority,
+    val duration: Long = 0L
+)

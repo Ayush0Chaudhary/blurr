@@ -156,42 +156,4 @@ class UserInputManager(private val context: Context) {
             responseCallback?.invoke(fallbackResponse)
         }
     }
-    
-    /**
-     * Provide a response to the current question
-     * This method can be called from the UI or other parts of the app
-     * @param response The user's response
-     */
-    fun provideResponse(response: String) {
-        Log.d(TAG, "User responded: $response")
-        currentResponse = response
-        responseCallback?.invoke(response)
-    }
-    
-    /**
-     * Get the current question being asked
-     * @return The current question or null if no question is active
-     */
-    fun getCurrentQuestion(): String? = currentQuestion
-    
-    /**
-     * Check if there's an active question waiting for response
-     * @return true if there's an active question
-     */
-    fun hasActiveQuestion(): Boolean = currentQuestion != null
-    
-    /**
-     * Clear the current question and response
-     */
-    fun clearQuestion() {
-        currentQuestion = null
-        currentResponse = null
-        responseCallback = null
-        speechCoordinator.stopListening()
-    }
-
-
-    fun shutdown() {
-        speechCoordinator.shutdown()
-    }
 } 
