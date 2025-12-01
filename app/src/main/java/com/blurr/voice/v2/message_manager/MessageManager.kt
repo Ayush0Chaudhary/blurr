@@ -11,6 +11,8 @@ import com.blurr.voice.v2.UserMessageBuilder
 import com.blurr.voice.v2.fs.FileSystem
 import com.blurr.voice.v2.llm.GeminiMessage
 import com.blurr.voice.v2.llm.TextPart
+import android.os.Build
+import androidx.annotation.RequiresApi
 
 /**
  * Manages the agent's short-term memory, including conversation history and prompt construction.
@@ -46,6 +48,7 @@ class MemoryManager(
      * The primary method to update the memory and generate the next prompt.
      * This should be called once per agent step.
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     fun createStateMessage(
         modelOutput: AgentOutput?,
         result: List<ActionResult>?,

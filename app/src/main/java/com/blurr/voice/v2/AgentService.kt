@@ -63,7 +63,7 @@ class AgentService : Service() {
     private lateinit var perception: Perception
     private lateinit var llmApi: GeminiApi
     private lateinit var actionExecutor: ActionExecutor
-    private var overlayManager = OverlayManager.getInstance(this)
+    private lateinit var overlayManager: OverlayManager
 
     // Firebase instances for task tracking
     private val db = Firebase.firestore
@@ -140,6 +140,7 @@ class AgentService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate: Service is being created.")
+        overlayManager = OverlayManager.getInstance(this)
         overlayManager.startObserving()
 
         visualFeedbackManager.showTtsWave()
