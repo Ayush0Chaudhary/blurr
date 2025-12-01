@@ -256,7 +256,7 @@ class AgentService : Service() {
      * Creates the persistent notification for the foreground service.
      */
     private fun createNotification(contentText: String): Notification {
-        // Create PendingIntent for the stop action
+
         val stopIntent = Intent(this, AgentService::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
