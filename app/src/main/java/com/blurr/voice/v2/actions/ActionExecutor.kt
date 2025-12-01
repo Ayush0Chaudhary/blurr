@@ -135,7 +135,7 @@ class ActionExecutor(private val finger: Finger) {
                     }
 
                     // --- LOG THE RESULT ---
-                    Log.d("ActionExecutor", "Signature diff + 600ms delay took ${diffTime}ms. Screen changed: $screenChanged")
+                    Log.d("ActionExecutor", "Signature diff + 100ms delay took ${diffTime}ms. Screen changed: $screenChanged")
 
                     if (screenChanged) {
                         ActionResult(longTermMemory = "Clicked element '$text'. Screen updated successfully.")

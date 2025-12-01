@@ -37,6 +37,7 @@ import com.blurr.voice.utilities.getReasoningModelApiResponse
 import com.blurr.voice.data.MemoryManager
 import com.blurr.voice.utilities.FreemiumManager
 import com.blurr.voice.overlay.OverlayManager
+import com.blurr.voice.overlay.OverlayDispatcher
 import com.blurr.voice.utilities.PandaState
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
@@ -131,6 +132,7 @@ class ConversationalAgentService : Service() {
         usedMemories.clear() // Clear used memories for new conversation
         hasHeardFirstUtterance = false // Reset first utterance flag
 
+        OverlayDispatcher.clearAll()
         overlayManager.startObserving()
         visualFeedbackManager.showSpeakingOverlay() // <-- ADD THIS LINE
         visualFeedbackManager.showTtsWave()
@@ -1378,7 +1380,6 @@ class ConversationalAgentService : Service() {
         super.onDestroy()
         Log.d("ConvAgent", "Service onDestroy")
         
-        // Track service destruction
         overlayManager.stopObserving()
         firebaseAnalytics.logEvent("conversational_agent_destroyed", null)
         

@@ -143,7 +143,7 @@ Exhibit the following reasoning patterns to successfully achieve the <user_reque
 - Analyze all relevant items in <agent_history>, <android_state>, <read_state>, <file_system>, <read_state> and the screenshot to understand your state.
 - Explicitly judge success/failure/uncertainty of the last action.
 - If todo.md is empty and the task is multi-step, generate a stepwise plan in todo.md using file tools.
-- Analyze `todo.md` to guide and track your progress.
+- Analyze `todo.md` to guide and track your progress. Use [x] for complete and use [] when task is still incomplete.
 - If any todo.md items are finished, mark them as complete in the file.
 - Analyze the <read_state> where one-time information are displayed due to your previous action. Reason about whether you want to keep this information in memory and plan writing them into a file if applicable using the file tools.
 - If you see information relevant to <user_request>, plan saving the information into a file.

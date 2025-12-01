@@ -16,6 +16,7 @@ import com.blurr.voice.R
 import com.blurr.voice.utilities.ApiKeyManager
 import com.blurr.voice.api.Eyes
 import com.blurr.voice.api.Finger
+import com.blurr.voice.overlay.OverlayDispatcher
 import com.blurr.voice.utilities.VisualFeedbackManager
 import com.blurr.voice.overlay.OverlayManager
 import com.blurr.voice.v2.actions.ActionExecutor
@@ -69,27 +70,6 @@ class AgentService : Service() {
     private val db = Firebase.firestore
     private val auth = Firebase.auth
 
-//    companion object {
-//        private const val NOTIFICATION_CHANNEL_ID = "AgentServiceChannel"
-//        private const val NOTIFICATION_ID = 1
-//        private const val EXTRA_TASK = "com.blurr.voice.v2.EXTRA_TASK"
-//
-//        /**
-//         * A helper function to easily start the service from anywhere in the app (e.g., an Activity or ViewModel).
-//         *
-//         * @param context The application context.
-//         * @param task The user's high-level task for the agent to perform.
-//         */
-//        fun start(context: Context, task: String) {
-//            Log.d("AgentService", "Starting service with task: $task")
-//            val intent = Intent(context, AgentService::class.java).apply {
-//                putExtra(EXTRA_TASK, task)
-//            }
-//            context.startService(intent)
-//        }
-//    }
-//
-//
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "AgentServiceChannelV2"
         private const val NOTIFICATION_ID = 14
@@ -98,11 +78,11 @@ class AgentService : Service() {
 
         @Volatile
         var isRunning: Boolean = false
-            private set // Allow external read, but only internal write
+            private set
 
         @Volatile
         var currentTask: String? = null
-            private set // Allow external read, but only internal write
+            private set
 
         /**
          * A public method to request the service to stop from outside.
@@ -120,18 +100,14 @@ class AgentService : Service() {
             val intent = Intent(context, AgentService::class.java).apply {
                 putExtra(EXTRA_TASK, task)
             }
-            // Decrement freemium task allowance fairly for every started task
             try {
-                // Launch a lightweight coroutine to decrement without blocking the caller
                 kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     try {
                         com.blurr.voice.utilities.FreemiumManager().decrementTaskCount()
                     } catch (_: Exception) {
-                        // Swallow to avoid crashing start; logging is done within FreemiumManager
                     }
                 }
             } catch (_: Exception) {
-                // Defensive: if coroutine infra is unavailable, still proceed to start service
             }
             context.startService(intent)
         }
@@ -141,6 +117,7 @@ class AgentService : Service() {
         super.onCreate()
         Log.d(TAG, "onCreate: Service is being created.")
         overlayManager = OverlayManager.getInstance(this)
+        OverlayDispatcher.clearAll()
         overlayManager.startObserving()
 
         visualFeedbackManager.showTtsWave()
@@ -242,7 +219,8 @@ class AgentService : Service() {
         super.onDestroy()
         Log.d(TAG, "onDestroy: Service is being destroyed.")
 //        overlayManager.stopObserving()
-
+        OverlayDispatcher.clearAll()
+        overlayManager.stopObserving()
         isRunning = false
         currentTask = null
         taskQueue.clear()
