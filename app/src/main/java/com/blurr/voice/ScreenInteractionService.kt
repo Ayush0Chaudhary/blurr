@@ -25,6 +25,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
@@ -350,6 +351,45 @@ class ScreenInteractionService : AccessibilityService() {
             Log.e("InteractionService", "Error generating signature", e)
             return "error_generating_signature"
         }
+    }
+
+    suspend fun getAllScreenAnalysisData(): RawScreenData {
+        val (screenWidth, screenHeight) = getScreenDimensions()
+        val maxRetries = 5
+        val retryDelay = 200L // Reduced delay for snappiness
+
+        for (attempt in 1..maxRetries) {
+            // 1. Get all interactive windows, not just the focused one
+            val allWindows = windows
+
+            // 2. Find the main application window.
+            // Logic: Look for TYPE_APPLICATION. If multiple, pick the largest one.
+            // This ignores your overlay (which is likely TYPE_APPLICATION_OVERLAY) or smaller dialogs.
+            val targetWindow = allWindows
+                .filter { it.type == TYPE_APPLICATION }
+                .maxByOrNull {
+                    val bounds = Rect()
+                    it.getBoundsInScreen(bounds)
+                    bounds.width() * bounds.height()
+                }
+
+            val rootNode = targetWindow?.root ?: rootInActiveWindow
+
+            if (rootNode != null) {
+                // Log what we found to debug
+                Log.d("InteractionService", "Analyzing window: ${rootNode.packageName}")
+
+                val (pixelsAbove, pixelsBelow) = findScrollableNodeAndGetInfo(rootNode)
+                return RawScreenData(rootNode, pixelsAbove, pixelsBelow, screenWidth, screenHeight)
+            }
+
+            if (attempt < maxRetries) {
+                delay(retryDelay)
+            }
+        }
+
+        Log.e("InteractionService", "Failed to get any valid root node after $maxRetries attempts.")
+        return RawScreenData(null, 0, 0, screenWidth, screenHeight)
     }
     /**
      * Shows a thin, white border around the entire screen for 300ms.

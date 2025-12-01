@@ -85,6 +85,17 @@ class Eyes(context: Context) {
         return service.getScreenAnalysisData()
     }
 
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    suspend fun getAllRawScreenData(): RawScreenData? {
+        val service = ScreenInteractionService.instance
+        if (service == null) {
+            Log.e("AccessibilityController", "Accessibility Service is not running!")
+            return RawScreenData(null, 0,0, 0, 0)
+        }
+        return service.getAllScreenAnalysisData()
+    }
+
     /**
      * Gets the package name of the current foreground activity.
      */
