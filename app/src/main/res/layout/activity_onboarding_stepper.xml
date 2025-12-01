@@ -24,6 +24,8 @@
             tools:ignore="ContentDescription"
             />
 
+
+
         <TextView
             android:id="@+id/permissionTitle"
             android:layout_width="wrap_content"
@@ -57,14 +59,19 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <TextView
-            android:id="@+id/stepperIndicator"
-            android:layout_width="wrap_content"
+
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/watchVideoButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:text="Step 1 of 5"
-            android:textColor="#B3FFFFFF"
-            android:textSize="14sp" />
+            android:layout_marginBottom="8dp"
+            android:text="Watch Video Tip"
+            android:textColor="@color/white"
+            android:visibility="gone"
+            app:strokeColor="@color/orange"
+            app:cornerRadius="12dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/grantButton"
@@ -92,14 +99,30 @@
             app:backgroundTint="@color/orange"
             app:cornerRadius="12dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/skipButton"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Skip for now"
-            android:textColor="#B3FFFFFF" />
+            android:layout_marginTop="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/stepperIndicator"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Step 1 of 5"
+                android:textColor="#B3FFFFFF"
+                android:textSize="14sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/skipButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Skip for now"
+                android:textColor="#B3FFFFFF" />
+        </LinearLayout>
     </LinearLayout>
 
 </RelativeLayout>

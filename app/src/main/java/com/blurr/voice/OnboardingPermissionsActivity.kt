@@ -1,6 +1,7 @@
 package com.blurr.voice
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.role.RoleManager
@@ -15,6 +16,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.view.View
+import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -28,13 +30,23 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import com.blurr.voice.utilities.OnboardingManager
+import android.widget.VideoView
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.io.FileOutputStream
 
 class OnboardingPermissionsActivity : AppCompatActivity() {
 
     private lateinit var permissionIcon: ImageView
+
     private lateinit var permissionTitle: TextView
     private lateinit var permissionDescription: TextView
     private lateinit var grantButton: Button
+    private lateinit var watchVideoButton: Button
     private lateinit var nextButton: Button
     private lateinit var skipButton: Button
     private lateinit var stepperIndicator: TextView
@@ -42,13 +54,11 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
 
     private var currentStep = 0
     private val permissionSteps = mutableListOf<PermissionStep>()
-    private val ASSISTANT_ROLE_REQUEST_CODE = 1001
 
     // Activity result launchers for different permission types
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var requestOverlayLauncher: ActivityResultLauncher<Intent>
     private lateinit var requestRoleLauncher: ActivityResultLauncher<Intent>
-    private var pendingRoleRequest = false
     private var isLaunchingRole = false
     private val accessibilityServiceChecker = AccessibilityServiceChecker(this)
     private var hasScheduledAdvance = false
@@ -59,9 +69,12 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
 
         // Initialize UI components
         permissionIcon = findViewById(R.id.permissionIcon)
+
+
         permissionTitle = findViewById(R.id.permissionTitle)
         permissionDescription = findViewById(R.id.permissionDescription)
         grantButton = findViewById(R.id.grantButton)
+        watchVideoButton = findViewById(R.id.watchVideoButton)
         nextButton = findViewById(R.id.nextButton)
         skipButton = findViewById(R.id.skipButton)
         stepperIndicator = findViewById(R.id.stepperIndicator)
@@ -70,21 +83,53 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         // Initialize permission steps
         setupPermissionSteps()
         // Set up the result launchers
-        // Handle the button clicks
         setupClickListeners()
+
+        // Start downloading videos
+        startVideoDownloads()
+    }
+
+    private fun startVideoDownloads() {
+        val videos = listOf(
+            "https://storage.googleapis.com/blurr-app-assets/a11y_permission.mp4" to "a11y_permission.mp4",
+            "https://storage.googleapis.com/blurr-app-assets/display_over_other_app.mp4" to "display_over_other_app.mp4",
+            "https://storage.googleapis.com/blurr-app-assets/default_assitant.mp4" to "default_assitant.mp4"
+        )
+
+        for ((url, fileName) in videos) {
+            downloadVideo(url, fileName)
+        }
+    }
+
+    private fun downloadVideo(url: String, fileName: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val file = File(filesDir, fileName)
+            if (file.exists()) return@launch
+
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+
+                if (response.isSuccessful) {
+                    response.body?.byteStream()?.use { input ->
+                        FileOutputStream(file).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
 
     override fun onResume() {
         super.onResume()
-        // Check the status of the current step when the activity resumes
-        // This is important after the user returns from a settings screen
-
-        // If we returned from a settings screen or role sheet, reflect current state in UI
         if (currentStep < permissionSteps.size) {
             val isGranted = permissionSteps[currentStep].isGranted()
             if (isGranted) {
-                // Permission was granted while away, automatically move to next step after a short delay
                 Toast.makeText(this, "Permission granted!", Toast.LENGTH_SHORT).show()
                 scheduleAdvanceOnce()
             } else {
@@ -101,8 +146,9 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 descRes = R.string.accessibility_permission_full_desc,
                 iconRes = R.drawable.a11y_v2,
                 isGranted = { accessibilityServiceChecker.isAccessibilityServiceEnabled() },
-                // The action now shows the consent dialog instead of going directly to settings
-                action = { showAccessibilityConsentDialog() }
+                action = { showAccessibilityConsentDialog() },
+                videoUrl = "https://storage.googleapis.com/blurr-app-assets/a11y_permission.mp4",
+                videoFileName = "a11y_permission.mp4"
             )
         )
 
@@ -112,10 +158,17 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 titleRes = R.string.microphone_permission_title,
                 descRes = R.string.microphone_permission_desc,
                 iconRes = R.drawable.microphone,
-                isGranted = { ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED }
-            ) {
-                requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            }
+                isGranted = {
+                    ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                },
+                action = {
+                    requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                },
+                videoUrl = null
+            )
         )
 
         // Step 3: Overlay (Special Intent)
@@ -124,11 +177,14 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                 titleRes = R.string.overlay_permission_title,
                 descRes = R.string.overlay_permission_desc,
                 iconRes = R.drawable.display,
-                isGranted = { Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this) }
-            ) {
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                requestOverlayLauncher.launch(intent)
-            }
+                isGranted = { Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this) },
+                videoUrl = "https://storage.googleapis.com/blurr-app-assets/display_over_other_app.mp4",
+                videoFileName = "display_over_other_app.mp4",
+                action = {
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    requestOverlayLauncher.launch(intent)
+                }
+            )
         )
 
         // Step 4: Notifications (Standard Permission - Android 13+)
@@ -138,10 +194,17 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                     titleRes = R.string.notifications_permission_title,
                     descRes = R.string.notifications_permission_desc,
                     iconRes = R.drawable.bell,
-                    isGranted = { ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED }
-                ) {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+                    isGranted = {
+                        ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) == PackageManager.PERMISSION_GRANTED
+                    },
+                    action = {
+                        requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    },
+                    videoUrl = null
+                )
             )
         }
 
@@ -159,13 +222,13 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
                     },
                     action = {
                         startActivity(Intent(this, RoleRequestActivity::class.java))
-                    }
+                    },
+                    videoUrl = "https://storage.googleapis.com/blurr-app-assets/default_assitant.mp4",
+                    videoFileName = "default_assitant.mp4"
                 )
             )
         }
 
-// ...
-        // Start the flow with the first step
         updateUIForStep(currentStep)
     }
     private fun requestOverlay() {
@@ -242,7 +305,7 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         }, delayMs)
     }
     private fun resetAssistantAskedFlag() {
-        getSharedPreferences("assistant_prefs", Context.MODE_PRIVATE)
+        getSharedPreferences("assistant_prefs", MODE_PRIVATE)
             .edit().remove("asked_for_assistant_role").apply()
     }
 
@@ -333,10 +396,24 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         val step = permissionSteps[stepIndex]
 
         // Update UI elements
-        permissionIcon.setImageResource(step.iconRes)
         permissionTitle.setText(step.titleRes)
         permissionDescription.setText(step.descRes)
         stepperIndicator.text = "Step ${stepIndex + 1} of ${permissionSteps.size}"
+
+        // Handle Video vs Icon
+        val videoFile = if (step.videoFileName != null) File(filesDir, step.videoFileName) else null
+        
+        // Default state: Show Icon
+        permissionIcon.visibility = View.VISIBLE
+        permissionIcon.setImageResource(step.iconRes)
+        watchVideoButton.visibility = View.GONE
+
+        if (videoFile != null && videoFile.exists()) {
+            watchVideoButton.visibility = View.VISIBLE
+            watchVideoButton.setOnClickListener {
+                showVideoDialog(videoFile)
+            }
+        }
 
         val isGranted = step.isGranted()
 
@@ -379,6 +456,36 @@ class OnboardingPermissionsActivity : AppCompatActivity() {
         startActivity(intent)
         finish() // End the onboarding flow
     }
+
+    private fun showVideoDialog(videoFile: File) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_video_tip, null)
+        val videoView = dialogView.findViewById<VideoView>(R.id.dialogVideoView)
+        val closeButton = dialogView.findViewById<Button>(R.id.closeButton)
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        // Set transparent background for the dialog window to show rounded corners
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        videoView.setVideoPath(videoFile.absolutePath)
+        videoView.setOnPreparedListener { mp ->
+            mp.isLooping = true
+            videoView.start()
+        }
+
+        closeButton.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+            videoView.stopPlayback()
+        }
+
+        dialog.show()
+    }
 }
 
 // Data class to represent each step
@@ -387,18 +494,20 @@ data class PermissionStep(
     val titleRes: Int,
     val descRes: Int,
     val isGranted: () -> Boolean,
-    val action: () -> Unit
+    val action: () -> Unit,
+    val videoUrl: String? = null,
+    val videoFileName: String? = null
 )
 
 // Helper class to check accessibility service status
 class AccessibilityServiceChecker(private val context: Context) {
     fun isAccessibilityServiceEnabled(): Boolean {
-        val accessibilityManager = ContextCompat.getSystemService(context, android.view.accessibility.AccessibilityManager::class.java)
+        val accessibilityManager = ContextCompat.getSystemService(context, AccessibilityManager::class.java)
         if (accessibilityManager == null || !accessibilityManager.isEnabled) {
             return false
         }
         val enabledServices = accessibilityManager.getEnabledAccessibilityServiceList(
-            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
         for (service in enabledServices) {
             val serviceInfo = service.resolveInfo.serviceInfo
             if (serviceInfo.packageName == context.packageName &&
