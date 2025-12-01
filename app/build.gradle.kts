@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.Properties
@@ -41,9 +42,6 @@ android {
     val googlecloudGatewayURL = localProperties.getProperty("GCLOUD_GATEWAY_URL") ?: ""
     val googlecloudProxyURL = localProperties.getProperty("GCLOUD_PROXY_URL") ?: ""
     val googlecloudProxyURLKey = localProperties.getProperty("GCLOUD_PROXY_URL_KEY") ?: ""
-    val revenueCatSDK = localProperties.getProperty("REVENUE_CAT_PUBLIC_URL") ?: ""
-    val revenueCatApiKey = localProperties.getProperty("REVENUECAT_API_KEY") ?: ""
-
     val debugSha1 = "D0:A1:49:03:FD:B5:37:DF:B5:36:51:B1:66:AE:70:11:E2:59:08:33"
 
     defaultConfig {
@@ -95,13 +93,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     buildFeatures {
         compose = true
         viewBinding = true
         buildConfig = true
+    }
+}
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
     }
 }
 val libsuVersion = "6.0.0"
@@ -141,9 +141,9 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
 
     // Room database dependencies
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
     // Import the Firebase BoM
     implementation(platform(libs.firebase.bom))
 
@@ -162,6 +162,9 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("com.android.billingclient:billing-ktx:7.0.0")
+
+    implementation("com.cactuscompute:cactus:1.2.0-beta")
+
 }
 
 // Task to increment version for release builds

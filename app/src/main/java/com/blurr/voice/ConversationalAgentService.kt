@@ -41,6 +41,7 @@ import com.blurr.voice.utilities.PandaState
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
 import com.blurr.voice.v2.AgentService
+import com.blurr.voice.data.MemoryExtractor
 import com.google.ai.client.generativeai.type.TextPart
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
@@ -109,7 +110,7 @@ class ConversationalAgentService : Service() {
         const val CHANNEL_ID = "ConversationalAgentChannel"
         const val ACTION_STOP_SERVICE = "com.blurr.voice.ACTION_STOP_SERVICE"
         var isRunning = false
-        const val MEMORY_ENABLED = false
+        const val MEMORY_ENABLED = true
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -141,8 +142,6 @@ class ConversationalAgentService : Service() {
         // Start state monitoring and set initial state
         pandaStateManager.startMonitoring()
         pandaStateManager.setState(PandaState.IDLE)
-
-
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -438,67 +437,6 @@ class ConversationalAgentService : Service() {
         )
     }
 
-    // START: ADD THESE NEW METHODS AT THE END OF THE CLASS, before onDestroy()
-    private fun showTranscriptionView() {
-        if (transcriptionView != null) return // Already showing
-
-        mainHandler.post {
-            transcriptionView = TextView(this).apply {
-                text = "Listening..."
-                val glassBackground = GradientDrawable(
-                    GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(0xDD0D0D2E.toInt(), 0xDD2A0D45.toInt())
-                ).apply {
-                    cornerRadius = 28f
-                    setStroke(1, 0x80FFFFFF.toInt())
-                }
-                background = glassBackground
-                setTextColor(0xFFE0E0E0.toInt())
-                textSize = 16f
-                setPadding(40, 24, 40, 24)
-                typeface = Typeface.MONOSPACE
-            }
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = 250 // Position it 250px above the bottom edge
-            }
-
-            try {
-                windowManager.addView(transcriptionView, params)
-            } catch (e: Exception) {
-                Log.e("ConvAgent", "Failed to add transcription view.", e)
-                transcriptionView = null
-            }
-        }
-    }
-
-    private fun updateTranscriptionView(text: String) {
-        transcriptionView?.text = text
-    }
-
-    private fun hideTranscriptionView() {
-        mainHandler.post {
-            transcriptionView?.let {
-                if (it.isAttachedToWindow) {
-                    try {
-                        windowManager.removeView(it)
-                    } catch (e: Exception) {
-                        Log.e("ConvAgent", "Error removing transcription view.", e)
-                    }
-                }
-            }
-            transcriptionView = null
-        }
-    }
-
-
     // --- CHANGED: Rewritten to process the new custom text format ---
     @RequiresApi(Build.VERSION_CODES.R)
     private fun processUserInput(userInput: String) {
@@ -770,6 +708,7 @@ class ConversationalAgentService : Service() {
 
             {agent_status_context}
 
+            $memoryContextSection
             ### Current Screen Context ###
             {screen_context}
             ### End Screen Context ###
@@ -1192,7 +1131,7 @@ class ConversationalAgentService : Service() {
             // 1. Extract memories from the conversation before ending
             if (conversationHistory.size > 1 && MEMORY_ENABLED) {
                 Log.d("ConvAgent", "Extracting memories before shutdown.")
-//                MemoryExtractor.extractAndStoreMemories(conversationHistory, memoryManager, usedMemories)
+                MemoryExtractor.extractAndStoreMemories(this, conversationHistory, memoryManager, usedMemories)
             } else if (!MEMORY_ENABLED) {
                 Log.d("ConvAgent", "Memory disabled, skipping memory extraction.")
             }

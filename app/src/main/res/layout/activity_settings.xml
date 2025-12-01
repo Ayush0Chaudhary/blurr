@@ -108,6 +108,59 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="AI &amp; Memories"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:fontFamily="@font/playfair_display"
+                android:textStyle="bold" />
+
+            <CheckBox
+                android:id="@+id/checkboxUseLocalModel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Use Local Model for Memories"
+                android:textColor="@color/white"
+                android:buttonTint="@color/accent"
+                android:fontFamily="@font/oxanium" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginLeft="32dp"
+                android:text="Downloads a local AI model (~600MB) to generate memories on-device for better privacy."
+                android:textColor="#888888"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/manageMemoriesButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/oxanium"
+                android:padding="8dp"
+                android:text="Manage Memories >"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/rounded_background"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="Enable 'Hey Panda!'"
                 android:textColor="@color/white"
                 android:textSize="18sp"

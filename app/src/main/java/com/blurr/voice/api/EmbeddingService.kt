@@ -32,6 +32,7 @@ object EmbeddingService {
         maxRetries: Int = 3
     ): List<Float>? {
         // Network check
+
         try {
             val isOnline = true
             if (!isOnline) {

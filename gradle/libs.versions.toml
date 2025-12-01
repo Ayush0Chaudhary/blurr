@@ -1,8 +1,8 @@
 [versions]
 agp = "8.9.2"
 coreKtxVersion = "1.17.0"
-kotlin = "2.0.21"
-ksp = "2.0.21-1.0.28"
+kotlin = "2.2.0"
+ksp = "2.2.0-2.0.2"
 coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -15,6 +15,7 @@ generativeai = "0.9.0"
 firebaseBom = "34.3.0"
 playServicesAuth = "21.4.0"
 playServicesBasement = "18.9.0"
+common = "18.11.0"
 
 [libraries]
 androidx-core = { module = "androidx.core:core", version.ref = "coreKtxVersion" }

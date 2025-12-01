@@ -37,11 +37,20 @@ class MemoryManager(private val context: Context) {
                     }
                 }
                 
+                // Check preference for local model
+                val prefs = context.getSharedPreferences("BlurrSettings", Context.MODE_PRIVATE)
+                val useLocalModel = prefs.getBoolean("use_local_model", false)
+                
                 // Generate embedding for the text
-                val embedding = EmbeddingService.generateEmbedding(
-                    text = originalText,
-                    taskType = "RETRIEVAL_DOCUMENT"
-                )
+                val embedding = if (useLocalModel) {
+                    Log.d("MemoryManager", "Using local CactusLM for $originalText")
+                    CactusEmbeddingManager.generateEmbedding(originalText)
+                } else {
+                    EmbeddingService.generateEmbedding(
+                        text = originalText,
+                        taskType = "RETRIEVAL_DOCUMENT"
+                    )
+                }
                 
                 if (embedding == null) {
                     Log.e("MemoryManager", "Failed to generate embedding for text")
@@ -92,11 +101,19 @@ class MemoryManager(private val context: Context) {
             try {
                 Log.d("MemoryManager", "Searching memories for query: ${query.take(100)}...")
                 
+                // Check preference for local model
+                val prefs = context.getSharedPreferences("BlurrSettings", Context.MODE_PRIVATE)
+                val useLocalModel = prefs.getBoolean("use_local_model", false)
+
                 // Generate embedding for the query
-                val queryEmbedding = EmbeddingService.generateEmbedding(
-                    text = query,
-                    taskType = "RETRIEVAL_QUERY"
-                )
+                val queryEmbedding = if (useLocalModel) {
+                    CactusEmbeddingManager.generateEmbedding(query)
+                } else {
+                    EmbeddingService.generateEmbedding(
+                        text = query,
+                        taskType = "RETRIEVAL_QUERY"
+                    )
+                }
                 
                 if (queryEmbedding == null) {
                     Log.e("MemoryManager", "Failed to generate embedding for query")
@@ -202,11 +219,19 @@ class MemoryManager(private val context: Context) {
     suspend fun findSimilarMemories(text: String, similarityThreshold: Float = 0.8f): List<String> {
         return withContext(Dispatchers.IO) {
             try {
+                // Check preference for local model
+                val prefs = context.getSharedPreferences("BlurrSettings", Context.MODE_PRIVATE)
+                val useLocalModel = prefs.getBoolean("use_local_model", false)
+
                 // Generate embedding for the query text
-                val queryEmbedding = EmbeddingService.generateEmbedding(
-                    text = text,
-                    taskType = "RETRIEVAL_QUERY"
-                )
+                val queryEmbedding = if (useLocalModel) {
+                    CactusEmbeddingManager.generateEmbedding(text)
+                } else {
+                    EmbeddingService.generateEmbedding(
+                        text = text,
+                        taskType = "RETRIEVAL_QUERY"
+                    )
+                }
                 
                 if (queryEmbedding == null) {
                     Log.e("MemoryManager", "Failed to generate embedding for similarity check")

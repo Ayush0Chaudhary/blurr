@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
+import com.blurr.voice.data.CactusEmbeddingManager
 
 class SettingsActivity : BaseNavigationActivity() {
 
@@ -44,6 +45,8 @@ class SettingsActivity : BaseNavigationActivity() {
     private lateinit var textGetPicovoiceKeyLink: TextView
     private lateinit var wakeWordButton: TextView
     private lateinit var buttonSignOut: Button
+    private lateinit var checkboxUseLocalModel: android.widget.CheckBox
+    private lateinit var manageMemoriesButton: TextView
     private lateinit var wakeWordManager: WakeWordManager
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
 
@@ -58,6 +61,7 @@ class SettingsActivity : BaseNavigationActivity() {
         private const val KEY_SELECTED_VOICE = "selected_voice"
         private const val TEST_TEXT = "Hello, I'm Panda, and this is a test of the selected voice."
         private val DEFAULT_VOICE = TTSVoice.CHIRP_PUCK
+        const val KEY_USE_LOCAL_MODEL = "use_local_model"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,7 +110,11 @@ class SettingsActivity : BaseNavigationActivity() {
       
         editWakeWordKey = findViewById(R.id.editWakeWordKey)
         wakeWordButton = findViewById(R.id.wakeWordButton)
+        editWakeWordKey = findViewById(R.id.editWakeWordKey)
+        wakeWordButton = findViewById(R.id.wakeWordButton)
         buttonSignOut = findViewById(R.id.buttonSignOut)
+        checkboxUseLocalModel = findViewById(R.id.checkboxUseLocalModel)
+        manageMemoriesButton = findViewById(R.id.manageMemoriesButton)
 
         editUserName = findViewById(R.id.editUserName)
         editUserEmail = findViewById(R.id.editUserEmail)
@@ -144,6 +152,39 @@ class SettingsActivity : BaseNavigationActivity() {
         batteryOptimizationHelpButton.setOnClickListener {
             showBatteryOptimizationDialog()
         }
+        
+        checkboxUseLocalModel.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                // Check if already downloaded?
+                lifecycleScope.launch {
+                    val isDownloaded = CactusEmbeddingManager.isModelDownloaded()
+                    if (!isDownloaded) {
+                        Toast.makeText(this@SettingsActivity, "Downloading local model... This may take a while.", Toast.LENGTH_LONG).show()
+                        checkboxUseLocalModel.isEnabled = false // Disable while downloading
+                        val success = CactusEmbeddingManager.downloadModel()
+                        checkboxUseLocalModel.isEnabled = true
+                        if (success) {
+                            Toast.makeText(this@SettingsActivity, "Model downloaded successfully!", Toast.LENGTH_SHORT).show()
+                            sharedPreferences.edit { putBoolean(KEY_USE_LOCAL_MODEL, true) }
+                        } else {
+                            Toast.makeText(this@SettingsActivity, "Download failed. Please check your connection.", Toast.LENGTH_SHORT).show()
+                            checkboxUseLocalModel.isChecked = false
+                        }
+                    } else {
+                        sharedPreferences.edit { putBoolean(KEY_USE_LOCAL_MODEL, true) }
+                    }
+                }
+            } else {
+                sharedPreferences.edit { putBoolean(KEY_USE_LOCAL_MODEL, false) }
+
+            }
+        }
+
+        manageMemoriesButton.setOnClickListener {
+            val intent = Intent(this, MemoriesActivity::class.java)
+            startActivity(intent)
+        }
+
         wakeWordButton.setOnClickListener {
             val keyManager = PicovoiceKeyManager(this)
             
@@ -269,6 +310,9 @@ class SettingsActivity : BaseNavigationActivity() {
         
         // Update wake word button state
         updateWakeWordButtonState()
+        
+        // Load local model preference
+        checkboxUseLocalModel.isChecked = sharedPreferences.getBoolean(KEY_USE_LOCAL_MODEL, false)
     }
 
     private fun saveSelectedVoice(voice: TTSVoice) {

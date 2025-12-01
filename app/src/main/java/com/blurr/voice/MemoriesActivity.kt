@@ -32,7 +32,7 @@ class MemoriesActivity : AppCompatActivity() {
     
     // Memory feature flag - temporarily disabled
     companion object {
-        const val MEMORY_ENABLED = false
+        const val MEMORY_ENABLED = true
     }
     
     private lateinit var memoriesRecyclerView: RecyclerView

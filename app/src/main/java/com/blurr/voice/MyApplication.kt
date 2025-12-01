@@ -10,6 +10,7 @@ import com.blurr.voice.intents.impl.DialIntent
 import com.blurr.voice.intents.impl.EmailComposeIntent
 import com.blurr.voice.intents.impl.ShareTextIntent
 import com.blurr.voice.intents.impl.ViewUrlIntent
+import com.cactus.CactusContextInitializer
 import com.google.firebase.Firebase
 import com.google.firebase.remoteconfig.remoteConfig
 import com.google.firebase.remoteconfig.remoteConfigSettings
@@ -40,7 +41,11 @@ class MyApplication : Application(), PurchasesUpdatedListener {
     override fun onCreate() {
         super.onCreate()
         appContext = applicationContext
-
+        try {
+            CactusContextInitializer.initialize(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         // Initialize Firebase Remote Config
         val remoteConfig = Firebase.remoteConfig
         val configSettings = remoteConfigSettings {
