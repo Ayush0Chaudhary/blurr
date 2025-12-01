@@ -349,9 +349,9 @@ class ConversationalAgentService : Service() {
     private suspend fun speakAndThenListen(text: String, draw: Boolean = true) {
         // Only update system prompt with memories if we've heard the first utterance
 //        if (hasHeardFirstUtterance) {
-            updateSystemPromptWithMemories()
+//            updateSystemPromptWithMemories()
 //        }
-
+        updateSystemPromptWithTime()
         pandaStateManager.setState(PandaState.SPEAKING)
         speechCoordinator.speakText(text)
         Log.d("ConvAgent", "Panda said: $text")
@@ -807,9 +807,31 @@ class ConversationalAgentService : Service() {
             - "Reply": The text to speak to the user. This is a confirmation for a "Task", or the direct answer for a "Reply".
             - "Instruction": The precise, literal instruction for the task agent. This field should be an empty string "" if the "Type" is not "Task".
             - "Should End": Must be either "Continue" or "Finished". Use "Finished" only when the conversation is naturally over.
+        
+            Current Time : {time_context}
         """.trimIndent()
 
         conversationHistory = addResponse("user", systemPrompt, emptyList())
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun updateSystemPromptWithTime() {
+
+        val currentPromptText = conversationHistory.firstOrNull()?.second
+            ?.filterIsInstance<TextPart>()?.firstOrNull()?.text ?: return
+
+        val currentTime = java.time.ZonedDateTime.now(java.time.ZoneId.systemDefault())
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
+        val formattedTime = currentTime.format(formatter)
+
+        val timeContext = "Current Date and Time: $formattedTime"
+
+        val updatedPromptText = currentPromptText.replace("{time_context}", timeContext)
+
+        // Replace the first system message with the updated prompt
+        conversationHistory = conversationHistory.toMutableList().apply {
+            set(0, "user" to listOf(TextPart(updatedPromptText)))
+        }
     }
 
     private fun updateSystemPromptWithAgentStatus() {
