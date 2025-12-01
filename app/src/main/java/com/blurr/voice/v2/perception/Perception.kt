@@ -31,9 +31,13 @@ class Perception(
      * used to detect new UI elements.
      * @return A ScreenAnalysis object containing the complete state of the screen.
      */
-    suspend fun analyze(previousState: Set<String>? = null): ScreenAnalysis {
+    suspend fun analyze(previousState: Set<String>? = null, all: Boolean? =  false): ScreenAnalysis {
         return coroutineScope {
-        val rawDataDeferred = async { eyes.getRawScreenData() }
+        val rawDataDeferred = if (all == true) {
+            async { eyes.getAllRawScreenData() }
+        } else {
+            async { eyes.getRawScreenData() }
+        }
         val keyboardStatusDeferred = async { eyes.getKeyBoardStatus() }
         val currentActivity = async { eyes.getCurrentActivityName() }
         val rawTree = rawDataDeferred.await() ?: RawScreenData(
