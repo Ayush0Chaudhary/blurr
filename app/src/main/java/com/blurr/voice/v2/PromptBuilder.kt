@@ -33,9 +33,15 @@ class SystemPromptLoader(private val context: Context) {
         val actionsDescription = generateActionsDescription()
         val intentsCatalog = generateIntentsCatalog()
 
+        val userProfileManager = com.blurr.voice.utilities.UserProfileManager(context)
+        val userName = userProfileManager.getName() ?: "User"
+        val userEmail = userProfileManager.getEmail() ?: "Unknown Email"
+        val userInfo = "Name: $userName\nEmail: $userEmail"
+
         var prompt = settings.overrideSystemMessage ?: loadDefaultTemplate()
             .replace("{max_actions}", settings.maxActionsPerStep.toString())
             .replace("{available_actions}", actionsDescription)
+            .replace("{user_info}", userInfo)
 
         // Append intents catalog and a usage hint for the launch_intent action
         if (intentsCatalog.isNotBlank()) {

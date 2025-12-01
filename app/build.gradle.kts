@@ -88,12 +88,6 @@ android {
             )
         }
         debug {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
             // Debug-specific field only
             buildConfigField("String", "SHA1_FINGERPRINT", "\"$debugSha1\"")
         }
