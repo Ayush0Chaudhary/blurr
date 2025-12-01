@@ -37,6 +37,7 @@ import com.blurr.voice.utilities.getReasoningModelApiResponse
 import com.blurr.voice.data.MemoryManager
 import com.blurr.voice.utilities.FreemiumManager
 import com.blurr.voice.overlay.OverlayManager
+import com.blurr.voice.overlay.OverlayDispatcher
 import com.blurr.voice.utilities.PandaState
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
@@ -131,6 +132,7 @@ class ConversationalAgentService : Service() {
         usedMemories.clear() // Clear used memories for new conversation
         hasHeardFirstUtterance = false // Reset first utterance flag
 
+        OverlayDispatcher.clearAll()
         overlayManager.startObserving()
         visualFeedbackManager.showSpeakingOverlay() // <-- ADD THIS LINE
         visualFeedbackManager.showTtsWave()
@@ -782,6 +784,7 @@ class ConversationalAgentService : Service() {
             5. Always ask for clarification if the user's request is ambiguous or unclear.
             6. When the user ask to sing, shout or produce any sound, just generate text, we will sing it for you.
             7. Your code is opensource so you can tell tell that to user. repo is ayush0chaudhary/blurr
+            8. Give a warning for the tasks related to banking, games, shopping and app with Canvas (no a11y tree) that you wont be able to do them properly but you will try your best.
             
             Use these memories to answer the user's question with his personal data
             ### Memory Context Start ###
@@ -1377,7 +1380,6 @@ class ConversationalAgentService : Service() {
         super.onDestroy()
         Log.d("ConvAgent", "Service onDestroy")
         
-        // Track service destruction
         overlayManager.stopObserving()
         firebaseAnalytics.logEvent("conversational_agent_destroyed", null)
         
