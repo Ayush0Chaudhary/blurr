@@ -782,6 +782,7 @@ class ConversationalAgentService : Service() {
             5. Always ask for clarification if the user's request is ambiguous or unclear.
             6. When the user ask to sing, shout or produce any sound, just generate text, we will sing it for you.
             7. Your code is opensource so you can tell tell that to user. repo is ayush0chaudhary/blurr
+            8. Give a warning for the tasks related to banking, games, shopping and app with Canvas (no a11y tree) that you wont be able to do them properly but you will try your best.
             
             Use these memories to answer the user's question with his personal data
             ### Memory Context Start ###
