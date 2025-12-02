@@ -25,7 +25,8 @@ class OverlayManager private constructor(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val clientCount = AtomicInteger(0)
-    private var overlayView: View? = null
+    private var bottomOverlayView: View? = null
+    private var topOverlayView: View? = null
     private var observeJob: Job? = null
     private var autoDismissRunnable: Runnable? = null
 
@@ -51,12 +52,16 @@ class OverlayManager private constructor(context: Context) {
 
         observeJob = scope.launch {
             try {
-                OverlayDispatcher.activeContent.collect { content ->
+                OverlayDispatcher.activeContent.collect { contentMap ->
                     try {
-                        if (content == null) {
-                            removeOverlayInternal()
-                        } else {
-                            updateOverlay(content)
+                        // Update or remove views based on the map content
+                        for (position in OverlayPosition.values()) {
+                            val content = contentMap[position]
+                            if (content != null) {
+                                updateOverlayView(content)
+                            } else {
+                                removeOverlayView(position)
+                            }
                         }
                     } catch (e: Exception) {
                         Log.e("OverlayManager", "UI Update Error", e)
@@ -90,30 +95,40 @@ class OverlayManager private constructor(context: Context) {
             Log.d("OverlayManager", "Observer kept alive for other clients.")
         }
     }
-    private fun updateOverlay(content: OverlayContent) {
-        // Stop any pending auto-dismiss
-        Log.d("OverlayManager", "Stopping auto-dismiss")
-        autoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
-        Log.d("OverlayManager", content.text)
+    private fun updateOverlayView(content: OverlayContent) {
+        // Stop any pending auto-dismiss (This logic might need refinement for concurrent overlays if IDs overlap, but for now it's okay)
+        // Ideally we should map runnables to IDs.
+        Log.d("OverlayManager", "Updating overlay: ${content.text} at ${content.position}")
+        // autoDismissRunnable?.let { mainHandler.removeCallbacks(it) } // TODO: Handle per-overlay auto-dismiss
 
-        // If view doesn't exist, create it
-        if (overlayView == null) {
-            createView()
+        if (content.position == OverlayPosition.TOP) {
+            if (topOverlayView == null) createView(OverlayPosition.TOP)
+            (topOverlayView as? TextView)?.text = content.text
+        } else {
+            if (bottomOverlayView == null) createView(OverlayPosition.BOTTOM)
+            (bottomOverlayView as? TextView)?.text = content.text
         }
-
-        // Update the text
-        (overlayView as? TextView)?.text = content.text
 
         // Handle Auto-dismiss (e.g., for system info toasts)
         if (content.duration > 0) {
-            autoDismissRunnable = Runnable {
+            val runnable = Runnable {
                 OverlayDispatcher.dismiss(content.id)
             }
-            mainHandler.postDelayed(autoDismissRunnable!!, content.duration)
+            mainHandler.postDelayed(runnable, content.duration)
         }
     }
 
-    private fun createView() {
+    private fun removeOverlayView(position: OverlayPosition) {
+        if (position == OverlayPosition.TOP) {
+            removeView(topOverlayView)
+            topOverlayView = null
+        } else {
+            removeView(bottomOverlayView)
+            bottomOverlayView = null
+        }
+    }
+
+    private fun createView(position: OverlayPosition) {
         val textView = TextView(applicationContext).apply {
             // Styling... (Same as your original code)
             background = GradientDrawable().apply {
@@ -125,6 +140,9 @@ class OverlayManager private constructor(context: Context) {
             setPadding(24, 16, 24, 16)
         }
 
+        val gravity = if (position == OverlayPosition.TOP) Gravity.TOP or Gravity.CENTER_HORIZONTAL else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        val yPos = if (position == OverlayPosition.TOP) 150 else 250
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -132,26 +150,36 @@ class OverlayManager private constructor(context: Context) {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 250
+            this.gravity = gravity
+            y = yPos
         }
 
         try {
             windowManager.addView(textView, params)
-            overlayView = textView
+            if (position == OverlayPosition.TOP) {
+                topOverlayView = textView
+            } else {
+                bottomOverlayView = textView
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
     private fun removeOverlayInternal() {
-        overlayView?.let {
-            if (it.isAttachedToWindow) {
-                try {
-                    windowManager.removeView(it)
-                } catch (e: Exception) {}
+        removeView(bottomOverlayView)
+        bottomOverlayView = null
+        removeView(topOverlayView)
+        topOverlayView = null
+    }
+
+    private fun removeView(view: View?) {
+        view?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                // Ignore if view is not attached or already removed
             }
         }
-        overlayView = null
     }
 }

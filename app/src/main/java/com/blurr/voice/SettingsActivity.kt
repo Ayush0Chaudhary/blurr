@@ -35,6 +35,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class SettingsActivity : BaseNavigationActivity() {
 
     private lateinit var ttsVoicePicker: NumberPicker
+    private lateinit var switchShowThoughts: com.google.android.material.switchmaterial.SwitchMaterial
     private lateinit var permissionsInfoButton: TextView
     private lateinit var batteryOptimizationHelpButton: TextView
     private lateinit var appVersionText: TextView
@@ -58,6 +59,7 @@ class SettingsActivity : BaseNavigationActivity() {
         private const val KEY_SELECTED_VOICE = "selected_voice"
         private const val TEST_TEXT = "Hello, I'm Panda, and this is a test of the selected voice."
         private val DEFAULT_VOICE = TTSVoice.CHIRP_PUCK
+        const val KEY_SHOW_THOUGHTS = "show_thoughts"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,6 +102,7 @@ class SettingsActivity : BaseNavigationActivity() {
 
     private fun setupUI() {
         ttsVoicePicker = findViewById(R.id.ttsVoicePicker)
+        switchShowThoughts = findViewById(R.id.switchShowThoughts)
         permissionsInfoButton = findViewById(R.id.permissionsInfoButton)
         appVersionText = findViewById(R.id.appVersionText)
         batteryOptimizationHelpButton = findViewById(R.id.batteryOptimizationHelpButton)
@@ -207,6 +210,10 @@ class SettingsActivity : BaseNavigationActivity() {
         ttsVoicePicker.post {
             isInitialLoad = false
         }
+
+        switchShowThoughts.setOnCheckedChangeListener { _, isChecked ->
+            sharedPreferences.edit().putBoolean(KEY_SHOW_THOUGHTS, isChecked).apply()
+        }
     }
 
     private fun playVoiceSample(voice: TTSVoice) {
@@ -269,6 +276,8 @@ class SettingsActivity : BaseNavigationActivity() {
         
         // Update wake word button state
         updateWakeWordButtonState()
+
+        switchShowThoughts.isChecked = sharedPreferences.getBoolean(KEY_SHOW_THOUGHTS, false)
     }
 
     private fun saveSelectedVoice(voice: TTSVoice) {

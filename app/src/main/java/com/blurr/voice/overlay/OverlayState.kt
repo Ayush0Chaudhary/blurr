@@ -5,9 +5,15 @@ enum class OverlayPriority(val level: Int) {
     TASKS(1),
 }
 
+enum class OverlayPosition {
+    TOP,
+    BOTTOM
+}
+
 data class OverlayContent(
     val id: String,
     val text: String,
     val priority: OverlayPriority,
-    val duration: Long = 0L
+    val duration: Long = 0L,
+    val position: OverlayPosition = OverlayPosition.BOTTOM
 )
