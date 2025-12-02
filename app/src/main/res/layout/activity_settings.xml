@@ -94,6 +94,25 @@
 
             </FrameLayout>
 
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchShowThoughts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Show Agent Thoughts"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:fontFamily="@font/oxanium"
+                app:thumbTint="@color/accent"
+                app:trackTint="#555555" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Display the agent's internal reasoning process on screen."
+                android:textColor="#888888"
+                android:textSize="12sp" />
 
         </LinearLayout>
 

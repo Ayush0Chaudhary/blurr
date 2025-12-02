@@ -11,6 +11,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.animation.ValueAnimator
 import android.app.PendingIntent
+import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.LayerDrawable
 import android.os.Build
@@ -972,7 +973,7 @@ class ConversationalAgentService : Service() {
             val instruction = json.optString("Instruction", "")
             val shouldEndStr = json.optString("Should End", "Continue")
             val shouldEnd = shouldEndStr.equals("Finished", ignoreCase = true)
-
+            
             // Add a fallback reply if the model provides an empty one for a conversational turn.
             val finalReply = if (reply.isEmpty() && type.equals("Reply", ignoreCase = true)) {
                 "I'm not sure how to respond to that."

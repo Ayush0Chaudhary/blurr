@@ -8,19 +8,22 @@ import java.util.UUID
 
 object OverlayDispatcher {
 
-    private val _activeContent = MutableStateFlow<OverlayContent?>(null)
-    val activeContent: StateFlow<OverlayContent?> = _activeContent.asStateFlow()
+    private val _activeContent = MutableStateFlow<Map<OverlayPosition, OverlayContent>>(emptyMap())
+    val activeContent: StateFlow<Map<OverlayPosition, OverlayContent>> = _activeContent.asStateFlow()
 
     /**
      * Request to show an overlay.
      * Returns a unique ID that you must use to remove it later (if indefinite).
      */
-    fun show(text: String, priority: OverlayPriority, duration: Long = 0L): String {
-        val current = _activeContent.value
-        Log.d("OverlayDispatcher", "show: $text, $priority, $duration");
+    fun show(text: String, priority: OverlayPriority, duration: Long = 0L, position: OverlayPosition = OverlayPosition.BOTTOM): String {
+        Log.d("OverlayDispatcher", "show: $text, $priority, $duration, $position");
         val id = UUID.randomUUID().toString()
-        val newContent = OverlayContent(id, text, priority, duration)
-        _activeContent.value = newContent
+        val newContent = OverlayContent(id, text, priority, duration, position)
+        
+        val currentMap = _activeContent.value.toMutableMap()
+        currentMap[position] = newContent
+        _activeContent.value = currentMap
+        
         return id
     }
 
@@ -29,13 +32,22 @@ object OverlayDispatcher {
      * This prevents TTS from accidentally removing a System Error.
      */
     fun dismiss(id: String) {
-        val current = _activeContent.value
-        if (current != null && current.id == id) {
-            _activeContent.value = null
+        val currentMap = _activeContent.value.toMutableMap()
+        val iterator = currentMap.iterator()
+        var changed = false
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.value.id == id) {
+                iterator.remove()
+                changed = true
+            }
+        }
+        if (changed) {
+            _activeContent.value = currentMap
         }
     }
 
     fun clearAll() {
-        _activeContent.value = null
+        _activeContent.value = emptyMap()
     }
 }
