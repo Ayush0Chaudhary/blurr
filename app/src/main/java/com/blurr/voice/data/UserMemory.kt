@@ -9,6 +9,5 @@ data class UserMemory(
     val source: String = "User",
     val createdAt: Date = Date()
 ) {
-    // No-argument constructor for Firestore deserialization
     constructor() : this("", "", "User", Date())
 }
