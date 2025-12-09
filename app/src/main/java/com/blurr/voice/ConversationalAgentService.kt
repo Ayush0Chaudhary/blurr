@@ -543,8 +543,10 @@ class ConversationalAgentService : Service() {
                 pandaStateManager.setState(PandaState.PROCESSING)
                 visualFeedbackManager.showThinkingIndicator()
                 val defaultJsonResponse = """{"Type": "Reply", "Reply": "I'm sorry, I had an issue.", "Instruction": "", "Should End": "Continue"}"""
+                val currTime = System.currentTimeMillis()
                 val rawModelResponse = getReasoningModelApiResponse(conversationHistory) ?: defaultJsonResponse
                 visualFeedbackManager.hideThinkingIndicator()
+                Log.d("TTS_DEBUG", "Reply received from GeminiApi: -->${System.currentTimeMillis() - currTime}<--")
                 val decision = parseModelResponse(rawModelResponse)
                 Log.d("TTS_DEBUG", "Reply received from GeminiApi: -->${rawModelResponse}<--")
                 when (decision.type) {
@@ -797,7 +799,7 @@ class ConversationalAgentService : Service() {
             Current Time : {time_context}
         """.trimIndent()
 
-        conversationHistory = addResponse("user", systemPrompt, emptyList())
+        conversationHistory = addResponse("system", systemPrompt, emptyList())
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -949,6 +951,7 @@ class ConversationalAgentService : Service() {
             return ModelDecision(reply = "I had a minor issue processing that. Could you try again?")
         }
     }
+
     private fun createNotification(): Notification {
         val stopIntent = Intent(this, ConversationalAgentService::class.java).apply {
             action = ACTION_STOP_SERVICE
@@ -1370,7 +1373,7 @@ class ConversationalAgentService : Service() {
         val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
 
         val request = Request.Builder()
-            .url("https://getuserdatabyemail-w7fh6zvo4q-uc.a.run.app")
+            .url(BuildConfig.GCLOUD_MEMORY_URL)
             .addHeader("X-API-Key", BuildConfig.GCLOUD_PROXY_URL_KEY)
             .post(requestBody)
             .build()
