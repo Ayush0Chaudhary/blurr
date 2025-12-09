@@ -18,34 +18,30 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.blurr.voice.data.Memory
-import com.blurr.voice.data.MemoryManager
-//import com.blurr.voice.v2.llm.GeminiApi
-import com.blurr.voice.v2.llm.GeminiMessage
-import com.blurr.voice.v2.llm.MessageRole
-import com.blurr.voice.v2.llm.TextPart
+import com.blurr.voice.data.UserMemory
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.util.Date
+import java.util.UUID
 
 class MemoriesActivity : AppCompatActivity() {
-    
-    // Memory feature flag - temporarily disabled
-    companion object {
-        const val MEMORY_ENABLED = false
-    }
-    
+
     private lateinit var memoriesRecyclerView: RecyclerView
     private lateinit var emptyStateText: TextView
     private lateinit var addMemoryFab: FloatingActionButton
     private lateinit var memoriesAdapter: MemoriesAdapter
-    private lateinit var memoryManager: MemoryManager
+    
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_memories)
-        
-        memoryManager = MemoryManager.getInstance(this)
         
         setupViews()
         setupRecyclerView()
@@ -71,19 +67,9 @@ class MemoriesActivity : AppCompatActivity() {
             startActivity(intent)
         }
         
-        // Setup FAB click listener - disable if memory is off
+        // Setup FAB click listener
         addMemoryFab.setOnClickListener {
-            if (MEMORY_ENABLED) {
-                showAddMemoryDialog()
-            } else {
-                Toast.makeText(this, "Memory functionality is temporarily disabled", Toast.LENGTH_SHORT).show()
-            }
-        }
-        
-        // Disable FAB if memory is disabled
-        if (!MEMORY_ENABLED) {
-            addMemoryFab.alpha = 0.5f
-            addMemoryFab.isEnabled = false
+            showAddEditMemoryDialog(null)
         }
     }
     
@@ -104,9 +90,15 @@ class MemoriesActivity : AppCompatActivity() {
     }
     
     private fun setupRecyclerView() {
-        memoriesAdapter = MemoriesAdapter(emptyList()) { memory ->
-            showDeleteConfirmationDialog(memory)
-        }
+        memoriesAdapter = MemoriesAdapter(
+            memories = emptyList(),
+            onEditClick = { memory ->
+                showAddEditMemoryDialog(memory)
+            },
+            onDeleteClick = { memory ->
+                showDeleteConfirmationDialog(memory)
+            }
+        )
         
         memoriesRecyclerView.apply {
             layoutManager = LinearLayoutManager(this@MemoriesActivity)
@@ -136,33 +128,54 @@ class MemoriesActivity : AppCompatActivity() {
     }
     
     private fun loadMemories() {
-        if (!MEMORY_ENABLED) {
-            Log.d("MemoriesActivity", "Memory disabled, showing empty state with disabled message")
+        val user = auth.currentUser
+        if (user == null) {
             updateUI(emptyList())
             return
         }
-        
-        lifecycleScope.launch {
-            try {
-                val memories = memoryManager.getAllMemoriesList()
-                updateUI(memories)
-            } catch (e: Exception) {
-                Toast.makeText(this@MemoriesActivity, "Error loading memories: ${e.message}", Toast.LENGTH_SHORT).show()
+
+        val docRef = db.collection("users").document(user.uid)
+        docRef.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                Log.w("MemoriesActivity", "Listen failed.", e)
+                return@addSnapshotListener
+            }
+
+            if (snapshot != null && snapshot.exists()) {
+                val memoriesList = mutableListOf<UserMemory>()
+                val memoriesData = snapshot.get("memories") as? List<Map<String, Any>>
+                
+                memoriesData?.forEach { map ->
+                    try {
+                        val timestamp = map["createdAt"] as? com.google.firebase.Timestamp
+                        val date = timestamp?.toDate() ?: Date()
+                        
+                        val memory = UserMemory(
+                            id = map["id"] as? String ?: "",
+                            text = map["text"] as? String ?: "",
+                            source = map["source"] as? String ?: "User",
+                            createdAt = date
+                        )
+                        memoriesList.add(memory)
+                    } catch (e: Exception) {
+                        Log.e("MemoriesActivity", "Error parsing memory", e)
+                    }
+                }
+                
+                // Sort by date descending
+                memoriesList.sortByDescending { it.createdAt }
+                updateUI(memoriesList)
+            } else {
+                updateUI(emptyList())
             }
         }
     }
     
-    private fun updateUI(memories: List<Memory>) {
-        if (memories.isEmpty() || !MEMORY_ENABLED) {
+    private fun updateUI(memories: List<UserMemory>) {
+        if (memories.isEmpty()) {
             memoriesRecyclerView.visibility = View.GONE
             emptyStateText.visibility = View.VISIBLE
-            
-            // Update empty state text based on memory status
-            emptyStateText.text = if (!MEMORY_ENABLED) {
-                "Memory functionality is temporarily disabled.\nPanda memory is turned off as of yet."
-            } else {
-                "No memories yet.\nTap the + button to add your first memory!"
-            }
+            emptyStateText.text = "No memories yet.\nTap the + button to add your first memory!"
         } else {
             memoriesRecyclerView.visibility = View.VISIBLE
             emptyStateText.visibility = View.GONE
@@ -170,11 +183,17 @@ class MemoriesActivity : AppCompatActivity() {
         }
     }
     
-    private fun showAddMemoryDialog() {
+    private fun showAddEditMemoryDialog(existingMemory: UserMemory?) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_add_memory, null)
         val memoryEditText = dialogView.findViewById<EditText>(R.id.memoryEditText)
         val saveButton = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.saveButton)
         val cancelButton = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.cancelButton)
+//        val titleTextView = dialogView.findViewById<TextView>(R.id.dialogTitle) // Assuming there is a title view, or I'll just skip setting title if ID not found
+
+        if (existingMemory != null) {
+            memoryEditText.setText(existingMemory.text)
+            saveButton.text = "Update"
+        }
         
         // Enable/disable save button based on text input
         memoryEditText.addTextChangedListener(object : TextWatcher {
@@ -193,7 +212,11 @@ class MemoriesActivity : AppCompatActivity() {
         saveButton.setOnClickListener {
             val memoryText = memoryEditText.text.toString().trim()
             if (memoryText.isNotEmpty()) {
-                addMemory(memoryText)
+                if (existingMemory != null) {
+                    updateMemory(existingMemory, memoryText)
+                } else {
+                    addMemory(memoryText)
+                }
                 dialog.dismiss()
             }
         }
@@ -206,25 +229,82 @@ class MemoriesActivity : AppCompatActivity() {
     }
     
     private fun addMemory(memoryText: String) {
-        lifecycleScope.launch {
-            try {
-                val success = memoryManager.addMemory(memoryText)
-                if (success) {
-                    Toast.makeText(this@MemoriesActivity, "Memory added successfully", Toast.LENGTH_SHORT).show()
-                    loadMemories() // Reload the list
-                } else {
-                    Toast.makeText(this@MemoriesActivity, "Failed to add memory", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@MemoriesActivity, "Error adding memory: ${e.message}", Toast.LENGTH_SHORT).show()
+        val user = auth.currentUser ?: return
+        val newMemory = UserMemory(
+            id = UUID.randomUUID().toString(),
+            text = memoryText,
+            source = "User",
+            createdAt = Date()
+        )
+        
+        val docRef = db.collection("users").document(user.uid)
+        
+        // We need to convert UserMemory to a Map because Firestore arrayUnion works best with Maps or exact object matches
+        // But since we are using custom objects, we should be careful.
+        // Let's use a Map to be safe and match the structure.
+        
+        val memoryMap = hashMapOf(
+            "id" to newMemory.id,
+            "text" to newMemory.text,
+            "source" to newMemory.source,
+            "createdAt" to newMemory.createdAt
+        )
+
+        docRef.update("memories", FieldValue.arrayUnion(memoryMap))
+            .addOnSuccessListener {
+                Toast.makeText(this, "Memory added", Toast.LENGTH_SHORT).show()
             }
+            .addOnFailureListener { e ->
+                // If the document doesn't exist or memories field doesn't exist, we might need to set it.
+                // However, users usually exist. If "memories" field is missing, update might fail if we don't use set with merge, 
+                // but arrayUnion usually creates the field if it doesn't exist? 
+                // Actually arrayUnion on a non-existent document fails. But the user document should exist.
+                // If "memories" field is missing, arrayUnion creates it.
+                Log.e("MemoriesActivity", "Error adding memory", e)
+                Toast.makeText(this, "Failed to add memory", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun updateMemory(oldMemory: UserMemory, newText: String) {
+        val user = auth.currentUser ?: return
+        val docRef = db.collection("users").document(user.uid)
+
+        // To update an item in an array, we have to remove the old one and add the new one.
+        // This is not atomic unless we use a transaction, but for this simple app it's probably fine.
+        // Or we can read the whole array, modify it, and write it back.
+        // Reading and writing back is safer for "edit" to avoid race conditions where we remove but fail to add?
+        // Actually, arrayRemove requires the EXACT object.
+        
+        // Let's try to do it in a transaction or just read-modify-write.
+        
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+            val memories = snapshot.get("memories") as? MutableList<Map<String, Any>> ?: mutableListOf()
+            
+            // Find the memory with the same ID
+            val index = memories.indexOfFirst { it["id"] == oldMemory.id }
+            if (index != -1) {
+                val newMemoryMap = hashMapOf(
+                    "id" to oldMemory.id,
+                    "text" to newText,
+                    "source" to oldMemory.source,
+                    "createdAt" to oldMemory.createdAt // Keep original creation date
+                )
+                memories[index] = newMemoryMap
+                transaction.update(docRef, "memories", memories)
+            }
+        }.addOnSuccessListener {
+            Toast.makeText(this, "Memory updated", Toast.LENGTH_SHORT).show()
+        }.addOnFailureListener { e ->
+            Log.e("MemoriesActivity", "Error updating memory", e)
+            Toast.makeText(this, "Failed to update memory", Toast.LENGTH_SHORT).show()
         }
     }
     
-    private fun showDeleteConfirmationDialog(memory: Memory) {
+    private fun showDeleteConfirmationDialog(memory: UserMemory) {
         AlertDialog.Builder(this)
             .setTitle("Delete Memory")
-            .setMessage("Are you sure you want to delete this memory?\n\n\"${memory.originalText}\"")
+            .setMessage("Are you sure you want to delete this memory?\n\n\"${memory.text}\"")
             .setPositiveButton("Delete") { _, _ ->
                 deleteMemory(memory)
             }
@@ -236,32 +316,40 @@ class MemoriesActivity : AppCompatActivity() {
             .show()
     }
     
-    private fun deleteMemory(memory: Memory) {
-        lifecycleScope.launch {
-            try {
-                val success = memoryManager.deleteMemoryById(memory.id)
-                if (success) {
-                    memoriesAdapter.removeMemory(memory)
-                    showSnackbar("Memory deleted", "Undo") {
-                        // Undo functionality could be added here
-                    }
-                    
-                    // Update UI if no memories left
-                    if (memoriesAdapter.itemCount == 0) {
-                        updateUI(emptyList())
-                    }
-                } else {
-                    Toast.makeText(this@MemoriesActivity, "Failed to delete memory", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@MemoriesActivity, "Error deleting memory: ${e.message}", Toast.LENGTH_SHORT).show()
+    private fun deleteMemory(memory: UserMemory) {
+        val user = auth.currentUser ?: return
+        val docRef = db.collection("users").document(user.uid)
+        
+        // We need to match the object exactly to remove it via arrayRemove.
+        // But we might have issues with Timestamp precision or other fields.
+        // Safer to read-modify-write.
+        
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(docRef)
+            val memories = snapshot.get("memories") as? MutableList<Map<String, Any>> ?: mutableListOf()
+            
+            val index = memories.indexOfFirst { it["id"] == memory.id }
+            if (index != -1) {
+                memories.removeAt(index)
+                transaction.update(docRef, "memories", memories)
             }
+        }.addOnSuccessListener {
+            showSnackbar("Memory deleted", "Undo") {
+                // Undo functionality would require adding it back.
+                // For now, just re-add it?
+                addMemory(memory.text) // This would give it a new ID though if we use the addMemory function.
+                // Let's skip complex undo for now.
+            }
+        }.addOnFailureListener { e ->
+            Log.e("MemoriesActivity", "Error deleting memory", e)
+            Toast.makeText(this, "Failed to delete memory", Toast.LENGTH_SHORT).show()
+            memoriesAdapter.notifyDataSetChanged() // Restore item in UI
         }
     }
     
     private fun showSnackbar(message: String, actionText: String, action: () -> Unit) {
         Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG)
-            .setAction(actionText) { action() }
+            //.setAction(actionText) { action() } // Undo disabled for simplicity as discussed
             .show()
     }
     
@@ -269,4 +357,4 @@ class MemoriesActivity : AppCompatActivity() {
         onBackPressed()
         return true
     }
-} 
+}

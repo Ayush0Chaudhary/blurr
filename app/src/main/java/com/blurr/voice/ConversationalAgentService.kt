@@ -35,7 +35,6 @@ import com.blurr.voice.agents.ClarificationAgent
 import com.blurr.voice.utilities.TTSManager
 import com.blurr.voice.utilities.addResponse
 import com.blurr.voice.utilities.getReasoningModelApiResponse
-import com.blurr.voice.data.MemoryManager
 import com.blurr.voice.utilities.FreemiumManager
 import com.blurr.voice.overlay.OverlayManager
 import com.blurr.voice.overlay.OverlayDispatcher
@@ -43,6 +42,7 @@ import com.blurr.voice.utilities.PandaState
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.VisualFeedbackManager
 import com.blurr.voice.v2.AgentService
+import com.blurr.voice.data.UserMemory
 import com.google.ai.client.generativeai.type.TextPart
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
@@ -63,6 +63,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
+import java.io.IOException
 
 data class ModelDecision(
     val type: String = "Reply",
@@ -72,7 +80,6 @@ data class ModelDecision(
 )
 
 class ConversationalAgentService : Service() {
-
 
     private val speechCoordinator by lazy { SpeechCoordinator.getInstance(this) }
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -95,12 +102,11 @@ class ConversationalAgentService : Service() {
     private val clarificationAgent = ClarificationAgent()
     private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
-    private val memoryManager by lazy { MemoryManager.getInstance(this) }
-    private val usedMemories = mutableSetOf<String>() // Track memories already used in this conversation
-    private var hasHeardFirstUtterance = false // Track if we've received the first user utterance
+    private var cachedMemories = listOf<UserMemory>()
+    private var hasHeardFirstUtterance = false
     private lateinit var firebaseAnalytics: FirebaseAnalytics
-    private val eyes by lazy { Eyes(this) }
     private lateinit var perception: Perception
+    private val client = OkHttpClient()
 
     
     // Firebase instances for conversation tracking
@@ -114,7 +120,7 @@ class ConversationalAgentService : Service() {
         const val CHANNEL_ID = "ConversationalAgentChannel"
         const val ACTION_STOP_SERVICE = "com.blurr.voice.ACTION_STOP_SERVICE"
         var isRunning = false
-        const val MEMORY_ENABLED = false
+        const val MEMORY_ENABLED = true
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -133,8 +139,10 @@ class ConversationalAgentService : Service() {
         initializeConversation()
         clarificationAttempts = 0 // Reset clarification attempts counter
         sttErrorAttempts = 0 // Reset STT error attempts counter
-        usedMemories.clear() // Clear used memories for new conversation
+        // usedMemories.clear() // Removed
         hasHeardFirstUtterance = false // Reset first utterance flag
+
+        fetchMemories() // Start async memory fetch
 
         OverlayDispatcher.clearAll()
         overlayManager.startObserving()
@@ -535,8 +543,10 @@ class ConversationalAgentService : Service() {
                 pandaStateManager.setState(PandaState.PROCESSING)
                 visualFeedbackManager.showThinkingIndicator()
                 val defaultJsonResponse = """{"Type": "Reply", "Reply": "I'm sorry, I had an issue.", "Instruction": "", "Should End": "Continue"}"""
+                val currTime = System.currentTimeMillis()
                 val rawModelResponse = getReasoningModelApiResponse(conversationHistory) ?: defaultJsonResponse
                 visualFeedbackManager.hideThinkingIndicator()
+                Log.d("TTS_DEBUG", "Reply received from GeminiApi: -->${System.currentTimeMillis() - currTime}<--")
                 val decision = parseModelResponse(rawModelResponse)
                 Log.d("TTS_DEBUG", "Reply received from GeminiApi: -->${rawModelResponse}<--")
                 when (decision.type) {
@@ -694,7 +704,8 @@ class ConversationalAgentService : Service() {
             }
         }
     }
-//    private suspend fun getGroundedStepsForTask(taskInstruction: String): String {
+
+    //    private suspend fun getGroundedStepsForTask(taskInstruction: String): String {
 //        Log.d("ConvAgent", "Performing grounded search for task: '$taskInstruction'")
 //
 //        // We create a specific prompt for the search.
@@ -719,27 +730,9 @@ class ConversationalAgentService : Service() {
 //    }
     private suspend fun checkIfClarificationNeeded(instruction: String): Pair<Boolean, List<String>> {
         Log.d("ConvAgent", "Checking for clarification on instruction: '$instruction'")
-
         return Pair(false, listOf())
-        // Use the clarificationAgent instance to analyze the instruction.
-        // The agent encapsulates all the logic for API calls and parsing.
-        val result = clarificationAgent.analyze(
-            instruction = instruction,
-            conversationHistory = conversationHistory,
-            context = this@ConversationalAgentService // Pass the service context
-        )
-
-        // Determine the final result based on the agent's analysis.
-        val needsClarification = result.status == "NEEDS_CLARIFICATION" && result.questions.isNotEmpty()
-
-        if (needsClarification) {
-            Log.d("ConvAgent", "Clarification is needed. Questions: ${result.questions}")
-        } else {
-            Log.d("ConvAgent", "Instruction is clear. Status: ${result.status}")
-        }
-
-        return Pair(needsClarification, result.questions)
     }
+
     private fun initializeConversation() {
         val memoryContextSection = if (MEMORY_ENABLED) {
             """
@@ -806,7 +799,7 @@ class ConversationalAgentService : Service() {
             Current Time : {time_context}
         """.trimIndent()
 
-        conversationHistory = addResponse("user", systemPrompt, emptyList())
+        conversationHistory = addResponse("system", systemPrompt, emptyList())
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -878,54 +871,21 @@ class ConversationalAgentService : Service() {
 
                 updatedPrompt = updatedPrompt.replace("{memory_context}", "User name is ${userProfile.getName()}")
             } else {
-                // Get the last user message to search for relevant memories
-                val lastUserMessage = conversationHistory.lastOrNull { it.first == "user" }
-                    ?.second?.filterIsInstance<TextPart>()
-                    ?.joinToString(" ") { it.text } ?: ""
-
-                if (lastUserMessage.isNotEmpty()) {
-                    Log.d("ConvAgent", "Searching for memories relevant to: ${lastUserMessage.take(100)}...")
-
-                    var relevantMemories = memoryManager.searchMemories(lastUserMessage, topK = 5).toMutableList() // Get more memories to filter from
-                    val nameMemories = memoryManager.searchMemories("name", topK = 2)
-                    relevantMemories.addAll(nameMemories)
-                    if (relevantMemories.isNotEmpty()) {
-                        Log.d("ConvAgent", "Found ${relevantMemories.size} relevant memories")
-
-                        // Filter out memories that have already been used in this conversation
-                        val newMemories = relevantMemories.filter { memory ->
-                            !usedMemories.contains(memory)
-                        }.take(20) // Limit to top 20 new memories
-
-                        if (newMemories.isNotEmpty()) {
-                            Log.d("ConvAgent", "Adding ${newMemories.size} new memories to context")
-
-                            // Add new memories to the used set
-                            newMemories.forEach { usedMemories.add(it) }
-
-                            val currentMemoryContext = extractCurrentMemoryContext(updatedPrompt)
-                            val allMemories = (currentMemoryContext + newMemories).distinct()
-
-                            // Update the system prompt with all memories
-                            val memoryContext = allMemories.joinToString("\n") { "- $it" }
-                            updatedPrompt = updatedPrompt.replace("{memory_context}", memoryContext)
-
-                            Log.d("ConvAgent", "Updated system prompt with ${allMemories.size} total memories (${newMemories.size} new)")
-                        } else {
-                            Log.d("ConvAgent", "No new memories to add (all relevant memories already used)")
-                            // Still need to replace the placeholder if no new memories
-                            val currentMemoryContext = extractCurrentMemoryContext(updatedPrompt)
-                            val memoryContext = currentMemoryContext.joinToString("\n") { "- $it" }
-                            updatedPrompt = updatedPrompt.replace("{memory_context}", memoryContext)
-                        }
-                    } else {
-                        Log.d("ConvAgent", "No relevant memories found")
-                        // Replace with empty context if no memories found
-                        updatedPrompt = updatedPrompt.replace("{memory_context}", "No relevant memories found")
+                // Use cached memories from Firestore
+                if (cachedMemories.isNotEmpty()) {
+                    Log.d("ConvAgent", "Injecting ${cachedMemories.size} cached memories into context")
+                    
+                    // Take top 100 memories (already sorted by date desc in fetch logic if needed, or just take latest)
+                    // For now, we just take the list as is, assuming it's not huge, or take top 100.
+                    val topMemories = cachedMemories.take(100)
+                    
+                    val memoryContext = topMemories.joinToString("\n") { memory -> 
+                        "- ${memory.text} (Source: ${memory.source})" 
                     }
+                    updatedPrompt = updatedPrompt.replace("{memory_context}", memoryContext)
                 } else {
-                    // Replace with empty context if no user message
-                    updatedPrompt = updatedPrompt.replace("{memory_context}", "")
+                     Log.d("ConvAgent", "No cached memories available yet")
+                     updatedPrompt = updatedPrompt.replace("{memory_context}", "No memories available yet.")
                 }
             }
 
@@ -991,6 +951,7 @@ class ConversationalAgentService : Service() {
             return ModelDecision(reply = "I had a minor issue processing that. Could you try again?")
         }
     }
+
     private fun createNotification(): Notification {
         val stopIntent = Intent(this, ConversationalAgentService::class.java).apply {
             action = ACTION_STOP_SERVICE
@@ -1167,12 +1128,9 @@ class ConversationalAgentService : Service() {
                 delay(2000) // Give TTS time to finish
             }
             // 1. Extract memories from the conversation before ending
-            if (conversationHistory.size > 1 && MEMORY_ENABLED) {
-                Log.d("ConvAgent", "Extracting memories before shutdown.")
-//                MemoryExtractor.extractAndStoreMemories(conversationHistory, memoryManager, usedMemories)
-            } else if (!MEMORY_ENABLED) {
-                Log.d("ConvAgent", "Memory disabled, skipping memory extraction.")
-            }
+            // Removed old memory extraction logic
+            triggerMemoryGeneration()
+            
             // 3. Stop the service
             stopSelf()
 
@@ -1205,12 +1163,9 @@ class ConversationalAgentService : Service() {
 
         removeClarificationQuestions()
         // Make a thread-safe copy of the conversation history.
-        if (conversationHistory.size > 1 && MEMORY_ENABLED) {
-            Log.d("ConvAgent", "Extracting memories before shutdown.")
-//            MemoryExtractor.extractAndStoreMemories(conversationHistory, memoryManager, usedMemories)
-        } else if (!MEMORY_ENABLED) {
-            Log.d("ConvAgent", "Memory disabled, skipping memory extraction.")
-        }
+        // Removed old memory extraction logic
+        triggerMemoryGeneration()
+        
         serviceScope.cancel("User tapped outside, forcing instant shutdown.")
 
         stopSelf()
@@ -1357,4 +1312,87 @@ class ConversationalAgentService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun fetchMemories() {
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            Log.w("ConvAgent", "User not logged in, cannot fetch memories")
+            return
+        }
+
+        Log.d("ConvAgent", "Starting async memory fetch for user: ${currentUser.uid}")
+        db.collection("users").document(currentUser.uid)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.w("ConvAgent", "Listen failed.", e)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val memoriesList = snapshot.get("memories") as? List<Map<String, Any>>
+                    if (memoriesList != null) {
+                        cachedMemories = memoriesList.mapNotNull { map ->
+                            try {
+                                UserMemory(
+                                    id = map["id"] as? String ?: "",
+                                    text = map["text"] as? String ?: "",
+                                    source = map["source"] as? String ?: "User",
+                                    createdAt = (map["createdAt"] as? Timestamp)?.toDate() ?: java.util.Date()
+                                )
+                            } catch (e: Exception) {
+                                Log.e("ConvAgent", "Error parsing memory", e)
+                                null
+                            }
+                        }.sortedByDescending { it.createdAt } // Sort by newest first
+                        
+                        Log.d("ConvAgent", "Fetched ${cachedMemories.size} memories from Firestore")
+                    } else {
+                        Log.d("ConvAgent", "No memories field found in user document")
+                        cachedMemories = emptyList()
+                    }
+                } else {
+                    Log.d("ConvAgent", "Current data: null")
+                }
+            }
+    }
+
+    private fun triggerMemoryGeneration() {
+        val currentUser = auth.currentUser
+        val userEmail = currentUser?.email
+
+        if (userEmail == null) {
+            Log.w("ConvAgent", "User email not found, cannot trigger memory generation")
+            return
+        }
+
+        Log.d("ConvAgent", "Triggering memory generation for email: $userEmail")
+
+        val json = JSONObject()
+        json.put("email", userEmail)
+
+        val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val request = Request.Builder()
+            .url(BuildConfig.GCLOUD_MEMORY_URL)
+            .addHeader("X-API-Key", BuildConfig.GCLOUD_PROXY_URL_KEY)
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("ConvAgent", "Memory generation request failed", e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    if (!response.isSuccessful) {
+                        Log.e("ConvAgent", "Memory generation request failed with code: ${response.code}")
+                    } else {
+                        Log.d("ConvAgent", "Memory generation request sent successfully. Response: ${response.body?.string()}")
+                    }
+                }
+            }
+        })
+    }
+
 }

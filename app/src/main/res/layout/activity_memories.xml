@@ -71,43 +71,7 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Memory Disabled Notice Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/memoryDisabledCard"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="#FFF3E0">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="⚠️ Memory Temporarily Disabled"
-                        android:textColor="#E65100"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:gravity="center" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Panda memory is turned off as of yet. Memory functionality will be restored in a future update."
-                        android:textColor="#BF360C"
-                        android:textSize="14sp"
-                        android:gravity="center" />
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
 
             <!-- Memories RecyclerView -->
             <androidx.recyclerview.widget.RecyclerView

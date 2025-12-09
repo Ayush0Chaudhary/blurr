@@ -46,7 +46,8 @@ object GeminiApi {
     suspend fun generateContent(
         chat: List<Pair<String, List<Any>>>,
         images: List<Bitmap> = emptyList(),
-        modelName: String = "gemini-2.5-flash", // Updated to a more standard model name
+//        modelName: String = "gemini-2.5-flash", // Updated to a more standard model name
+        modelName: String = "llama-3.3-70b",
         maxRetry: Int = 4,
         context: Context? = null
     ): String? {
@@ -190,37 +191,43 @@ object GeminiApi {
     }
 
     /**
-     * MODIFIED: This function now builds the payload to match the structure required by the proxy in code-2.
-     * The new structure is: { "modelName": "...", "messages": [ { "role": "...", "parts": [ { "text": "..." } ] } ] }
-     * NOTE: This proxy structure does not support images. ImageParts will be ignored.
+     * FIXED: Builds payload for Cerebras/OpenAI format.
+     * Structure: { "model": "...", "messages": [ { "role": "user", "content": "Hello" } ] }
      */
     private fun buildPayload(chat: List<Pair<String, List<Any>>>, modelName: String): JSONObject {
         val rootObject = JSONObject()
-        rootObject.put("modelName", modelName)
+        rootObject.put("model", modelName)
 
         val messagesArray = JSONArray()
-        chat.forEach { (role, parts) ->
-            val messageObject = JSONObject()
-            messageObject.put("role", role.lowercase())
 
-            val jsonParts = JSONArray()
+        chat.forEachIndexed { index, (role, parts) ->
+            val messageObject = JSONObject()
+
+            // FIX 2: Map Gemini roles to OpenAI/Cerebras roles
+            val mappedRole = when (role.lowercase()) {
+                "model" -> "assistant" // Critical fix: Gemini uses "model", Cerebras needs "assistant"
+                // Optional: If index == 0 and role is "user", force it to "system" for Llama
+                "user" -> if (index == 0) "system" else "user"
+                else -> role.lowercase()
+            }
+
+            messageObject.put("role", mappedRole)
+
+            val fullText = StringBuilder()
             parts.forEach { part ->
                 when (part) {
                     is TextPart -> {
-                        // The structure for a part is {"text": "..."}
-                        val partObject = JSONObject().put("text", part.text)
-                        jsonParts.put(partObject)
+                        if (fullText.isNotEmpty()) fullText.append("\n")
+                        fullText.append(part.text)
                     }
                     is ImagePart -> {
-                        // Log a warning that images are being skipped for the proxy call
-                        Log.w("GeminiApi", "ImagePart found but skipped. The proxy payload format does not support images.")
+                        Log.w("GeminiApi", "ImagePart skipped.")
                     }
                 }
             }
 
-            // Only add the message to the array if it contains text parts
-            if (jsonParts.length() > 0) {
-                messageObject.put("parts", jsonParts)
+            if (fullText.isNotEmpty()) {
+                messageObject.put("content", fullText.toString())
                 messagesArray.put(messageObject)
             }
         }
@@ -228,57 +235,6 @@ object GeminiApi {
         rootObject.put("messages", messagesArray)
         return rootObject
     }
-
-    /**
-     * This function parses the standard response from the Gemini API.
-     * It is assumed the proxy forwards this response structure without modification.
-     */
-    private fun parseSuccessResponse(responseBody: String): String? {
-        return try {
-            val json = JSONObject(responseBody)
-            // Handle cases where the proxy might return a simplified text response directly
-            if (json.has("text")) {
-                return json.getString("text")
-            }
-            // Standard Gemini API response parsing
-            if (!json.has("candidates")) {
-                Log.w("GeminiApi", "API response has no 'candidates'. It was likely blocked. Full response: $responseBody")
-                // Check for proxy-specific error format
-                if (json.has("error")) {
-                    Log.e("GeminiApi", "Proxy returned an error: ${json.getString("error")}")
-                }
-                return null
-            }
-            val candidates = json.getJSONArray("candidates")
-            if (candidates.length() == 0) {
-                Log.w("GeminiApi", "API response has an empty 'candidates' array. Full response: $responseBody")
-                return null
-            }
-            val firstCandidate = candidates.getJSONObject(0)
-            if (!firstCandidate.has("content")) {
-                Log.w("GeminiApi", "First candidate has no 'content' object. Full response: $responseBody")
-                return null
-            }
-            val content = firstCandidate.getJSONObject("content")
-            if (!content.has("parts")) {
-                Log.w("GeminiApi", "Content object has no 'parts' array. Full response: $responseBody")
-                return null
-            }
-            val parts = content.getJSONArray("parts")
-            if (parts.length() == 0) {
-                Log.w("GeminiApi", "Parts array is empty. Full response: $responseBody")
-                return null
-            }
-            parts.getJSONObject(0).getString("text")
-        } catch (e: Exception) {
-            Log.e("GeminiApi", "Failed to parse successful response: $responseBody", e)
-            // As a fallback, if parsing fails but there was a response, return the raw string.
-            // The proxy might be configured to return plain text on success.
-            responseBody
-        }
-    }
-
-
     private fun saveLogToFile(context: Context, logEntry: String) {
         try {
             val logDir = File(context.filesDir, "gemini_logs")

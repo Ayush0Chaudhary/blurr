@@ -44,6 +44,7 @@ class SettingsActivity : BaseNavigationActivity() {
     private lateinit var editWakeWordKey: android.widget.EditText
     private lateinit var textGetPicovoiceKeyLink: TextView
     private lateinit var wakeWordButton: TextView
+    private lateinit var manageMemoriesButton: TextView
     private lateinit var buttonSignOut: Button
     private lateinit var wakeWordManager: WakeWordManager
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
@@ -109,6 +110,7 @@ class SettingsActivity : BaseNavigationActivity() {
       
         editWakeWordKey = findViewById(R.id.editWakeWordKey)
         wakeWordButton = findViewById(R.id.wakeWordButton)
+        manageMemoriesButton = findViewById(R.id.manageMemoriesButton)
         buttonSignOut = findViewById(R.id.buttonSignOut)
 
         editUserName = findViewById(R.id.editUserName)
@@ -181,6 +183,11 @@ class SettingsActivity : BaseNavigationActivity() {
                 Toast.makeText(this, "Could not open link. No browser found.", Toast.LENGTH_SHORT).show()
                 Log.e("SettingsActivity", "Failed to open Picovoice link", e)
             }
+        }
+
+        manageMemoriesButton.setOnClickListener {
+            val intent = Intent(this, MemoriesActivity::class.java)
+            startActivity(intent)
         }
 
         buttonSignOut.setOnClickListener {

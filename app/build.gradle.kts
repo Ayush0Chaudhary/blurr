@@ -41,6 +41,7 @@ android {
     val googlecloudGatewayURL = localProperties.getProperty("GCLOUD_GATEWAY_URL") ?: ""
     val googlecloudProxyURL = localProperties.getProperty("GCLOUD_PROXY_URL") ?: ""
     val googlecloudProxyURLKey = localProperties.getProperty("GCLOUD_PROXY_URL_KEY") ?: ""
+    val memoryCloud = localProperties.getProperty("GCLOUD_MEMORY_URL") ?: ""
     val revenueCatSDK = localProperties.getProperty("REVENUE_CAT_PUBLIC_URL") ?: ""
     val revenueCatApiKey = localProperties.getProperty("REVENUECAT_API_KEY") ?: ""
 
@@ -58,6 +59,7 @@ android {
         // Common build config fields - applies to all build types
         buildConfigField("String", "GEMINI_API_KEYS", "\"$apiKeys\"")
         buildConfigField("String", "TAVILY_API", "\"$tavilyApiKeys\"")
+        buildConfigField("String", "GCLOUD_MEMORY_URL", "\"$memoryCloud\"")
         buildConfigField("String", "MEM0_API", "\"$mem0ApiKey\"")
         buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"$picovoiceApiKey\"")
         buildConfigField("boolean", "ENABLE_DIRECT_APP_OPENING", "true")
