@@ -12,6 +12,9 @@ import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.blurr.voice.v2.logging.TaskLogger
+import android.content.Context
+import kotlinx.serialization.encodeToString
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,6 +41,7 @@ import kotlin.time.Duration.Companion.seconds
 class GeminiApi(
     private val modelName: String,
     private val apiKeyManager: ApiKeyManager, // Injected dependency
+    private val context: Context,
     private val maxRetry: Int = 3
 ) {
 
@@ -81,6 +85,14 @@ class GeminiApi(
         val jsonString = retryWithBackoff(times = maxRetry) {
             performApiCall(messages)
         } ?: return null
+
+        // Log the task
+        try {
+            val input = jsonParser.encodeToString(messages)
+            TaskLogger.log(context, input, jsonString)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to log task: ${e.message}")
+        }
 
         return try {
             Log.d(TAG, "Parsing guaranteed JSON response. $jsonString")

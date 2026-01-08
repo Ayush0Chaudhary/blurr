@@ -109,6 +109,7 @@ class SettingsActivity : BaseNavigationActivity() {
       
         editWakeWordKey = findViewById(R.id.editWakeWordKey)
         wakeWordButton = findViewById(R.id.wakeWordButton)
+
         buttonSignOut = findViewById(R.id.buttonSignOut)
 
         editUserName = findViewById(R.id.editUserName)
@@ -183,8 +184,13 @@ class SettingsActivity : BaseNavigationActivity() {
             }
         }
 
+
         buttonSignOut.setOnClickListener {
             showSignOutConfirmationDialog()
+        }
+
+        findViewById<TextView>(R.id.viewTaskLogsButton).setOnClickListener {
+            startActivity(Intent(this, TaskLogsListActivity::class.java))
         }
     }
 

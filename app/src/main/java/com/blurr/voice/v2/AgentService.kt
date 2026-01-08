@@ -130,6 +130,7 @@ class AgentService : Service() {
         llmApi = GeminiApi(
             "gemini-2.5-flash",
             apiKeyManager = ApiKeyManager,
+            context = this,
             maxRetry = 10
         )
         actionExecutor = ActionExecutor(Finger(this))

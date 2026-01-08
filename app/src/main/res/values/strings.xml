@@ -122,4 +122,5 @@
     <string name="get_your_free_accesskey_from_the_picovoice_console"><u>Get your free AccessKey from the Picovoice Console</u></string>
     <string name="triggers_not_working_for_you"><u>Triggers not working for you?</u>u></string>
     <string name="sign_out">Sign Out</string>
+    <string name="view_task_logs">View Past tasks Logs</string>
 </resources>

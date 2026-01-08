@@ -173,12 +173,14 @@ class STTManager(private val context: Context) {
     }
     
     fun stopListening() {
-        if (isListening && speechRecognizer != null) {
-            try {
-                speechRecognizer?.stopListening()
-                Log.d("STTManager", "Stopped listening")
-            } catch (e: Exception) {
-                Log.e("STTManager", "Error stopping speech recognition", e)
+        CoroutineScope(Dispatchers.Main).launch {
+            if (isListening && speechRecognizer != null) {
+                try {
+                    speechRecognizer?.stopListening()
+                    Log.d("STTManager", "Stopped listening")
+                } catch (e: Exception) {
+                    Log.e("STTManager", "Error stopping speech recognition", e)
+                }
             }
         }
     }
