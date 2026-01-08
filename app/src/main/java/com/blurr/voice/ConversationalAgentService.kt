@@ -62,6 +62,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -284,6 +285,8 @@ class ConversationalAgentService : Service() {
             return // Skip starting the voice listener entirely.
         }
 
+
+
         speechCoordinator.startListening(
             onResult = { recognizedText ->
                 if (isTextModeActive) return@startListening // Ignore results in text mode
@@ -300,10 +303,17 @@ class ConversationalAgentService : Service() {
             onError = { error ->
                 Log.e("ConvAgent", "STT Error: $error")
                 if (isTextModeActive) return@startListening // Ignore errors in text mode
-                
+
+                if (error == "No speech match") {
+                    Log.d("ConvAgent", "No speech match detected. Silently resetting to IDLE.")
+                    visualFeedbackManager.hideTranscription()
+                    pandaStateManager.setState(PandaState.IDLE)
+                    // We return early so we don't trigger the "I didn't catch that" logic
+                    return@startListening
+                }
                 // Trigger error state in state manager
                 pandaStateManager.triggerErrorState()
-                
+
                 // Track STT errors
                 val sttErrorBundle = android.os.Bundle().apply {
                     putString("error_message", error.take(100))
@@ -507,7 +517,7 @@ class ConversationalAgentService : Service() {
             removeClarificationQuestions()
             updateSystemPromptWithAgentStatus()
             updateSystemPromptWithScreenContext()
-
+            updateSystemPromptWithTime()
             // Mark that we've heard the first utterance and trigger memory extraction if not already done
             if (!hasHeardFirstUtterance) {
                 hasHeardFirstUtterance = true
@@ -802,7 +812,6 @@ class ConversationalAgentService : Service() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun updateSystemPromptWithTime() {
-
         val currentPromptText = conversationHistory.firstOrNull()?.second
             ?.filterIsInstance<TextPart>()?.firstOrNull()?.text ?: return
 
@@ -810,16 +819,19 @@ class ConversationalAgentService : Service() {
         val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
         val formattedTime = currentTime.format(formatter)
 
-        val timeContext = "Current Date and Time: $formattedTime"
+        // Matches "Current Time : {time_context}" OR "Current Time : 2025-12-11..."
+        // This ensures we can update it even if the placeholder is already gone.
+        val timeRegex = Regex("Current Time : (\\{time_context\\}|.*)")
+        val newTimeLine = "Current Time : $formattedTime"
 
-        val updatedPromptText = currentPromptText.replace("{time_context}", timeContext)
+        val updatedPromptText = timeRegex.replace(currentPromptText, newTimeLine)
 
         // Replace the first system message with the updated prompt
         conversationHistory = conversationHistory.toMutableList().apply {
             set(0, "user" to listOf(TextPart(updatedPromptText)))
         }
+        Log.d("ConvAgent", "System prompt updated with time: $formattedTime")
     }
-
     private fun updateSystemPromptWithAgentStatus() {
         val currentPromptText = conversationHistory.firstOrNull()?.second
             ?.filterIsInstance<TextPart>()?.firstOrNull()?.text ?: return
@@ -1151,12 +1163,15 @@ class ConversationalAgentService : Service() {
         trackConversationEnd("instant")
         
         Log.d("ConvAgent", "Instant shutdown triggered by user.")
-        speechCoordinator.stopSpeaking()
-        speechCoordinator.stopListening()
-        visualFeedbackManager.hideTtsWave()
-        visualFeedbackManager.hideTranscription()
-        visualFeedbackManager.hideSpeakingOverlay()
-        visualFeedbackManager.hideInputBox()
+        withContext(Dispatchers.Main) {
+            speechCoordinator.stopSpeaking()
+            speechCoordinator.stopListening()
+            visualFeedbackManager.hideTtsWave()
+            visualFeedbackManager.hideTranscription()
+            visualFeedbackManager.hideSpeakingOverlay()
+            visualFeedbackManager.hideInputBox()
+            removeClarificationQuestions()
+        }
 
         removeClarificationQuestions()
         // Make a thread-safe copy of the conversation history.

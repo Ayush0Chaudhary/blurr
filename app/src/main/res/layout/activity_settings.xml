@@ -48,6 +48,8 @@
             android:textSize="16sp"
             android:textStyle="bold" />
 
+
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -113,36 +115,8 @@
                 android:text="Display the agent's internal reasoning process on screen."
                 android:textColor="#888888"
                 android:textSize="12sp" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/rounded_background"
-            android:orientation="vertical"
-            android:padding="16dp">
-
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Memories"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                android:fontFamily="@font/playfair_display"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Manage what Panda remembers about you."
-                android:textColor="#888888"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/manageMemoriesButton"
+                android:id="@+id/viewTaskLogsButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
@@ -151,9 +125,10 @@
                 android:focusable="true"
                 android:gravity="center"
                 android:padding="12dp"
-                android:text="Manage Memories"
+                android:text="@string/view_task_logs"
                 android:textColor="@android:color/black"
                 android:textSize="16sp" />
+
 
         </LinearLayout>
 
