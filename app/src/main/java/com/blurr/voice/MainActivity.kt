@@ -81,7 +81,7 @@ class MainActivity : BaseNavigationActivity() {
         const val ACTION_WAKE_WORD_FAILED = "com.blurr.voice.WAKE_WORD_FAILED"
         const val ACTION_PURCHASE_UPDATED = "com.blurr.voice.PURCHASE_UPDATED"
     }
-    
+
     private val wakeWordFailureReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_WAKE_WORD_FAILED) {
@@ -92,7 +92,7 @@ class MainActivity : BaseNavigationActivity() {
             }
         }
     }
-    
+
     private val purchaseUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_PURCHASE_UPDATED) {
@@ -112,9 +112,6 @@ class MainActivity : BaseNavigationActivity() {
                 Toast.makeText(this, "Permission denied.", Toast.LENGTH_SHORT).show()
             }
         }
-
-
-
 
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -184,14 +181,53 @@ class MainActivity : BaseNavigationActivity() {
         wakeWordManager = WakeWordManager(this, requestPermissionLauncher)
         handler = Handler(Looper.getMainLooper())
         setupClickListeners()
+        setupTaskInput() // Initialize the task input listener
         showLoading(true)
         performBillingCheck()
-        
+
         lifecycleScope.launch {
             val videoUrl = "https://storage.googleapis.com/blurr-app-assets/wake_word_demo.mp4"
             VideoAssetManager.getVideoFile(this@MainActivity, videoUrl)
         }
 
+    }
+
+    private fun setupTaskInput() {
+        val taskInput = findViewById<android.widget.EditText>(R.id.home_task_input)
+        val goButton = findViewById<View>(R.id.home_task_go_button)
+
+        fun submitTask() {
+            val task = taskInput.text.toString().trim()
+            if (task.isNotEmpty()) {
+                // Clear focus and hide keyboard
+                taskInput.clearFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                imm.hideSoftInputFromWindow(taskInput.windowToken, 0)
+
+                // Clear the text
+                taskInput.text.clear()
+
+                // Start the agent
+                com.blurr.voice.v2.AgentService.start(this, task)
+                Toast.makeText(this, "Starting task...", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        goButton.setOnClickListener {
+            submitTask()
+        }
+
+        // Allow submitting via the keyboard "Go/Enter" action
+        taskInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
+                (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)) {
+                submitTask()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private fun openAssistantPickerSettings() {
@@ -242,7 +278,7 @@ class MainActivity : BaseNavigationActivity() {
             finish()
             return
         }
-        
+
         showLoading(true)
         performBillingCheck()
     }
@@ -272,7 +308,7 @@ class MainActivity : BaseNavigationActivity() {
     }
 
     override fun getContentLayoutId(): Int = R.layout.activity_main_content
-    
+
     override fun getCurrentNavItem(): BaseNavigationActivity.NavItem = BaseNavigationActivity.NavItem.HOME
 
     private fun setupClickListeners() {
@@ -292,7 +328,7 @@ class MainActivity : BaseNavigationActivity() {
         findViewById<TextView>(R.id.examples_link).setOnClickListener {
             showExamplesDialog()
         }
-        
+
         // Add click listener to delta symbol
         deltaSymbol.setOnClickListener {
             // Only start conversational agent if in ready/idle state
@@ -332,13 +368,13 @@ class MainActivity : BaseNavigationActivity() {
     private fun setupProBanner() {
         val proBanner = findViewById<View>(R.id.pro_upgrade_banner)
         val upgradeButton = findViewById<TextView>(R.id.upgrade_button)
-        
+
         upgradeButton.setOnClickListener {
             // Navigate to Pro purchase screen (Requirement 2.3)
             val intent = Intent(this, ProPurchaseActivity::class.java)
             startActivity(intent)
         }
-        
+
         // Initially hide the banner - it will be shown/hidden based on subscription status
         proBanner.visibility = View.GONE
     }
@@ -432,7 +468,7 @@ class MainActivity : BaseNavigationActivity() {
             "Open calculator",
             "Surprise me"
         )
-        
+
         val dialog = AlertDialog.Builder(this)
             .setTitle("Example Commands")
             .setItems(examples) { _, which ->
@@ -447,7 +483,7 @@ class MainActivity : BaseNavigationActivity() {
                 dialog.dismiss()
             }
             .show()
-        
+
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(
             ContextCompat.getColor(this, R.color.black)
         )
@@ -579,7 +615,7 @@ class MainActivity : BaseNavigationActivity() {
                 queryAndHandlePurchases()
                 updateTaskCounter()
                 updateBillingStatus()
-                
+
             } catch (e: Exception) {
                 Logger.e("MainActivity", "Error during billing check", e)
                 updateTaskCounter()
@@ -594,12 +630,12 @@ class MainActivity : BaseNavigationActivity() {
         return withContext(Dispatchers.IO) {
             var attempts = 0
             val maxAttempts = 10
-            
+
             while (!MyApplication.isBillingClientReady.value && attempts < maxAttempts) {
                 kotlinx.coroutines.delay(500)
                 attempts++
             }
-            
+
             if (!MyApplication.isBillingClientReady.value) {
                 Logger.w("MainActivity", "Billing client not ready after waiting")
             }
@@ -617,12 +653,12 @@ class MainActivity : BaseNavigationActivity() {
                 val params = QueryPurchasesParams.newBuilder()
                     .setProductType(BillingClient.ProductType.SUBS)
                     .build()
-                
+
                 Logger.d("MainActivity", "queryPurchases: BillingClient is ready")
 
                 val purchasesResult = MyApplication.billingClient.queryPurchasesAsync(params)
                 val billingResult = purchasesResult.billingResult
-                
+
                 Logger.d("MainActivity", "queryPurchases: Got billing result: ${billingResult.responseCode}")
 
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
@@ -658,7 +694,7 @@ class MainActivity : BaseNavigationActivity() {
                         val acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
                             .setPurchaseToken(purchase.purchaseToken)
                             .build()
-                        
+
                         MyApplication.billingClient.acknowledgePurchase(acknowledgePurchaseParams) { billingResult ->
                             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                                 Logger.d("MainActivity", "Purchase acknowledged: ${purchase.orderId}")
@@ -708,52 +744,52 @@ class MainActivity : BaseNavigationActivity() {
 
     private fun displayDeveloperMessage() {
         //lifecycleScope.launch {
-            try {
-                // Check if message has been shown more than once
-                val sharedPrefs = getSharedPreferences("developer_message_prefs", Context.MODE_PRIVATE)
-                val displayCount = sharedPrefs.getInt("developer_message_count", 0)
-                
-                if (displayCount >= 1) {
-                    Logger.d("MainActivity", "Developer message already shown $displayCount times, skipping display")
-                    return
+        try {
+            // Check if message has been shown more than once
+            val sharedPrefs = getSharedPreferences("developer_message_prefs", Context.MODE_PRIVATE)
+            val displayCount = sharedPrefs.getInt("developer_message_count", 0)
+
+            if (displayCount >= 1) {
+                Logger.d("MainActivity", "Developer message already shown $displayCount times, skipping display")
+                return
+            }
+
+            val remoteConfig = Firebase.remoteConfig
+
+            // Fetch and activate the latest Remote Config values
+            remoteConfig.fetchAndActivate()
+                .addOnCompleteListener(this) { task ->
+                    if (task.isSuccessful) {
+                        val updated = task.result
+                        Log.d("MainActivity", "Remote Config params updated: $updated")
+
+                        // Get the message from the activated config
+                        val message = remoteConfig.getString("developerMessage")
+
+                        if (message.isNotEmpty()) {
+                            // Your existing dialog logic
+                            val dialog = AlertDialog.Builder(this@MainActivity)
+                                .setTitle("Message from Developer")
+                                .setMessage(message)
+                                .setPositiveButton("OK") { dialogInterface, _ ->
+                                    dialogInterface.dismiss()
+                                    val editor = sharedPrefs.edit()
+                                    editor.putInt("developer_message_count", displayCount + 1)
+                                    editor.apply()
+                                }
+                                .show()
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
+                                ContextCompat.getColor(this@MainActivity, R.color.black)
+                            )
+                            Log.d("MainActivity", "Developer message displayed from Remote Config.")
+                        } else {
+                            Log.d("MainActivity", "No developer message found in Remote Config.")
+                        }
+                    } else {
+                        Log.e("MainActivity", "Failed to fetch Remote Config.", task.exception)
+                    }
                 }
 
-                val remoteConfig = Firebase.remoteConfig
-
-                // Fetch and activate the latest Remote Config values
-                remoteConfig.fetchAndActivate()
-                    .addOnCompleteListener(this) { task ->
-                        if (task.isSuccessful) {
-                            val updated = task.result
-                            Log.d("MainActivity", "Remote Config params updated: $updated")
-
-                            // Get the message from the activated config
-                            val message = remoteConfig.getString("developerMessage")
-
-                            if (message.isNotEmpty()) {
-                                // Your existing dialog logic
-                                val dialog = AlertDialog.Builder(this@MainActivity)
-                                    .setTitle("Message from Developer")
-                                    .setMessage(message)
-                                    .setPositiveButton("OK") { dialogInterface, _ ->
-                                        dialogInterface.dismiss()
-                                        val editor = sharedPrefs.edit()
-                                        editor.putInt("developer_message_count", displayCount + 1)
-                                        editor.apply()
-                                    }
-                                    .show()
-                                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
-                                    ContextCompat.getColor(this@MainActivity, R.color.black)
-                                )
-                                Log.d("MainActivity", "Developer message displayed from Remote Config.")
-                            } else {
-                                Log.d("MainActivity", "No developer message found in Remote Config.")
-                            }
-                        } else {
-                            Log.e("MainActivity", "Failed to fetch Remote Config.", task.exception)
-                        }
-                    }
-                
 //                val db = Firebase.firestore
 //                val docRef = db.collection("settings").document("freemium")
 //
@@ -786,9 +822,9 @@ class MainActivity : BaseNavigationActivity() {
 //                }.addOnFailureListener { exception ->
 //                    Logger.e("MainActivity", "Error fetching developer message", exception)
 //                }
-            } catch (e: Exception) {
-                Logger.e("MainActivity", "Exception in displayDeveloperMessage", e)
-            }
+        } catch (e: Exception) {
+            Logger.e("MainActivity", "Exception in displayDeveloperMessage", e)
+        }
         //}
     }
 
