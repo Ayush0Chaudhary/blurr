@@ -25,6 +25,9 @@ import com.blurr.voice.utilities.SpeechCoordinator
 import com.blurr.voice.utilities.VoicePreferenceManager
 import com.blurr.voice.utilities.UserProfileManager
 import com.blurr.voice.utilities.WakeWordManager
+// Added Google Sign In imports
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -106,7 +109,7 @@ class SettingsActivity : BaseNavigationActivity() {
         permissionsInfoButton = findViewById(R.id.permissionsInfoButton)
         appVersionText = findViewById(R.id.appVersionText)
         batteryOptimizationHelpButton = findViewById(R.id.batteryOptimizationHelpButton)
-      
+
         editWakeWordKey = findViewById(R.id.editWakeWordKey)
         wakeWordButton = findViewById(R.id.wakeWordButton)
 
@@ -150,22 +153,22 @@ class SettingsActivity : BaseNavigationActivity() {
         }
         wakeWordButton.setOnClickListener {
             val keyManager = PicovoiceKeyManager(this)
-            
+
             // Step 1: Save key if provided in the EditText
             val userKey = editWakeWordKey.text.toString().trim()
             if (userKey.isNotEmpty()) {
                 keyManager.saveUserProvidedKey(userKey)
                 Toast.makeText(this, "Wake word key saved.", Toast.LENGTH_SHORT).show()
             }
-            
+
             // Step 2: Check if we have a key (either just saved or previously saved)
             val hasKey = !keyManager.getUserProvidedKey().isNullOrBlank()
-            
+
             if (!hasKey) {
                 showPicovoiceKeyRequiredDialog()
                 return@setOnClickListener
             }
-            
+
             // Step 3: Enable the wake word
             wakeWordManager.handleWakeWordButtonClick(wakeWordButton)
             // Give the service a moment to update its state before refreshing the UI
@@ -272,14 +275,12 @@ class SettingsActivity : BaseNavigationActivity() {
     }
 
     private fun loadAllSettings() {
-
-        // Inside loadAllSettings()
         val keyManager = PicovoiceKeyManager(this)
-        editWakeWordKey.setText(keyManager.getUserProvidedKey() ?: "") // You will create this method next
+        editWakeWordKey.setText(keyManager.getUserProvidedKey() ?: "")
         val savedVoiceName = sharedPreferences.getString(KEY_SELECTED_VOICE, DEFAULT_VOICE.name)
         val savedVoice = availableVoices.find { it.name == savedVoiceName } ?: DEFAULT_VOICE
         ttsVoicePicker.value = availableVoices.indexOf(savedVoice)
-        
+
         // Update wake word button state
         updateWakeWordButtonState()
 
@@ -311,7 +312,7 @@ class SettingsActivity : BaseNavigationActivity() {
                 dialog.dismiss()
             }
             .show()
-        
+
         // Set button text colors to white
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
             androidx.core.content.ContextCompat.getColor(this, R.color.white)
@@ -345,7 +346,7 @@ class SettingsActivity : BaseNavigationActivity() {
                 dialog.dismiss()
             }
             .show()
-        
+
         // Set button text colors to white
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
             androidx.core.content.ContextCompat.getColor(this, R.color.white)
@@ -367,23 +368,27 @@ class SettingsActivity : BaseNavigationActivity() {
     }
 
     private fun signOut() {
-        // Clear User Profile
-        val userProfileManager = UserProfileManager(this)
-        userProfileManager.clearProfile()
+        // 1. Sign out from Google Client (Legacy)
+        // This ensures the next time you tap "Sign In", it shows the account picker.
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
+        val googleSignInClient = GoogleSignIn.getClient(this, gso)
 
-        // Clear all shared preferences for this app
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+        googleSignInClient.signOut().addOnCompleteListener {
+            // 2. Clear App Profile and Preferences
+            val userProfileManager = UserProfileManager(this)
+            userProfileManager.clearProfile()
 
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
 
-        // Restart the app by navigating to the onboarding screen
-        val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
-        finish()
+            // 3. Restart the app by navigating to the onboarding/login screen
+            val intent = Intent(this, LoginActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+        }
     }
 
-    
     override fun getContentLayoutId(): Int = R.layout.activity_settings
-    
+
     override fun getCurrentNavItem(): BaseNavigationActivity.NavItem = BaseNavigationActivity.NavItem.SETTINGS
-}
+} 

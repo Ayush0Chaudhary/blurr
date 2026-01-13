@@ -5,7 +5,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Loading overlay -->
     <LinearLayout
         android:id="@+id/loading_overlay"
         android:layout_width="match_parent"
@@ -29,7 +28,6 @@
             android:textSize="16sp" />
     </LinearLayout>
 
-    <!-- Pro Upgrade Banner -->
     <include
         android:id="@+id/pro_upgrade_banner"
         layout="@layout/pro_upgrade_banner"
@@ -37,7 +35,6 @@
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true" />
 
-    <!-- Main content area -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -52,9 +49,6 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-
-
-            <!-- Central delta symbol container -->
             <LinearLayout
                 android:id="@+id/center_content"
                 android:layout_width="wrap_content"
@@ -81,7 +75,43 @@
                     android:textSize="16sp" />
             </LinearLayout>
 
-            <!-- Spacer to push remaining content to bottom -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="32dp"
+                android:layout_marginBottom="24dp">
+
+                <EditText
+                    android:id="@+id/home_task_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/input_box_background"
+                    android:hint="Type a task for Panda..."
+                    android:textColorHint="#888888"
+                    android:textColor="#FFFFFF"
+                    android:padding="16dp"
+                    android:textSize="16sp"
+                    android:fontFamily="@font/oxanium"
+                    android:inputType="textCapSentences|textMultiLine"
+                    android:maxLines="3"
+                    android:imeOptions="actionGo" />
+
+                <ImageButton
+                    android:id="@+id/home_task_go_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/rounded_button"
+                    android:src="@drawable/ic_send"
+                    android:contentDescription="Start Task"
+                    android:padding="12dp"
+                    app:tint="#000000" />
+
+            </LinearLayout>
+
             <View
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
@@ -101,7 +131,6 @@
                 android:textColor="@android:color/black"
                 android:textSize="16sp" />
 
-            <!-- Action Tabs Section -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -110,7 +139,6 @@
                 android:orientation="vertical"
                 android:gravity="center">
 
-                <!-- First Row of Action Tabs -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -125,7 +153,8 @@
                         android:layout_weight="1"
                         android:layout_marginEnd="4dp"
                         android:background="@drawable/rounded_button"
-                        android:textColor="@color/black"                        android:clickable="true"
+                        android:textColor="@color/black"
+                        android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
                         android:padding="12dp"
@@ -139,7 +168,8 @@
                         android:layout_weight="1"
                         android:layout_marginStart="4dp"
                         android:background="@drawable/rounded_button"
-                        android:textColor="@color/black"                        android:clickable="true"
+                        android:textColor="@color/black"
+                        android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
                         android:padding="12dp"
@@ -148,7 +178,6 @@
 
                 </LinearLayout>
 
-                <!-- Second Row of Action Tabs -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -177,7 +206,8 @@
                         android:layout_weight="1"
                         android:layout_marginStart="4dp"
                         android:background="@drawable/rounded_button"
-                        android:textColor="@color/black"                        android:clickable="true"
+                        android:textColor="@color/black"
+                        android:clickable="true"
                         android:focusable="true"
                         android:gravity="center"
                         android:padding="12dp"
@@ -188,7 +218,6 @@
 
             </LinearLayout>
 
-            <!-- Status Tags Section -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -198,7 +227,6 @@
                 android:orientation="horizontal"
                 android:gravity="center">
 
-                <!-- Pro Subscription Tag -->
                 <LinearLayout
                     android:id="@+id/pro_subscription_tag"
                     android:layout_width="wrap_content"
@@ -232,7 +260,6 @@
 
                 </LinearLayout>
 
-                <!-- Permissions Tag -->
                 <LinearLayout
                     android:id="@+id/permissions_tag"
                     android:layout_width="wrap_content"
@@ -266,7 +293,6 @@
 
                 </LinearLayout>
 
-
                 <LinearLayout
                     android:id="@+id/tasks_left_tag"
                     android:layout_width="wrap_content"
@@ -298,10 +324,8 @@
 
                 </LinearLayout>
 
-
             </LinearLayout>
 
-            <!-- Essential element: "Free tasks left" text - preserved with existing styling -->
             <TextView
                 android:id="@+id/tasks_remaining_textview"
                 android:layout_width="wrap_content"
@@ -330,7 +354,6 @@
 
     </ScrollView>
 
-    <!-- Essential element: Permission section - preserved with current visibility logic -->
     <LinearLayout
         android:id="@+id/permission_section"
         android:layout_width="match_parent"
